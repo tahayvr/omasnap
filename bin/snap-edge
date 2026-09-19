@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Print the dominant colour along an image's outer edge as #rrggbb.
-# An inset extends this colour outwards, so it is sampled from the border
-# rather than the whole image: the most common colour overall often belongs
+# Print the dominant color along an image's outer edge as #rrggbb.
+# An inset extends this color outwards, so it is sampled from the border
+# rather than the whole image: the most common color overall often belongs
 # to a content area that never touches the edge, and using it would leave a
 # visible seam where the real edge meets the extension.
 set -uo pipefail
@@ -11,7 +11,7 @@ img="${1:-}"
 [ -f "$img" ] || exit 0
 
 # Squashed to a fixed size so the four strips append into one image whatever
-# the source aspect; only colour matters here, not shape.
+# the source aspect; only color matters here, not shape.
 magick "$img" -resize 200x200! -depth 8 \
   \( -clone 0 -gravity North -crop 200x5+0+0 +repage \) \
   \( -clone 0 -gravity South -crop 200x5+0+0 +repage \) \

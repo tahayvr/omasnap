@@ -1,38 +1,47 @@
-# OmaSnap
+<p align="center">
+  <img src="assets/logo/omasnap-logo.png" alt="OmaSnap" width="560">
+</p>
+
+<p align="center">
+  <a href="https://omarchy.org"><img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/3ee85c9ea63c83845b992f8acb086c4a69cca12a/badges/v1/built-for-omarchy.svg" alt="Built for Omarchy"></a>
+</p>
 
 Make a screenshot worth posting. OmaSnap is an [Omarchy](https://omarchy.org)
 shell plugin: grab a region and it adds padding, a background, 
 rounded corners and a shadow, lets you annotate, and hides anything in 
 the picture that should not be public.
 
-![OmaSnap editor](docs/screenshot-full.png)
+![OmaSnap editor](assets/showcase/screenshot-full.jpg)
 
 ## Features
 
 **Framing**
 - Padding as a percentage of the shot's longest edge, so one value looks the
   same on a small crop and a 4K grab
+- Inset, which extends the screenshot's own edge color outwards to give a
+  cramped window some breathing room without a visible seam
 - Aspect ratio presets, including 1:1, 9:16 and the 1.91:1 used by link
   previews, with optical balance so the shot does not sit low in a tall frame
-- Corner radius, shadow depth, and an optional window frame with traffic
-  lights or a title
+- Corner radius, shadow depth, and an optional title bar that tints itself
+  from the image
 
-![Framing](docs/framing.png)
+![Framing](assets/showcase/framing.png)
 
 **Backgrounds**
 - Auto, sampled from the screenshot itself and kept in a comfortable range so
   a white UI does not give a blinding backdrop
-- Gradient presets, flat colours, or the colours of your current Omarchy theme
+- Gradient presets, flat colors, or the colors of your current Omarchy theme
+- Desktop, which puts your current wallpaper behind the shot
 - None, for a transparent PNG
 
-![Backgrounds](docs/backgrounds.png)
+![Backgrounds](assets/showcase/backgrounds.png)
 
 **Annotation**
 - Arrows, boxes, ellipses, highlighter, text labels and numbered step badges
 - Select an annotation to drag it; a selected text label takes what you type
 - Annotations stay pinned to the screenshot when you change padding or ratio
 
-![Annotations](docs/annotations.png)
+![Annotations](assets/showcase/annotations.png)
 
 **Hide sensitive data**
 - One click finds and pixelates emails, API keys, JWTs, AWS keys, GitHub
@@ -43,16 +52,19 @@ the picture that should not be public.
 - Pixelation destroys the original pixels; it is not a blur that can be undone
 - Copy all text in the screenshot to the clipboard
 
-![Hiding sensitive data](docs/redaction.png)
+![Hiding sensitive data](assets/showcase/redaction.png)
 
 **Code cards**
 - Select code or text anywhere, press a key, and get a syntax-highlighted
   card in the same frame, background and shadow
-- Language is detected from the text and can be overridden; Omarchy, Dracula,
-  Nord, Monokai, One Dark, GitHub and Solarized themes; font size; line numbers
-- The Omarchy theme uses your desktop theme's own terminal colours
+- Language is detected from the text and can be overridden
+- Every Omarchy theme installed on your machine is offered, so a card can wear
+  Tokyo Night while your desktop stays on something else, plus Dracula,
+  Monokai, One Dark, GitHub and Solarized
+- The Omarchy theme follows your desktop's own terminal colors
+- Font size and line numbers
 
-![OmaSnap code card](docs/screenshot-full-code.png)
+![OmaSnap code card](assets/showcase/screenshot-full-code.jpg)
 
 **Output**
 - Copy to clipboard or save to disk, at 1× (the screen's own pixels), 2× or 3×
@@ -125,16 +137,15 @@ omarchy-shell shell call tahayvr.omasnap copy ''              # export to the cl
 
 ## Dependencies
 
-Everything optional degrades rather than breaking.
+All of these ship with Omarchy:
 
-| Tool | Needed for | Without it |
-| --- | --- | --- |
-| `omarchy` | Capture | Falls back to `grim` + `slurp` |
-| `imagemagick` | Auto background, JPEG export, sharper OCR | Auto background falls back to a flat colour |
-| `tesseract` | Hiding sensitive data, copying text | Those two buttons report that it is missing |
-| `bat` | Syntax highlighting on code cards | Code cards are plain text |
-| `wl-clipboard` | Copy to clipboard | Save to disk still works |
-| `xdg-desktop-portal` + Python GObject | The system file picker for Open a file | Falls back to `zenity`, then a menu, then the most recent screenshot |
+- `omarchy`
+- `bat`
+- `imagemagick`
+- `tesseract`
+- `wl-clipboard`
+- `python-gobject`
+- `xdg-desktop-portal`
 
 Screenshots are read from and written to the directory Omarchy uses:
 `$OMARCHY_SCREENSHOT_DIR`, else `$XDG_PICTURES_DIR`, else `~/Pictures`. OCR
@@ -145,4 +156,4 @@ scaled monitor the file can be one pixel off the size shown in the footer.
 
 ## Licence
 
-MIT. See `LICENSE`.
+MIT

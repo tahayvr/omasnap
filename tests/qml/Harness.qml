@@ -97,7 +97,7 @@ Window {
         id: grabTimer
         interval: 600
         onTriggered: win.grab("export", function () {
-            // The inset extends the shot's edge colour: the left edge of this
+            // The inset extends the shot's edge color: the left edge of this
             // synthetic shot is white, the right edge black.
             doc.shotEdge = "#ff00ff";
             doc.inset = 10;              // 10% of 400 = 40px on every side

@@ -12,7 +12,7 @@ kinds in `manifest.json`: an `overlay` (`Overlay.qml`, the editor) and a
 overlay mounted between summons so the last edit survives.
 
 Capture is delegated to `omarchy capture screenshot <mode> save`; OCR to
-`tesseract`; colour sampling and JPEG encoding to ImageMagick; clipboard to
+`tesseract`; color sampling and JPEG encoding to ImageMagick; clipboard to
 `wl-copy`. The plugin owns only the beautify, annotate and export stage.
 
 ## Layout
@@ -37,8 +37,8 @@ lib/Redact.js          secret patterns, guards, OCR TSV -> boxes
 lib/Code.js            languages, themes, ANSI -> StyledText, language guessing
 bin/snap-dir           resolve the screenshot directory the way omarchy does
 bin/snap-capture       omarchy capture, print the path it wrote
-bin/snap-palette       dominant colours, pushed into a comfortable band
-bin/snap-edge          the shot's edge colour, for the inset
+bin/snap-palette       dominant colors, pushed into a comfortable band
+bin/snap-edge          the shot's edge color, for the inset
 bin/snap-wallpaper     the wallpaper omarchy is showing
 bin/snap-ocr           tesseract TSV (redact) or text
 bin/snap-deliver       encode + save / copy / clipboard text
@@ -92,7 +92,7 @@ the same snippet again leaves the block's natural size unchanged, so a
 change signal would not fire and the card came up empty.
 
 Code flow: `code()` -> `bin/snap-text` -> `loadCode()` sets kind, guesses the
-language (`Code.guessLanguage`), applies the theme colours, and runs
+language (`Code.guessLanguage`), applies the theme colors, and runs
 `bin/snap-highlight` (bat) whose ANSI output `Code.ansiToHtml` turns into
 StyledText (`<font color>`, `<b>`, `<i>`, `&nbsp;`, `<br>`). Language, theme
 and line-number changes re-run the highlighter; a run that finishes while
@@ -183,7 +183,7 @@ layer sits at `cardX, cardY + chromeH`.
   `bin/snap-wallpaper` from omarchy's `current/background` symlink. Resolving
   the symlink matters: the path then changes with the theme, so the image
   cache cannot hand back the previous wallpaper. It is re-read whenever
-  `Color.background` changes, next to the theme colours.
+  `Color.background` changes, next to the theme colors.
 - **A `LabeledSlider`'s readout is also its input.** The number is a
   `TextInput`, so typing into it breaks the `text` binding to `value`; the
   control puts the binding back with `Qt.binding` in `rebind()` after every
@@ -209,13 +209,13 @@ layer sits at `cardX, cardY + chromeH`.
   the margins, so a regression shows up as "code card is lopsided".
 - **Padding and inset are different spacings.** `doc.padding` grows the frame
   around the whole card; `doc.inset` grows the card around the shot and fills
-  the new band with the shot's own edge colour, so a screenshot reads as
+  the new band with the shot's own edge color, so a screenshot reads as
   having more room inside its window. Both are a percentage of the shot's
   longest edge, and `Model.frameGeometry` returns the resolved `inset` in
   shot pixels. Everything that positions itself against the shot has to add
   it: the `Image`/`CodeBlock` inside the card, `AnnotationLayer`'s origin and
-  `Editor.toShot`. The colour comes from `bin/snap-edge`, which samples the
-  border ring rather than the whole image, because the most common colour
+  `Editor.toShot`. The color comes from `bin/snap-edge`, which samples the
+  border ring rather than the whole image, because the most common color
   overall often belongs to a content area that never touches the edge and
   would leave a visible seam; `doc.shotPalette[0]` is the fallback and a code
   card carries on its own `codeBg`.
@@ -225,13 +225,13 @@ layer sits at `cardX, cardY + chromeH`.
   than from the theme, so the frame stays in harmony with what it frames:
   `bin/snap-palette` prints one `#backdrop #source` pair per line, where the
   first is pushed into a background-friendly lightness band (`autoPalette`)
-  and the second is the colour as it appears in the image (`shotPalette`);
+  and the second is the color as it appears in the image (`shotPalette`);
   `Model.chromeTint` steps that one away from the card and `Model.textOn`
   picks readable title text. A code card tints from `doc.codeBg` instead.
 - Headings are uppercase: `Section` titles, the header wordmark and the empty
   state title use `font.capitalization: Font.AllUppercase` with letter
   spacing 1, at caption or bodySmall size.
-- Fonts and colours come from the shell singletons `qs.Commons.Style` and
+- Fonts and colors come from the shell singletons `qs.Commons.Style` and
   `qs.Commons.Color` (`Color.menu.*` for the surface).
 - Text inside cards is `Text.StyledText`, not `RichText`: it is lighter and
   supports everything the highlighter emits.

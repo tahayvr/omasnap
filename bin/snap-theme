@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # snap-theme [slug]
-# Print an Omarchy theme's colours as key=#rrggbb lines. With no argument
+# Print an Omarchy theme's colors as key=#rrggbb lines. With no argument
 # that is the theme in use; with a slug it is that installed theme, which is
 # how a code card can wear a theme the desktop is not wearing.
 set -u

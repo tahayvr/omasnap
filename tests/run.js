@@ -110,10 +110,10 @@ test("the title bar tints itself from the card underneath", () => {
     // The tint keeps the card's hue, which is the whole point of sampling it.
     const blue = Model.parseHex(Model.chromeTint("#204060"));
     ok(blue.b > blue.r, "hue survives the tint");
-    eq(Model.chromeTint("not a colour"), "", "garbage falls through to the caller");
+    eq(Model.chromeTint("not a color"), "", "garbage falls through to the caller");
     eq(Model.textOn("#eef1f4"), "#1b1b1b", "dark text on a light bar");
     eq(Model.textOn("#1e222a"), "#f0f0f0", "light text on a dark bar");
-    eq(Model.textOn(""), "#e8e8e8", "a readable default with no colour");
+    eq(Model.textOn(""), "#e8e8e8", "a readable default with no color");
 });
 
 test("geometry survives an empty document", () => {
@@ -299,7 +299,7 @@ test("truecolor runs become font tags, spaces and newlines survive", () => {
     eq(html, '<font color="#ff0000">fn</font>&nbsp;main()<br>&nbsp;&nbsp;x');
 });
 
-test("16-colour codes go through the palette, 256-colour through the cube", () => {
+test("16-color codes go through the palette, 256-color through the cube", () => {
     const html = Code.ansiToHtml(ESC + "35mkw" + ESC + "0m " + ESC + "38;5;238mnum" + ESC + "0m " + ESC + "38;5;196mr", pal);
     eq(html, '<font color="' + pal.colors[5] + '">kw</font>&nbsp;<font color="#444444">num</font>&nbsp;<font color="#ff0000">r</font>');
     eq(Code.color256(15, pal), pal.colors[15]);
@@ -326,7 +326,7 @@ test("the omarchy palette comes from colors.toml with sensible fallbacks", () =>
     const p = Code.paletteFromTheme("background=#111C18\nforeground=#C1C497\nred=#FF5345\nmuted=#53685B\nbright_red=#DB9F9C\n", "#ffffff");
     eq([p.bg, p.fg, p.colors[0], p.colors[1], p.colors[7], p.colors[8], p.colors[9]],
        ["#111c18", "#c1c497", "#111c18", "#ff5345", "#c1c497", "#53685b", "#db9f9c"]);
-    eq(p.colors[2], Code.XTERM[2], "missing colour falls back to xterm");
+    eq(p.colors[2], Code.XTERM[2], "missing color falls back to xterm");
     eq(Code.paletteFromTheme("", "#abcdef").fg, "#abcdef");
 });
 
@@ -366,7 +366,7 @@ test("themes resolve, and anything unlisted is an installed Omarchy theme", () =
     const t = Code.themeByKey("tokyo-night");
     eq(t.bat, "ansi", "rendered through the ansi mapping");
     eq(t.system, true, "flagged so the overlay fetches its palette");
-    eq(t.bg, "", "colours come from the palette, not the table");
+    eq(t.bg, "", "colors come from the palette, not the table");
     eq(t.label, "Tokyo Night", "directory name becomes a readable label");
     eq(Code.themeByKey("catppuccin-latte").label, "Catppuccin Latte");
     eq(Code.themeByKey("nord").system, true, "bat's Nord no longer shadows Omarchy's");

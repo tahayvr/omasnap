@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # snap-highlight [lang] [bat-theme] [numbers 0|1]  (code on stdin)
-# Prints ANSI-coloured code.
+# Prints ANSI-colored code.
 set -u
 lang="${1:-}"
 theme="${2:-ansi}"
