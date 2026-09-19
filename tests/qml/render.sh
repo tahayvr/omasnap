@@ -3,7 +3,10 @@
 # the exported pixels. Needs /usr/lib/qt6/bin/qml and imagemagick.
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
-out="$here/out"
+# Scratch goes to the runtime dir, not the plugin directory: writing a file
+# under the plugin reloads it in the running shell, and a full run wrote
+# seven, which knocked the live overlay out from under whoever was using it.
+out="${XDG_RUNTIME_DIR:-/tmp}/omasnap-tests"
 mkdir -p "$out"
 rm -f "$out/export.png" "$out/export-inset.png"
 
@@ -22,7 +25,7 @@ platform=offscreen
 [ -n "${WAYLAND_DISPLAY:-}" ] && [ "${OMASNAP_TEST_OFFSCREEN:-0}" != "1" ] && platform=wayland
 
 # Qt routes messages to journald when stderr is not a terminal; force them here.
-log="$(cd "$here" && QSG_INFO=1 QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" Harness.qml 2>&1)"
+log="$(cd "$here" && QSG_INFO=1 QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" Harness.qml -- "$out" 2>&1)"
 backend=gpu; echo "$log" | grep -q "Loading backend software" && backend=software
 echo "platform=$platform backend=$backend $(echo "$log" | grep -oE 'HARNESS.*')"
 echo "$log" | grep -E "file://|Error|error|Unable to assign|Warning" | head -20
@@ -126,7 +129,7 @@ fi
 # ---- code card -------------------------------------------------------------
 if [ $gpu = 1 ]; then
   rm -f "$out/export-code.png"
-  clog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessCode.qml 2>&1)"
+  clog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessCode.qml -- "$out" 2>&1)"
   echo "$clog" | grep -E "file://|Error|error|Unable to assign|Warning" | head -10
   if [ -f "$out/export-code.png" ]; then
     read -r cw ch <<<"$(magick "$out/export-code.png" -format "%w %h" info:)"

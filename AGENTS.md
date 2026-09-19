@@ -288,6 +288,8 @@ Live checks in the running shell, all over IPC (no mouse needed):
 ```sh
 omarchy plugin enable tahayvr.omasnap
 omarchy-shell shell summon tahayvr.omasnap '{"path":"/path/to/shot.png"}'
+   Both harnesses take their output directory as the last argument, which
+   keeps the suite from writing inside the plugin.
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # non-interactive
 printf 'fn main() {}\n' | wl-copy --primary                 # fake a selection
 omarchy-shell shell call tahayvr.omasnap code ''
@@ -308,7 +310,11 @@ Notes:
 - **Any file written under the plugin directory triggers a plugin reload**,
   including images in `docs/`, and the reload resets the overlay's document
   (`hasContent` goes false, the next `save` answers `no shot`). Generate
-  README images into a scratch directory and copy them in afterwards.
+  README images into a scratch directory and copy them in afterwards. This is
+  why `tests/qml/render.sh` writes to `$XDG_RUNTIME_DIR/omasnap-tests` and
+  passes that path to the harnesses as their last argument: it used to write
+  seven files into `tests/qml/out/`, so running the suite pulled the document
+  out from under whoever had the overlay open.
 - Wait a few seconds between saving plugin files and `omarchy restart shell`.
   Each save triggers an asynchronous reload of the plugin, and exiting while
   that incubation is still finalizing segfaulted Quickshell 0.3.1 in the host

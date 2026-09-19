@@ -9,7 +9,15 @@ Window {
     width: 640
     height: 480
 
-    readonly property string outDir: Qt.resolvedUrl("out/").toString().replace(/^file:\/\//, "")
+    // render.sh passes the output directory as the last argument: a file
+    // written under the plugin directory reloads the plugin in the running
+    // shell, and a full test run writes seven of them.
+    readonly property string outDir: {
+        var a = Qt.application.arguments;
+        var last = a.length ? String(a[a.length - 1]) : "";
+        if (last.charAt(0) !== "/") return "/tmp/omasnap-tests/";
+        return last.charAt(last.length - 1) === "/" ? last : last + "/";
+    }
 
     Doc { id: doc }
 
