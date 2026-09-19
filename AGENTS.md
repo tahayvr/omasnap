@@ -267,6 +267,10 @@ Notes:
 - The overlay is `keepLoaded`, so **QML changes need `omarchy restart shell`**;
   saving a file hot-reloads the widget but keeps the old overlay instance.
   If a new root function returns `unknown` over `call`, that is why.
+- **Any file written under the plugin directory triggers a plugin reload**,
+  including images in `docs/`, and the reload resets the overlay's document
+  (`hasContent` goes false, the next `save` answers `no shot`). Generate
+  README images into a scratch directory and copy them in afterwards.
 - Wait a few seconds between saving plugin files and `omarchy restart shell`.
   Each save triggers an asynchronous reload of the plugin, and exiting while
   that incubation is still finalizing segfaulted Quickshell 0.3.1 in the host
