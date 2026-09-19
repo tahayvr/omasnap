@@ -3,6 +3,7 @@
 # one #rrggbb per line. Colours are pushed into a comfortable lightness band so
 # a screenshot full of white does not produce a blinding background.
 set -uo pipefail
+exec </dev/null
 
 img="${1:-}"
 [ -f "$img" ] || exit 0

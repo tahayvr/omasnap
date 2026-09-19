@@ -4,6 +4,11 @@
 # Prints nothing if the user cancelled.
 set -uo pipefail
 
+# slurp reads boxes from stdin whenever stdin is not a terminal, and the shell
+# hands us an open pipe that never ends, so it would wait forever and never
+# show its picker. Detach stdin before anything downstream can inherit it.
+exec </dev/null
+
 mode="${1:-region}"
 dir="${2:-}"
 case "$mode" in

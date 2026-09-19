@@ -106,13 +106,23 @@ the on-screen scale does not matter. Two things do:
 - **`doc.exporting`.** Raised for the grab frame; selection outlines and the
   text placeholder bind to it so they never reach the file.
 
-The screenshot card is a Quickshell `ClippingRectangle` (rounded clip) kept
-`visible: false` and drawn by a `MultiEffect` that adds the shadow. The code
-card is a plain rounded `Rectangle` that stays visible and sits *over* its
-`MultiEffect`, which then only contributes the shadow: inside the shell,
+- **Screen units.** `Model.frameGeometry` works in shot pixels, but `Stage`
+  lays everything out multiplied by `unit = 1 / dpr`. Effect textures
+  (`ClippingRectangle`'s clip, `MultiEffect`) are allocated at item size
+  times the window ratio, so this makes them exactly one texel per shot
+  pixel, a 1x export is pixel-exact (`tests/qml/render.sh` asserts RMSE 0 on
+  the stripe band; live, a native grim region exported at 1x matched with
+  RMSE 0), and a viewport fit of 1 is life-size. `AnnotationLayer` and
+  `CodeBlock` keep shot-pixel coordinates and are placed with
+  `scale: unit`; `Editor.toShot` divides by `fit * unit`.
+
+Both cards stay **visible** and sit *over* their `MultiEffect`, which then
+only contributes the shadow. Two reasons, both verified: inside the shell,
 descendants of a hidden effect source did not render (they did under the
-plain `qml` runtime), and a `ClippingRectangle` resized by its own child's
-measurement kept a stale texture. Do not move the code card back into a
+plain `qml` runtime), and `MultiEffect`'s auto padding shifts its copy of
+the source by a fraction of a device pixel, which resamples the screenshot.
+The screenshot card is a Quickshell `ClippingRectangle` (rounded clip); the
+code card is a plain rounded `Rectangle`. Do not move either back into a
 hidden source. Redaction
 samples a hidden full-size `Image` through a `ShaderEffectSource` with a tiny
 `textureSize` and `smooth: false`: each block is one sample, nothing to
@@ -161,6 +171,12 @@ layer sits at `cardX, cardY + chromeH`.
 - Comments explain a non-obvious why, not what; no banner separators.
 - Helper scripts are run as `bash <path>`, resolve tools with `command -v`,
   and degrade instead of failing. Scratch files go to `$XDG_RUNTIME_DIR`.
+- **Scripts that do not read stdin start with `exec </dev/null`.** Quickshell
+  gives every child an open stdin pipe that never reaches EOF. `slurp` reads
+  boxes from stdin whenever stdin is not a terminal, so without the redirect
+  the region picker sat blocked in `anon_pipe_read` for minutes with no
+  surface on screen, which looked like a dead bar widget. Only
+  `snap-highlight` and `snap-deliver text` read stdin on purpose.
 - OCR upscales shots under 2400px (200%) and under 3200px (150%) before
   tesseract, then maps boxes back; 4K is read as is (~6 s, vs ~60 s doubled).
 - OCR words under 35% confidence are dropped only when shorter than eight
@@ -228,6 +244,13 @@ Notes:
 - `/usr/bin/qml` is Qt 5; use `/usr/lib/qt6/bin/qml`.
 - Summoning with `{}` and nothing loaded starts a `slurp` region picker and
   blocks other calls with `busy` until it is finished or `pkill -x slurp`.
+  `info` reports `capturing` and `busy`; `hyprctl layers -j` lists a
+  `selection` namespace while the picker is up, and `/proc/<slurp>/wchan`
+  says `anon_pipe_read` if it is stuck on stdin.
+- Hyprland's close-window bind (`hl.dsp.window.close()`) closes the window
+  *behind* any layer-shell overlay and leaves the overlay up. Verified against
+  the stock Emojis overlay too, so it is not fixable in the plugin; Escape,
+  the close button and a click on the scrim are the ways out.
 - The shell's own linter false positives: `Style.font.*` / `Color.menu.*`
   "not found on QObject" (inline QtObject members), `PanelWindow` "not
   creatable", `bar.shell` on `QObject`. Ignore those.

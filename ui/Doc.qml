@@ -42,7 +42,7 @@ QtObject {
     property string frame: "none"           // none | dots | titlebar
     property string frameTitle: ""
 
-    property int exportScale: 2
+    property int exportScale: 1
     property string format: "png"
     property int quality: 92
 

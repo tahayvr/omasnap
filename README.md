@@ -55,7 +55,7 @@ the picture that should not be public.
 ![OmaSnap code card](docs/screenshot-full-code.png)
 
 **Output**
-- Copy to clipboard or save to disk, at 1×, 2× or 3×
+- Copy to clipboard or save to disk, at 1× (the screen's own pixels), 2× or 3×
 - PNG, or JPEG with a quality setting
 - What you see in the preview is what lands in the file
 

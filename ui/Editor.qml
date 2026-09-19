@@ -114,6 +114,8 @@ Rectangle {
         clip: true
 
         readonly property real margin: Ui.pad * 2
+        // The stage is laid out in screen units, so a fit of 1 shows the shot
+        // life-size, pixel for pixel; it is never magnified.
         readonly property real fit: doc.hasContent
             ? Math.min((width - margin * 2) / Math.max(1, stage.width),
                        (height - margin * 2) / Math.max(1, stage.height), 1)
@@ -168,8 +170,9 @@ Rectangle {
                 property real oy: 0
 
                 function toShot(px, py) {
-                    return Qt.point(px / viewport.fit - doc.geo.cardX,
-                                    py / viewport.fit - doc.geo.cardY - doc.geo.chromeH);
+                    var k = viewport.fit * stage.unit;
+                    return Qt.point(px / k - doc.geo.cardX,
+                                    py / k - doc.geo.cardY - doc.geo.chromeH);
                 }
 
                 onPressed: function (e) {

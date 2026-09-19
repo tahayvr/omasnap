@@ -59,10 +59,13 @@ expect "box border is blue"                52  75     0   0 255
 expect "step badge is red"                352 140   255   0   0
 expect "arrow shaft is magenta"           390  90   255   0 255
 
-# Stripes outside the redaction survive: two neighbours differ.
+# The unredacted part of the stripe band must come out pixel for pixel: the
+# export path is expected to be exact, not merely close.
 if [ $gpu = 1 ]; then
-  a="$(px 150 135)"; b="$(px 151 135)"
-  [ "$a" != "$b" ] && echo "ok   stripes intact outside redaction ($a / $b)" || { echo "FAIL stripes outside redaction are uniform: $a"; fail=1; }
+  magick "$out/export.png" -crop 50x100+140+90 +repage "$out/band-export.png"
+  magick "$out/shot.png"   -crop 50x100+100+50 +repage "$out/band-source.png"
+  rmse="$(magick compare -metric RMSE "$out/band-source.png" "$out/band-export.png" null: 2>&1 | awk '{print $1}')"
+  [ "${rmse%%.*}" = "0" ] && echo "ok   export is pixel-exact (band RMSE $rmse)" || { echo "FAIL export resamples the shot (band RMSE $rmse)"; fail=1; }
 fi
 
 # Inside the redaction a whole block is one colour: five neighbours agree.

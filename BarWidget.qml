@@ -7,7 +7,7 @@ BarWidget {
     id: root
     moduleName: "tahayvr.omasnap"
 
-    readonly property string icon: root.setting("icon", "󱓒")
+    readonly property string icon: root.setting("icon", "󱥚")
 
     implicitWidth: button.implicitWidth
     implicitHeight: barSize
@@ -15,10 +15,8 @@ BarWidget {
     // Prefer the in-process shell facade; the CLI round trip is only for a
     // bar host that did not hand us one.
     function summon(payload) {
-        if (root.bar && root.bar.shell && typeof root.bar.shell.summon === "function") {
-            root.bar.shell.summon(root.moduleName, payload);
-            return;
-        }
+        if (root.bar && root.bar.shell && typeof root.bar.shell.summon === "function"
+                && root.bar.shell.summon(root.moduleName, payload)) return;
         Quickshell.execDetached(["omarchy-shell", "shell", "summon", root.moduleName, payload]);
     }
 

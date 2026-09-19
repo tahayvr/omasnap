@@ -143,7 +143,7 @@ Item {
     // info: the document as JSON.
     function info() {
         return JSON.stringify({
-            kind: doc.kind, opened: opened, hasContent: doc.hasContent,
+            kind: doc.kind, opened: opened, capturing: capturing, busy: editor.busy, hasContent: doc.hasContent,
             shotPath: doc.shotPath, shotWidth: doc.shotWidth, shotHeight: doc.shotHeight,
             outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
             bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, frame: doc.frame,
@@ -571,11 +571,13 @@ Item {
             }
         }
 
+        // A floating card, not a full-screen takeover; the scrim shows the
+        // desktop behind it and a click there closes the editor.
         FocusScope {
             id: scope
-            anchors.fill: parent
-            // Match Hyprland's gaps_out so the editor lines up with tiled windows.
-            anchors.margins: Style.gapsOut
+            anchors.centerIn: parent
+            width: Math.min(Style.space(1320), parent.width - Style.gapsOut * 4)
+            height: Math.min(Style.space(860), parent.height - Style.gapsOut * 4)
             focus: true
 
             // The window's effective ratio (1.6 on a fractional scale), not the
