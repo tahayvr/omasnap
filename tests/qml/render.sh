@@ -138,6 +138,21 @@ if [ $gpu = 1 ]; then
     [ "$cbg" = "32 32 48" ] && echo "ok   code card background" || { echo "FAIL code card background: $cbg"; fail=1; }
     n="$(magick "$out/export-code.png" -crop $((cw-80))x$((ch-80))+40+40 +repage -format "%k" info:)"
     [ "$n" -gt 40 ] && echo "ok   code text rendered ($n colours)" || { echo "FAIL code text missing ($n colours)"; fail=1; }
+
+    # The card must not be bottom-heavy: Qt hangs the proportional line
+    # spacing under the last line too, which used to leave half a line of
+    # dead space below the code. Trim the frame to the card, then the card
+    # to the ink, and compare the margins.
+    magick "$out/export-code.png" -fuzz 5% -trim +repage "$out/code-card.png"
+    read -r ccw cch <<<"$(magick "$out/code-card.png" -format "%w %h" info:)"
+    read -r iw ih ix iy <<<"$(magick "$out/code-card.png" -fuzz 12% -trim -format "%w %h %X %Y" info: | tr -d '+')"
+    top=$iy; bottom=$((cch - iy - ih)); left=$ix; right=$((ccw - ix - iw))
+    gap=$((top > bottom ? top - bottom : bottom - top))
+    [ "$gap" -le 8 ] && echo "ok   code padding is even (top $top, bottom $bottom)" \
+      || { echo "FAIL code card is lopsided: top $top, bottom $bottom"; fail=1; }
+    hgap=$((left > right ? left - right : right - left))
+    [ "$hgap" -le 8 ] && echo "ok   code padding is even sideways (left $left, right $right)" \
+      || { echo "FAIL code card off-centre: left $left, right $right"; fail=1; }
   else
     echo "FAIL code harness wrote nothing"; fail=1
   fi

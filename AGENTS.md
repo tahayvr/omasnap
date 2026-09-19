@@ -187,6 +187,12 @@ layer sits at `cardX, cardY + chromeH`.
   A `DoubleValidator` bounded by `from`/`to` keeps the typing sane and
   `commit()` clamps and ignores anything unparseable. `tests/qml/HarnessControls.qml`
   drives that round trip offscreen, along with the tooltip.
+- **A `Text` with a proportional `lineHeight` measures taller than it looks.**
+  Qt hangs the extra spacing below every line, the last one included, so
+  `CodeBlock` subtracts that trailing leading from `naturalH`; without it the
+  card carried half a line of dead space under the code and read as
+  bottom-heavy. `render.sh` trims the exported card to its ink and compares
+  the margins, so a regression shows up as "code card is lopsided".
 - **Padding and inset are different spacings.** `doc.padding` grows the frame
   around the whole card; `doc.inset` grows the card around the shot and fills
   the new band with the shot's own edge colour, so a screenshot reads as
@@ -282,14 +288,14 @@ tests/run.sh
    get the GPU; `OMASNAP_TEST_OFFSCREEN=1` uses the
    offscreen platform, which forces the software scene graph, where
    `MultiEffect` renders nothing, so the card checks are skipped there.
+   Both harnesses take their output directory as the last argument, which
+   keeps the suite from writing inside the plugin.
 
 Live checks in the running shell, all over IPC (no mouse needed):
 
 ```sh
 omarchy plugin enable tahayvr.omasnap
 omarchy-shell shell summon tahayvr.omasnap '{"path":"/path/to/shot.png"}'
-   Both harnesses take their output directory as the last argument, which
-   keeps the suite from writing inside the plugin.
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # non-interactive
 printf 'fn main() {}\n' | wl-copy --primary                 # fake a selection
 omarchy-shell shell call tahayvr.omasnap code ''
