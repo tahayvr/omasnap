@@ -32,14 +32,14 @@ Item {
 
     Doc { id: doc }
 
-    Component.onCompleted: { dirProc.running = true; themeProc.running = true; }
+    Component.onCompleted: { dirProc.running = true; themeProc.running = true; wallpaperProc.running = true; }
 
     // The desktop palette feeds the "Omarchy" code theme; refresh it when the
     // shell's colours change.
     property string themeLines: ""
     Connections {
         target: Color
-        function onBackgroundChanged() { themeProc.running = true; }
+        function onBackgroundChanged() { themeProc.running = true; wallpaperProc.running = true; }
     }
     Process {
         id: themeProc
@@ -49,6 +49,15 @@ Item {
                 root.themeLines = text;
                 if (doc.kind === "code") root.applyCodeTheme();
             }
+        }
+    }
+
+    // The desktop wallpaper, for the "desktop" background mode.
+    Process {
+        id: wallpaperProc
+        command: ["bash", root.pluginDir + "bin/snap-wallpaper"]
+        stdout: StdioCollector {
+            onStreamFinished: doc.desktopBg = text.trim()
         }
     }
 

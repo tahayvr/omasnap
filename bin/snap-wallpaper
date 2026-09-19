@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Print the wallpaper Omarchy is currently showing. The state directory holds
+# a symlink to it, and resolving that gives a path which changes with the
+# theme, so the image cache cannot serve a stale one.
+set -u
+exec </dev/null
+link="$HOME/.local/state/omarchy/current/background"
+[ -e "$link" ] || exit 0
+readlink -f "$link"

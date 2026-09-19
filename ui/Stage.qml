@@ -29,6 +29,7 @@ Item {
 
     readonly property bool gradientBg: doc.bgMode === "gradient"
                                        || (doc.bgMode === "auto" && doc.autoPalette.length > 1)
+    readonly property bool desktopBg: doc.bgMode === "desktop"
 
     readonly property color bgA: {
         if (doc.bgMode === "gradient") return Model.gradientByKey(doc.bgGradient).a;
@@ -74,14 +75,27 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        visible: stage.doc.bgMode !== "none" && !stage.gradientBg
+        visible: stage.doc.bgMode !== "none" && !stage.desktopBg && !stage.gradientBg
         color: stage.bgA
+    }
+
+    // The desktop wallpaper, cropped to the frame the way a compositor would.
+    Image {
+        anchors.fill: parent
+        visible: stage.doc.bgMode === "desktop" && status === Image.Ready
+        source: stage.doc.bgMode === "desktop" && stage.doc.desktopBg.length
+                ? "file://" + stage.doc.desktopBg : ""
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: false
+        cache: true
+        sourceSize.width: Math.max(1, Math.round(stage.width * stage.dpr))
+        sourceSize.height: Math.max(1, Math.round(stage.height * stage.dpr))
     }
 
     Item {
         anchors.fill: parent
         clip: true
-        visible: stage.doc.bgMode !== "none" && stage.gradientBg
+        visible: stage.doc.bgMode !== "none" && !stage.desktopBg && stage.gradientBg
         Rectangle {
             readonly property real diag: Math.sqrt(stage.width * stage.width + stage.height * stage.height)
             width: diag

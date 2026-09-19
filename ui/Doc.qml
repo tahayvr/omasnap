@@ -25,9 +25,10 @@ QtObject {
     property color codeFg: "#e6e6e6"
     readonly property int codePad: Math.round(codeFont * 1.6)
 
-    property string bgMode: "auto"          // auto | solid | gradient | theme | none
+    property string bgMode: "auto"          // auto | solid | gradient | theme | desktop | none
     property color bgSolid: "#1e222a"
     property string bgGradient: "dusk"
+    property string desktopBg: ""          // the wallpaper, bin/snap-wallpaper
     property int bgAngle: 135
     property var autoPalette: []            // backdrop colours, bin/snap-palette
     property var shotPalette: []            // the same colours as they appear in the shot

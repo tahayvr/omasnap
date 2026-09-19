@@ -66,6 +66,7 @@ Flickable {
                     { key: "gradient", label: "Gradient" },
                     { key: "solid",    label: "Solid" },
                     { key: "theme",    label: "Theme" },
+                    { key: "desktop",  label: "Desktop" },
                     { key: "none",     label: "None" }
                 ]
                 onPicked: function (k) { doc.bgMode = k; }

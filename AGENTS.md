@@ -38,6 +38,7 @@ bin/snap-dir           resolve the screenshot directory the way omarchy does
 bin/snap-capture       omarchy capture, print the path it wrote
 bin/snap-palette       dominant colours, pushed into a comfortable band
 bin/snap-edge          the shot's edge colour, for the inset
+bin/snap-wallpaper     the wallpaper omarchy is showing
 bin/snap-ocr           tesseract TSV (redact) or text
 bin/snap-deliver       encode + save / copy / clipboard text
 bin/snap-pick          system file picker via the portal
@@ -163,6 +164,12 @@ layer sits at `cardX, cardY + chromeH`.
 - All editor chrome is square: no `radius` on any control, the editor window,
   or the selection outline. Only the exported card has a radius, and that is a
   user setting.
+- **`doc.bgMode` is `auto | solid | gradient | theme | desktop | none`.**
+  `desktop` draws `doc.desktopBg`, the wallpaper resolved by
+  `bin/snap-wallpaper` from omarchy's `current/background` symlink. Resolving
+  the symlink matters: the path then changes with the theme, so the image
+  cache cannot hand back the previous wallpaper. It is re-read whenever
+  `Color.background` changes, next to the theme colours.
 - **A `LabeledSlider`'s readout is also its input.** The number is a
   `TextInput`, so typing into it breaks the `text` binding to `value`; the
   control puts the binding back with `Qt.binding` in `rebind()` after every
