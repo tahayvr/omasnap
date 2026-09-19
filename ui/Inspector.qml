@@ -75,7 +75,7 @@ Flickable {
                 width: parent.width
                 visible: doc.bgMode === "auto" && doc.autoPalette.length === 0
                 wrapMode: Text.WordWrap
-                text: "Sampling the screenshot… install imagemagick if this stays empty."
+                text: "Sampling the screenshot…"
                 color: Ui.textMuted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption

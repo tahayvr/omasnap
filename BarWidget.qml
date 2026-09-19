@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell
 import qs.Commons
 import qs.Ui
 
@@ -12,12 +11,8 @@ BarWidget {
     implicitWidth: button.implicitWidth
     implicitHeight: barSize
 
-    // Prefer the in-process shell facade; the CLI round trip is only for a
-    // bar host that did not hand us one.
     function summon(payload) {
-        if (root.bar && root.bar.shell && typeof root.bar.shell.summon === "function"
-                && root.bar.shell.summon(root.moduleName, payload)) return;
-        Quickshell.execDetached(["omarchy-shell", "shell", "summon", root.moduleName, payload]);
+        root.bar.shell.summon(root.moduleName, payload);
     }
 
     WidgetButton {

@@ -352,7 +352,7 @@ Item {
     Process {
         id: captureProc
         property string mode: "region"
-        command: ["bash", root.pluginDir + "bin/snap-capture", mode, root.shotDir]
+        command: ["bash", root.pluginDir + "bin/snap-capture", mode]
         stdout: StdioCollector {
             onStreamFinished: {
                 var lines = text.trim().split("\n");
@@ -402,8 +402,7 @@ Item {
             }
         }
         onExited: function (code) {
-            if (code === 2) editor.statusText = "OCR needs tesseract installed";
-            else if (code !== 0) editor.statusText = "OCR failed";
+            if (code !== 0) editor.statusText = "OCR failed";
             editor.busy = false;
         }
     }

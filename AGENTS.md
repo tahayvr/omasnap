@@ -35,14 +35,14 @@ lib/Model.js           ratios, gradients, frame geometry, grab size, ids
 lib/Redact.js          secret patterns, guards, OCR TSV -> boxes
 lib/Code.js            languages, themes, ANSI -> StyledText, language guessing
 bin/snap-dir           resolve the screenshot directory the way omarchy does
-bin/snap-capture       take a shot, print its path
+bin/snap-capture       omarchy capture, print the path it wrote
 bin/snap-palette       dominant colours, pushed into a comfortable band
 bin/snap-ocr           tesseract TSV (redact) or text
 bin/snap-deliver       encode + save / copy / clipboard text
-bin/snap-pick          system file picker via the portal, then fallbacks
+bin/snap-pick          system file picker via the portal
 bin/snap-portal.py     XDG portal FileChooser client (holds the D-Bus connection)
 bin/snap-text          primary selection, else clipboard
-bin/snap-highlight     bat -> ANSI (plain text without bat)
+bin/snap-highlight     bat -> ANSI
 bin/snap-theme         current theme's colors.toml as key=hex lines
 tests/                 run.sh runs everything; see Testing
 ```
@@ -67,8 +67,9 @@ tests/                 run.sh runs everything; see Testing
   `{"items": [...]}` rather than a bare array, and any argument with a
   literal space is split too (use `\u0020` inside JSON strings).
 - Bar widgets extend `qs.Ui.BarWidget` and get `bar`, `moduleName`,
-  `settings`. `bar.shell.summon(moduleName, payload)` is the in-process path;
-  `omarchy-shell shell summon ...` via `execDetached` is the fallback.
+  `settings`. `bar.shell` is the same `PluginShellApi` facade the overlay
+  gets, wired for every bar entry by `plugins/bar/Bar.qml`, so
+  `bar.shell.summon(moduleName, payload)` is the only path the widget needs.
 - Payloads: `{"path": "..."}` opens a file, `{"capture": "region|windows|
   fullscreen|smart"}` captures first, `{"code": true}` makes a code card from
   the selection, `{"text": "..."}` from the given text, and `{}` always
@@ -171,13 +172,27 @@ layer sits at `cardX, cardY + chromeH`.
 - A `Flow` (Segmented, Chip rows) cannot be sized from its own implicit width;
   give it `parent.width` or an explicit width, never `width: implicitWidth`.
 - Comments explain a non-obvious why, not what; no banner separators.
-- Helper scripts are run as `bash <path>`, resolve tools with `command -v`,
-  and degrade instead of failing. Scratch files go to `$XDG_RUNTIME_DIR`.
+- Helper scripts are run as `bash <path>`. Scratch files go to
+  `$XDG_RUNTIME_DIR`.
+- **This plugin targets Omarchy only, so shipped tools are assumed present.**
+  Everything it shells out to is in Omarchy's default package list
+  (`/usr/share/omarchy/install/omarchy-base.packages`): `bat`, `imagemagick`,
+  `tesseract` + `tesseract-data-eng`, `wl-clipboard`, `python-gobject`,
+  `xdg-desktop-portal-gtk` and `xdg-desktop-portal-hyprland`, plus `omarchy`
+  itself, which owns capture and the save notification. The rest (`bash`,
+  `coreutils`, `findutils`, `gawk`, `grep`, `sed`) come from the Arch `base`
+  meta package. Call these directly: no `command -v` probes, no second
+  implementation for a machine that lacks one, and no UI copy telling the
+  user to install something. Check any new dependency against that package
+  list before adding it, rather than writing a fallback for its absence.
+  Guards are for genuine runtime conditions (a cancelled picker, a missing
+  file, bat rejecting a language), never for a missing package.
 - **The file picker is the XDG portal FileChooser**, so it is whatever
   chooser the system's portal configuration names (never assume a specific
   one), driven by `bin/snap-portal.py` with the system Python's GObject
-  bindings. The portal closes a request the moment the calling connection
-  disconnects, so `busctl`/`gdbus`/`dbus-send` one-shots cannot work; the
+  bindings. `bin/snap-pick` is only the wrapper that runs it. The portal
+  closes a request the moment the calling connection disconnects, so
+  `busctl`/`gdbus`/`dbus-send` one-shots cannot work; the
   helper keeps the connection open until the `Response` signal. It is run as
   `/usr/bin/python3` explicitly because a linuxbrew or mise `python3` on
   PATH has no `gi`. The overlay hides while `picking` so the dialog (a

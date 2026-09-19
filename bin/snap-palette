@@ -8,15 +8,7 @@ exec </dev/null
 img="${1:-}"
 [ -f "$img" ] || exit 0
 
-if command -v magick >/dev/null 2>&1; then
-  IM="magick"
-elif command -v convert >/dev/null 2>&1; then
-  IM="convert"
-else
-  exit 0   # no imagemagick: the UI falls back to a solid colour
-fi
-
-"$IM" "$img" -resize 400x400\> -colors 8 -depth 8 -format %c histogram:info:- 2>/dev/null \
+magick "$img" -resize 400x400\> -colors 8 -depth 8 -format %c histogram:info:- 2>/dev/null \
 | sort -rn \
 | grep -oE '#[0-9A-Fa-f]{6}' \
 | head -n 5 \

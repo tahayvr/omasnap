@@ -7,7 +7,7 @@ set -uo pipefail
 action="${1:-copy}"
 
 if [ "$action" = "text" ]; then
-  if command -v wl-copy >/dev/null 2>&1; then wl-copy; else cat >/dev/null; fi
+  wl-copy
   exit 0
 fi
 
@@ -17,15 +17,12 @@ format="${4:-png}"
 quality="${5:-92}"
 [ -f "$src" ] || { echo "Nothing to write"; exit 1; }
 
+mime="image/png"
+[ "$format" = "jpg" ] && mime="image/jpeg"
+
 encode() { # encode <in> <out>
   if [ "$format" = "jpg" ]; then
-    if command -v magick >/dev/null 2>&1; then
-      magick "$1" -background white -flatten -quality "$quality" "$2"
-    elif command -v convert >/dev/null 2>&1; then
-      convert "$1" -background white -flatten -quality "$quality" "$2"
-    else
-      cp -f "$1" "$2"
-    fi
+    magick "$1" -background white -flatten -quality "$quality" "$2"
   else
     cp -f "$1" "$2"
   fi
@@ -35,28 +32,18 @@ case "$action" in
   copy)
     tmp="${src%.png}.out.${format}"
     encode "$src" "$tmp"
-    if command -v wl-copy >/dev/null 2>&1; then
-      mime="image/png"; [ "$format" = "jpg" ] && mime="image/jpeg"
-      wl-copy --type "$mime" < "$tmp"
-      echo "Copied to the clipboard"
-    else
-      echo "wl-clipboard is not installed"
-    fi
+    wl-copy --type "$mime" < "$tmp"
     rm -f "$tmp"
+    echo "Copied to the clipboard"
     ;;
   save)
     [ -n "$dest" ] || { echo "No destination"; exit 1; }
     mkdir -p "$(dirname "$dest")"
     encode "$src" "$dest"
-    if command -v wl-copy >/dev/null 2>&1; then
-      mime="image/png"; [ "$format" = "jpg" ] && mime="image/jpeg"
-      wl-copy --type "$mime" < "$dest"
-    fi
-    if command -v omarchy-notification-send >/dev/null 2>&1; then
-      omarchy-notification-send "Saved $(basename "$dest")" --image "$dest" >/dev/null 2>&1 || true
-    elif command -v notify-send >/dev/null 2>&1; then
-      notify-send -a "OmaSnap" -i "$dest" "Saved" "$(basename "$dest")" || true
-    fi
+    wl-copy --type "$mime" < "$dest"
+    # Best effort: the file is already written, so a notification outage must
+    # not report the save as failed.
+    omarchy-notification-send "Saved $(basename "$dest")" --image "$dest" >/dev/null 2>&1 || true
     echo "Saved $(basename "$dest")"
     ;;
 esac
