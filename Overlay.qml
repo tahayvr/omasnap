@@ -17,6 +17,7 @@ Item {
 
     property bool opened: false
     property bool capturing: false
+    property bool picking: false        // the system file dialog is up
 
     readonly property string pluginId: manifest && manifest.id ? manifest.id : "tahayvr.omasnap"
     readonly property string pluginDir: decodeURIComponent(
@@ -146,7 +147,7 @@ Item {
     // info: the document as JSON.
     function info() {
         return JSON.stringify({
-            kind: doc.kind, opened: opened, capturing: capturing, busy: editor.busy, hasContent: doc.hasContent,
+            kind: doc.kind, opened: opened, capturing: capturing, picking: picking, busy: editor.busy, hasContent: doc.hasContent,
             shotPath: doc.shotPath, shotWidth: doc.shotWidth, shotHeight: doc.shotHeight,
             outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
             bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, frame: doc.frame,
@@ -154,6 +155,15 @@ Item {
             codeFont: doc.codeFont, codeNumbers: doc.codeNumbers, codeBg: String(doc.codeBg),
             codeFg: String(doc.codeFg), codeHtmlLength: doc.codeHtml.length
         });
+    }
+
+    // pick: open the system file dialog (the overlay hides so it is reachable).
+    function pick() {
+        if (picker.running) return "busy";
+        opened = true;
+        picking = true;
+        picker.running = true;
+        return "ok";
     }
 
     // code <text>: render the text; with no argument, the selected text.
@@ -553,7 +563,7 @@ Item {
 
     PanelWindow {
         id: window
-        visible: root.opened && !root.capturing
+        visible: root.opened && !root.capturing && !root.picking
         color: "transparent"
 
         anchors { top: true; bottom: true; left: true; right: true }
@@ -602,7 +612,7 @@ Item {
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()
                 onSaveRequested: root.save()
-                onOpenRequested: picker.running = true
+                onOpenRequested: root.pick()
                 onAutoRedactRequested: root.redact()
                 onCopyTextRequested: root.copyText()
             }
@@ -619,6 +629,7 @@ Item {
         stdout: StdioCollector {
             onStreamFinished: {
                 var p = text.trim();
+                root.picking = false;
                 if (p.length && p.indexOf("/") === 0) root.loadShot(p);
                 root.focusEditor();
             }

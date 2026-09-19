@@ -39,7 +39,8 @@ bin/snap-capture       take a shot, print its path
 bin/snap-palette       dominant colours, pushed into a comfortable band
 bin/snap-ocr           tesseract TSV (redact) or text
 bin/snap-deliver       encode + save / copy / clipboard text
-bin/snap-pick          file chooser fallback chain
+bin/snap-pick          system file picker via the portal, then fallbacks
+bin/snap-portal.py     XDG portal FileChooser client (holds the D-Bus connection)
 bin/snap-text          primary selection, else clipboard
 bin/snap-highlight     bat -> ANSI (plain text without bat)
 bin/snap-theme         current theme's colors.toml as key=hex lines
@@ -58,7 +59,8 @@ tests/                 run.sh runs everything; see Testing
   without telling the shell, or `toggle` desyncs.
 - `call <id> <fn> <arg>` invokes any function on the root item and returns its
   string result (`undefined` becomes `ok`). Public surface: `edit`, `capture`,
-  `code`, `save`, `copy`, `redact`, `copyText`, `set`, `info`, `annotate`.
+  `code`, `pick`, `save`, `copy`, `redact`, `copyText`, `set`, `info`,
+  `annotate`.
   Keep those names stable; the README documents them. `info` is not called
   `state` because Item already has a `state` property. An IPC argument that
   starts with `[` is split on commas by the CLI, so `annotate` takes
@@ -171,6 +173,16 @@ layer sits at `cardX, cardY + chromeH`.
 - Comments explain a non-obvious why, not what; no banner separators.
 - Helper scripts are run as `bash <path>`, resolve tools with `command -v`,
   and degrade instead of failing. Scratch files go to `$XDG_RUNTIME_DIR`.
+- **The file picker is the XDG portal FileChooser**, so it is whatever
+  chooser the system's portal configuration names (never assume a specific
+  one), driven by `bin/snap-portal.py` with the system Python's GObject
+  bindings. The portal closes a request the moment the calling connection
+  disconnects, so `busctl`/`gdbus`/`dbus-send` one-shots cannot work; the
+  helper keeps the connection open until the `Response` signal. It is run as
+  `/usr/bin/python3` explicitly because a linuxbrew or mise `python3` on
+  PATH has no `gi`. The overlay hides while `picking` so the dialog (a
+  normal window) is not buried under the layer surface.
+  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick` flashes the dialog for tests.
 - **Scripts that do not read stdin start with `exec </dev/null`.** Quickshell
   gives every child an open stdin pipe that never reaches EOF. `slurp` reads
   boxes from stdin whenever stdin is not a terminal, so without the redirect
@@ -239,6 +251,9 @@ Notes:
 - After a restart, give the first `summon` a moment: the overlay is loaded
   asynchronously at startup and a screenshot taken right after can miss it.
 - `qs log` needs `-p "$OMARCHY_PATH/shell"` to find the instance.
+- When killing helpers from a test script, use a pattern that cannot match
+  the script's own command line (`pkill -f 'snap-portal[.]py'`); a plain
+  `pkill -f name` kills the calling shell too.
 - Qt sends messages to journald when stderr is not a terminal. Set
   `QT_FORCE_STDERR_LOGGING=1` when running QML by hand or you will see nothing.
 - `/usr/bin/qml` is Qt 5; use `/usr/lib/qt6/bin/qml`.

@@ -11,7 +11,9 @@ echo "== JavaScript unit tests"
 node "$here/run.js" || fail=1
 
 echo "== shell scripts"
-for f in "$root"/bin/snap-*; do bash -n "$f" || fail=1; done
+for f in "$root"/bin/snap-*; do
+  case "$(head -c 40 "$f")" in *bash*) bash -n "$f" || fail=1 ;; *python3*) /usr/bin/python3 -B -m py_compile "$f" && rm -rf "$root/bin/__pycache__" || fail=1 ;; esac
+done
 [ -n "$(bash "$root/bin/snap-dir")" ] && echo "snap-dir: $(bash "$root/bin/snap-dir")" || { echo "snap-dir printed nothing"; fail=1; }
 
 QMLLINT=/usr/lib/qt6/bin/qmllint

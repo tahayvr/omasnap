@@ -1,3 +1,4 @@
 *.out.png
 *.out.jpg
 tests/qml/out/
+__pycache__/

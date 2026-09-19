@@ -87,7 +87,8 @@ o.bind("SUPER + SHIFT + S", "OmaSnap editor", "omarchy-shell shell toggle tahayv
 ```
 
 Inside the editor, the buttons at the top grab a new region, window or full
-screen, turn the selected text into a code card, or open an existing file.
+screen, turn the selected text into a code card, or open an existing image
+through the system file picker.
 The code card takes the primary selection (whatever is highlighted), or the
 clipboard if nothing is highlighted.
 
@@ -112,6 +113,7 @@ Every call returns `ok`, or a short reason such as `busy` or `no shot`:
 omarchy-shell shell call tahayvr.omasnap edit ~/Pictures/Screenshots/shot.png
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # region | windows | fullscreen | smart
 omarchy-shell shell call tahayvr.omasnap code ''               # code card from the selection (or pass the text)
+omarchy-shell shell call tahayvr.omasnap pick ''               # system file picker
 omarchy-shell shell call tahayvr.omasnap set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
 omarchy-shell shell call tahayvr.omasnap annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
 omarchy-shell shell call tahayvr.omasnap info ''               # the document as JSON
@@ -132,7 +134,7 @@ Everything optional degrades rather than breaking.
 | `tesseract` | Hiding sensitive data, copying text | Those two buttons report that it is missing |
 | `bat` | Syntax highlighting on code cards | Code cards are plain text |
 | `wl-clipboard` | Copy to clipboard | Save to disk still works |
-| `zenity` or `fuzzel` | Opening an existing file | Falls back to the most recent screenshot |
+| `xdg-desktop-portal` + Python GObject | The system file picker for Open a file | Falls back to `zenity`, then a menu, then the most recent screenshot |
 
 Screenshots are read from and written to the directory Omarchy uses:
 `$OMARCHY_SCREENSHOT_DIR`, else `$XDG_PICTURES_DIR`, else `~/Pictures`. OCR
