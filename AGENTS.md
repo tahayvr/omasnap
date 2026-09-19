@@ -85,8 +85,11 @@ tests/                 run.sh runs everything; see Testing
 `doc.kind` is `shot` or `code`. Both report their pixel size through
 `shotWidth`/`shotHeight`, so frame geometry, ratio, padding, chrome, shadow,
 annotations and export are shared. A code card is measured by `CodeBlock`
-(text implicit size plus `codePad`) and pushed into the document; nothing
-else may write those two properties in code mode.
+(text implicit size plus `codePad`) and `Stage` *binds* the document's size
+to it while `kind` is `code`; nothing else may write those two properties in
+code mode. It has to be a binding: `loadCode` zeroes the size, and rendering
+the same snippet again leaves the block's natural size unchanged, so a
+change signal would not fire and the card came up empty.
 
 Code flow: `code()` -> `bin/snap-text` -> `loadCode()` sets kind, guesses the
 language (`Code.guessLanguage`), applies the theme colours, and runs

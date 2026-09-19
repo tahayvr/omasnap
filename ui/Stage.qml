@@ -47,9 +47,9 @@ Item {
                                    ? Model.gradientByKey(doc.bgGradient).angle
                                    : doc.bgAngle
 
-    // The title bar takes its colour from the card underneath it, so a shot
+    // The title bar takes its color from the card underneath it, so a shot
     // and its frame stay in harmony: the code theme's own background, or the
-    // screenshot's dominant colour as sampled by bin/snap-palette.
+    // screenshot's dominant color as sampled by bin/snap-palette.
     readonly property string chromeSource: {
         if (codeKind) return String(doc.codeBg);
         return doc.shotPalette.length > 0 ? String(doc.shotPalette[0]) : "";
@@ -60,9 +60,9 @@ Item {
     }
     readonly property color chromeTextColor: Model.textOn(Model.chromeTint(stage.chromeSource))
 
-    // What an inset extends outwards: the shot's own edge colour, so the
+    // What an inset extends outwards: the shot's own edge color, so the
     // extension continues the image instead of butting up against it. The
-    // overall dominant colour is the fallback, and a code card just carries
+    // overall dominant color is the fallback, and a code card just carries
     // on its own background.
     readonly property color insetColor: {
         if (codeKind) return doc.codeBg;
@@ -191,12 +191,26 @@ Item {
             y: (stage.geo.chromeH + stage.geo.inset) * stage.unit
             transformOrigin: Item.TopLeft
             scale: stage.unit
-            // The card takes its size from the text, not the other way round.
-            onMeasured: function (w, h) {
-                if (!stage.codeKind) return;
-                stage.doc.shotWidth = w;
-                stage.doc.shotHeight = h;
-            }
+        }
+
+        // The card takes its size from the text, not the other way round.
+        // Bound rather than pushed on a change signal: loadCode zeroes the
+        // document's size, and re-rendering the same snippet leaves the
+        // block's natural size untouched, so a signal would never fire and
+        // the card stayed empty.
+        Binding {
+            target: stage.doc
+            property: "shotWidth"
+            value: codeBlock.naturalW
+            when: stage.codeKind
+            restoreMode: Binding.RestoreNone
+        }
+        Binding {
+            target: stage.doc
+            property: "shotHeight"
+            value: codeBlock.naturalH
+            when: stage.codeKind
+            restoreMode: Binding.RestoreNone
         }
     }
 

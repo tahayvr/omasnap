@@ -53,6 +53,13 @@ Window {
         id: grabTimer
         interval: 600
         onTriggered: {
+            // Rendering the same snippet again must not blank the card: the
+            // size is bound to CodeBlock, not pushed on a change signal.
+            var was = doc.shotWidth;
+            doc.codeHtml = "";
+            doc.codeHtml = Code.ansiToHtml("\x1b[38;2;255;0;0mfn\x1b[0m main() {\n    let x = 1;\n}", Code.defaultPalette("#ffffff"));
+            console.warn("HARNESS resize " + (doc.shotWidth === was && was > 0 ? "ok" : "FAIL")
+                         + " same snippet measures " + doc.shotWidth + " (was " + was + ")");
             console.warn("HARNESS shot " + doc.shotWidth + "x" + doc.shotHeight + " frame " + doc.outWidth + "x" + doc.outHeight);
             doc.exporting = true;
             Qt.callLater(function () {

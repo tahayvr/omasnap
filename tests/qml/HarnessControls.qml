@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import "../../ui"
 import "../../ui/controls"
 
 // Editor controls that cannot be checked by looking at an exported image:
@@ -14,6 +15,8 @@ Window {
     height: 300
 
     property real model: 5
+
+    Doc { id: doc }
 
     IconButton {
         id: button
@@ -109,6 +112,18 @@ Window {
                 && siblings[i].target === button) own = siblings[i];
         win.check("IconButton carries a tooltip", own !== null, true);
         if (own) win.check("tooltip text follows tip", own.text, button.tip);
+
+        // Qt's image cache is keyed on the URL, so reopening a file that
+        // changed under the same path used to hand back the previous
+        // picture. Every load has to produce a URL the cache has not seen.
+        doc.shotPath = "/tmp/omasnap-example.png";
+        var first = String(doc.shotUrl);
+        win.check("shot url carries a revision", first.indexOf("#v") > 0, true);
+        doc.shotRevision += 1;
+        win.check("reloading the same path changes the url",
+                  String(doc.shotUrl) !== first, true);
+        win.check("and still points at the file",
+                  String(doc.shotUrl).indexOf("/tmp/omasnap-example.png") > 0, true);
 
         Qt.quit();
     })

@@ -1,12 +1,11 @@
 import QtQuick
 import qs.Commons
 
-// The code card's contents, sized by the text plus padding. Reports its
-// natural size through measured() so the document can adopt it.
+// The code card's contents, sized by the text plus padding. Stage binds the
+// document's size to naturalW/naturalH; this reports, it does not push.
 Item {
     id: block
     property var doc: null
-    signal measured(int w, int h)
 
     // Qt hangs the proportional line spacing below every line, the last one
     // included, so the measured text is taller than it looks and the card
@@ -21,9 +20,6 @@ Item {
 
     width: naturalW
     height: naturalH
-
-    onNaturalWChanged: block.measured(naturalW, naturalH)
-    onNaturalHChanged: block.measured(naturalW, naturalH)
 
     Text {
         id: label

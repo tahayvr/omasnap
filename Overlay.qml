@@ -40,7 +40,7 @@ Item {
     }
 
     // The desktop palette feeds the "Omarchy" code theme; refresh it when the
-    // shell's colours change.
+    // shell's colors change.
     property string themeLines: ""
     Connections {
         target: Color
@@ -246,8 +246,8 @@ Item {
         doc.clearAnnotations();
         doc.kind = "code";
         doc.shotPath = "";
-        doc.shotWidth = 0;
-        doc.shotHeight = 0;
+        // The card's size is bound to CodeBlock in code mode; writing it here
+        // would break that binding and leave the card empty.
         doc.autoPalette = [];
         doc.shotPalette = [];
         doc.shotEdge = "";
@@ -333,12 +333,13 @@ Item {
         doc.shotWidth = 0;
         doc.shotHeight = 0;
         doc.shotPath = path;
+        doc.shotRevision += 1;
         doc.frameTitle = path.split("/").pop();
         doc.autoPalette = [];
         doc.shotPalette = [];
         doc.shotEdge = "";
         probe.source = "";
-        probe.source = "file://" + path;
+        probe.source = doc.shotUrl;
         paletteProc.path = path;
         paletteProc.running = true;
         edgeProc.path = path;

@@ -10,7 +10,12 @@ QtObject {
     property string shotPath: ""
     property int shotWidth: 0
     property int shotHeight: 0
-    readonly property url shotUrl: shotPath ? "file://" + shotPath : ""
+    // Bumped on every load so a file that changed under the same path gets
+    // a URL Qt's image cache has not seen. Without it, recapturing to the
+    // same name reopened the previous picture, at the previous size.
+    property int shotRevision: 0
+    readonly property url shotUrl: shotPath
+        ? "file://" + shotPath + "#v" + shotRevision : ""
     readonly property bool hasContent: (kind === "code" ? codeText !== "" : shotPath !== "") && shotWidth > 0
 
     property string codeText: ""
@@ -30,9 +35,9 @@ QtObject {
     property string bgGradient: "dusk"
     property string desktopBg: ""          // the wallpaper, bin/snap-wallpaper
     property int bgAngle: 135
-    property var autoPalette: []            // backdrop colours, bin/snap-palette
-    property var shotPalette: []            // the same colours as they appear in the shot
-    property string shotEdge: ""            // the shot's edge colour, bin/snap-edge
+    property var autoPalette: []            // backdrop colors, bin/snap-palette
+    property var shotPalette: []            // the same colors as they appear in the shot
+    property string shotEdge: ""            // the shot's edge color, bin/snap-edge
 
     property real padding: 5                // percent of the shot's longest edge
     property real inset: 0                  // same units, inside the card

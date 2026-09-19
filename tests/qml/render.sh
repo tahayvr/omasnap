@@ -51,7 +51,7 @@ size="$(magick "$out/export.png" -format "%wx%h" info:)"
 [ "$size" = "480x280" ] && echo "ok   export size 480x280" || { echo "FAIL export size $size, expected 480x280"; fail=1; }
 
 # Shot pixel (sx, sy) lands at (sx+40, sy+40) in the export.
-expect "background is the solid colour"     5   5     0 255   0
+expect "background is the solid color"     5   5     0 255   0
 if [ $gpu = 1 ]; then
   expect "white half of the shot"            60  60   255 255 255
   expect "black half of the shot"           390  60     0   0   0
@@ -71,7 +71,7 @@ if [ $gpu = 1 ]; then
   [ "${rmse%%.*}" = "0" ] && echo "ok   export is pixel-exact (band RMSE $rmse)" || { echo "FAIL export resamples the shot (band RMSE $rmse)"; fail=1; }
 fi
 
-# Inside the redaction a whole block is one colour: five neighbours agree.
+# Inside the redaction a whole block is one color: five neighbours agree.
 ref="$(px 195 135)"; same=1
 for x in 196 197 198 199; do [ "$(px $x 135)" = "$ref" ] || same=0; done
 [ $same = 1 ] && echo "ok   redaction is blocky ($ref)" || { echo "FAIL redaction still shows stripes"; fail=1; }
@@ -98,12 +98,12 @@ fi
 slog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen timeout 30 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessControls.qml 2>&1)"
 echo "$slog" | grep -E "^qml: (ok|FAIL)" | sed 's/^qml: //'
 if echo "$slog" | grep -q "FAIL"; then fail=1; fi
-echo "$slog" | grep -q "^qml: ok   tooltip text follows tip" \
+echo "$slog" | grep -q "^qml: ok   and still points at the file" \
   || { echo "FAIL controls harness did not run to the end"; fail=1; }
 
 # ---- inset -----------------------------------------------------------------
 # Second export from the same harness: inset 10% of 400 = 40px of the shot's
-# edge colour (forced to magenta) on every side, so the card grows to 480x280
+# edge color (forced to magenta) on every side, so the card grows to 480x280
 # and the frame, padded by 10% of 480, to 576x376.
 if [ $gpu = 1 ]; then
   if [ -f "$out/export-inset.png" ]; then
@@ -113,8 +113,8 @@ if [ $gpu = 1 ]; then
     ipx() { magick "$out/export-inset.png" -format "%[fx:int(255*p{$1,$2}.r+0.5)] %[fx:int(255*p{$1,$2}.g+0.5)] %[fx:int(255*p{$1,$2}.b+0.5)]" info:; }
     iexpect() { local got; got="$(ipx "$2" "$3")"
       if [ "$got" = "$4 $5 $6" ]; then echo "ok   $1"; else echo "FAIL $1: got $got want $4 $5 $6"; fail=1; fi; }
-    iexpect "inset band is the edge colour (left)" 60 180   255 0 255
-    iexpect "inset band is the edge colour (top)" 288 60    255 0 255
+    iexpect "inset band is the edge color (left)" 60 180   255 0 255
+    iexpect "inset band is the edge color (top)" 288 60    255 0 255
     iexpect "background still outside the card"    20 180     0 255 0
     iexpect "shot moved in by the inset (white half)" 150 150  255 255 255
     iexpect "shot moved in by the inset (black half)" 400 150    0   0 0
@@ -131,13 +131,18 @@ if [ $gpu = 1 ]; then
   rm -f "$out/export-code.png"
   clog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessCode.qml -- "$out" 2>&1)"
   echo "$clog" | grep -E "file://|Error|error|Unable to assign|Warning" | head -10
+  if echo "$clog" | grep -q "HARNESS resize ok"; then
+    echo "ok   code card keeps its size on a re-render ($(echo "$clog" | grep -o 'measures [0-9]*' | head -1))"
+  else
+    echo "FAIL code card lost its size when the same snippet rendered again"; fail=1
+  fi
   if [ -f "$out/export-code.png" ]; then
     read -r cw ch <<<"$(magick "$out/export-code.png" -format "%w %h" info:)"
     # Card at (pad, pad); its top-left pixel is the code background.
     cbg="$(magick "$out/export-code.png" -format "%[fx:int(255*p{40,40}.r+0.5)] %[fx:int(255*p{40,40}.g+0.5)] %[fx:int(255*p{40,40}.b+0.5)]" info:)"
     [ "$cbg" = "32 32 48" ] && echo "ok   code card background" || { echo "FAIL code card background: $cbg"; fail=1; }
     n="$(magick "$out/export-code.png" -crop $((cw-80))x$((ch-80))+40+40 +repage -format "%k" info:)"
-    [ "$n" -gt 40 ] && echo "ok   code text rendered ($n colours)" || { echo "FAIL code text missing ($n colours)"; fail=1; }
+    [ "$n" -gt 40 ] && echo "ok   code text rendered ($n colors)" || { echo "FAIL code text missing ($n colors)"; fail=1; }
 
     # The card must not be bottom-heavy: Qt hangs the proportional line
     # spacing under the last line too, which used to leave half a line of
