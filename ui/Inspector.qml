@@ -3,6 +3,7 @@ import qs.Commons
 import "controls"
 import "../lib/Model.js" as Model
 import "../lib/Redact.js" as Redact
+import "../lib/Code.js" as Code
 
 Flickable {
     id: insp
@@ -22,6 +23,38 @@ Flickable {
         y: Ui.pad
         width: insp.width - Ui.pad * 2
         spacing: Ui.section
+
+        Section {
+            title: "Code"
+            visible: doc.kind === "code"
+
+            Dropdown {
+                current: doc.codeTheme
+                options: Code.THEMES.map(function (t) { return { key: t.key, label: t.label }; })
+                onPicked: function (k) { doc.codeTheme = k; }
+            }
+
+            Dropdown {
+                current: doc.codeLang
+                options: Code.LANGUAGES.map(function (l) {
+                    return { key: l.key, label: l.key === "auto" ? "Auto (" + Code.languageLabel(doc.codeDetected) + ")" : l.label };
+                })
+                onPicked: function (k) { doc.codeLang = k; }
+            }
+
+            LabeledSlider {
+                label: "Font size"
+                value: doc.codeFont
+                from: 10; to: 32; decimals: 0; suffix: " px"
+                onMoved: function (v) { doc.codeFont = Math.round(v); }
+            }
+
+            Toggle {
+                label: "Line numbers"
+                checked: doc.codeNumbers
+                onToggled: function (v) { doc.codeNumbers = v; }
+            }
+        }
 
         Section {
             title: "Background"
@@ -219,6 +252,7 @@ Flickable {
 
         Section {
             title: "Hide sensitive data"
+            visible: doc.kind === "shot"
 
             Flow {
                 width: parent.width

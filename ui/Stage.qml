@@ -11,6 +11,7 @@ Item {
     property var doc: null
     property bool interactive: false
     readonly property var geo: doc.geo
+    readonly property bool codeKind: doc.kind === "code"
 
     width: Math.max(1, geo.frameW)
     height: Math.max(1, geo.frameH)
@@ -35,6 +36,8 @@ Item {
                                    : doc.bgAngle
 
     readonly property color chromeColor: Qt.darker(Color.background, 1.15)
+    readonly property real cardRadius: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
+                                                Math.min(geo.cardW, geo.cardH) / 2)
 
     Rectangle {
         anchors.fill: parent
@@ -59,61 +62,29 @@ Item {
         }
     }
 
+    // Screenshot card: the image needs clipping to the rounded corners.
     ClippingRectangle {
-        id: card
+        id: shotCard
         x: stage.geo.cardX
         y: stage.geo.cardY
         width: Math.max(1, stage.geo.cardW)
         height: Math.max(1, stage.geo.cardH)
-        radius: Math.min(stage.doc.radius / 100 * Math.min(width, height), Math.min(width, height) / 2)
+        radius: stage.cardRadius
         color: stage.geo.chromeH > 0 ? stage.chromeColor : "transparent"
         visible: false            // drawn by the MultiEffect below
 
-        Item {
-            id: chromeBar
-            width: parent.width
+        Chrome {
+            doc: stage.doc
             height: stage.geo.chromeH
-            visible: stage.geo.chromeH > 0
-
-            Rectangle { anchors.fill: parent; color: stage.chromeColor }
-
-            Row {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: parent.height * 0.45
-                spacing: parent.height * 0.26
-                Repeater {
-                    model: ["#ff5f56", "#ffbd2e", "#27c93f"]
-                    Rectangle {
-                        required property string modelData
-                        width: chromeBar.height * 0.26
-                        height: width
-                        radius: width / 2
-                        color: modelData
-                    }
-                }
-            }
-
-            Text {
-                anchors.centerIn: parent
-                visible: stage.doc.frame === "titlebar"
-                text: stage.doc.frameTitle
-                color: Color.foreground
-                opacity: 0.75
-                font.family: Style.font.family
-                font.pixelSize: chromeBar.height * 0.42
-                elide: Text.ElideMiddle
-                width: parent.width * 0.55
-                horizontalAlignment: Text.AlignHCenter
-            }
+            color: stage.chromeColor
         }
 
         Image {
-            id: shot
+            visible: !stage.codeKind
             y: stage.geo.chromeH
             width: Math.max(1, stage.geo.shotW)
             height: Math.max(1, stage.geo.shotH)
-            source: stage.doc.shotUrl
+            source: stage.codeKind ? "" : stage.doc.shotUrl
             cache: true           // shared with the probe and the redaction source
             asynchronous: false
             fillMode: Image.PreserveAspectFit
@@ -121,6 +92,7 @@ Item {
     }
 
     MultiEffect {
+        readonly property Item card: stage.codeKind ? codeCard : shotCard
         source: card
         x: card.x
         y: card.y
@@ -135,19 +107,61 @@ Item {
         shadowHorizontalOffset: 0
     }
 
-    // Unclipped copy for redaction to sample.
+    // Code card: text is inset by its padding, so a rounded Rectangle needs
+    // no clipping. It stays visible and sits over the effect above, which
+    // then only contributes the shadow: children of a hidden effect source
+    // did not render inside the shell.
+    Rectangle {
+        id: codeCard
+        visible: stage.codeKind
+        x: stage.geo.cardX
+        y: stage.geo.cardY
+        width: Math.max(1, stage.geo.cardW)
+        height: Math.max(1, stage.geo.cardH)
+        radius: stage.cardRadius
+        color: stage.doc.codeBg
+
+        Chrome {
+            doc: stage.doc
+            height: stage.geo.chromeH
+            color: stage.chromeColor
+            topRadius: stage.cardRadius
+        }
+
+        CodeBlock {
+            id: codeBlock
+            doc: stage.doc
+            y: stage.geo.chromeH
+            // The card takes its size from the text, not the other way round.
+            onMeasured: function (w, h) {
+                if (!stage.codeKind) return;
+                stage.doc.shotWidth = w;
+                stage.doc.shotHeight = h;
+            }
+        }
+    }
+
+    // Unclipped copies for redaction to sample.
     Image {
         id: pixelSource
-        source: stage.doc.shotUrl
+        source: stage.codeKind ? "" : stage.doc.shotUrl
         width: Math.max(1, stage.geo.shotW)
         height: Math.max(1, stage.geo.shotH)
         visible: false
         cache: true
     }
+    Rectangle {
+        id: codeSource
+        visible: false
+        width: Math.max(1, stage.geo.shotW)
+        height: Math.max(1, stage.geo.shotH)
+        color: stage.doc.codeBg
+        CodeBlock { doc: stage.doc }
+    }
 
     AnnotationLayer {
         doc: stage.doc
-        pixelSource: pixelSource
+        pixelSource: stage.codeKind ? codeSource : pixelSource
         interactive: stage.interactive && stage.doc.tool === "select" && !stage.doc.exporting
         viewScale: stage.scale
         x: stage.geo.cardX

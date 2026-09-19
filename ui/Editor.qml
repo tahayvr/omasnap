@@ -11,6 +11,7 @@ Rectangle {
     property bool busy: false
 
     signal captureRequested(string mode)
+    signal codeRequested()
     signal copyRequested()
     signal saveRequested()
     signal openRequested()
@@ -55,7 +56,8 @@ Rectangle {
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: doc.shotPath ? doc.shotPath.split("/").pop() : "No screenshot yet"
+                text: doc.kind === "code" && doc.hasContent ? doc.frameTitle
+                      : doc.shotPath ? doc.shotPath.split("/").pop() : "No screenshot yet"
                 color: Ui.textMuted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -71,6 +73,7 @@ Rectangle {
             IconButton { glyph: "\u2b1a"; label: "Region"; onClicked: editor.captureRequested("region") }
             IconButton { glyph: "\u25f0"; label: "Window"; onClicked: editor.captureRequested("windows") }
             IconButton { glyph: "\u2b1c"; label: "Screen"; onClicked: editor.captureRequested("fullscreen") }
+            IconButton { glyph: "\u2039\u203a"; label: "Code"; tip: "Selected text as a code card"; onClicked: editor.codeRequested() }
             IconButton { glyph: "\u2026"; tip: "Open a file"; onClicked: editor.openRequested() }
         }
 
@@ -97,7 +100,7 @@ Rectangle {
         doc: editor.doc
         anchors { top: header.bottom; bottom: footer.top; left: parent.left }
         width: implicitWidth
-        visible: doc.hasShot
+        visible: doc.hasContent
     }
 
     Item {
@@ -111,7 +114,7 @@ Rectangle {
         clip: true
 
         readonly property real margin: Ui.pad * 2
-        readonly property real fit: doc.hasShot
+        readonly property real fit: doc.hasContent
             ? Math.min((width - margin * 2) / Math.max(1, stage.width),
                        (height - margin * 2) / Math.max(1, stage.height), 1)
             : 1
@@ -119,7 +122,7 @@ Rectangle {
         // Checkerboard behind (never inside) the stage for transparent backgrounds.
         Canvas {
             anchors.fill: holder
-            visible: doc.bgMode === "none" && doc.hasShot
+            visible: doc.bgMode === "none" && doc.hasContent
             onPaint: {
                 var ctx = getContext("2d"), s = 10;
                 ctx.fillStyle = "#2a2a2a"; ctx.fillRect(0, 0, width, height);
@@ -135,7 +138,7 @@ Rectangle {
             anchors.centerIn: parent
             width: stage.width * viewport.fit
             height: stage.height * viewport.fit
-            visible: doc.hasShot
+            visible: doc.hasContent
 
             MouseArea {
                 anchors.fill: parent
@@ -156,7 +159,7 @@ Rectangle {
                 id: draw
                 anchors.fill: parent
                 hoverEnabled: true
-                enabled: doc.hasShot && doc.tool !== "select"
+                enabled: doc.hasContent && doc.tool !== "select"
                 acceptedButtons: Qt.LeftButton
                 cursorShape: doc.tool === "select" ? Qt.ArrowCursor : Qt.CrossCursor
 
@@ -230,7 +233,7 @@ Rectangle {
         Column {
             anchors.centerIn: parent
             spacing: Ui.pad
-            visible: !doc.hasShot
+            visible: !doc.hasContent
             width: Math.min(parent.width - Ui.pad * 4, Style.space(380))
 
             Text {
@@ -248,7 +251,7 @@ Rectangle {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: "Grab a region, a window or the whole screen. OmaSnap adds the padding, background and shadow, and hides anything that should not be public."
+                text: "Grab a region, a window or the whole screen, or turn selected text into a code card. OmaSnap adds the padding, background and shadow, and hides anything that should not be public."
                 color: Ui.textMuted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
@@ -258,6 +261,7 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Ui.gap
                 IconButton { glyph: "\u2b1a"; label: "Capture a region"; onClicked: editor.captureRequested("region") }
+                IconButton { glyph: "\u2039\u203a"; label: "Code from selection"; onClicked: editor.codeRequested() }
                 IconButton { glyph: "\u2026"; label: "Open a file"; onClicked: editor.openRequested() }
             }
         }
@@ -268,7 +272,7 @@ Rectangle {
         doc: editor.doc
         anchors { top: header.bottom; bottom: footer.top; right: parent.right }
         width: Style.space(300)
-        visible: doc.hasShot
+        visible: doc.hasContent
         onAutoRedactRequested: editor.autoRedactRequested()
         onCopyTextRequested: editor.copyTextRequested()
     }
@@ -307,7 +311,7 @@ Rectangle {
             elide: Text.ElideRight
             text: editor.statusText !== "" ? editor.statusText
                   : doc.outputTooLarge ? "Too large to render at " + doc.exportScale + "\u00d7 \u2014 pick a smaller export scale"
-                  : (doc.hasShot ? Math.round(viewport.fit * 100) + "%  \u00b7  "
+                  : (doc.hasContent ? Math.round(viewport.fit * 100) + "%  \u00b7  "
                                    + doc.geo.frameW + "\u00d7" + doc.geo.frameH
                                    + " \u2192 " + doc.outWidth + "\u00d7" + doc.outHeight
                                  : "")
@@ -321,7 +325,7 @@ Rectangle {
             anchors.rightMargin: Ui.pad
             anchors.verticalCenter: parent.verticalCenter
             spacing: Ui.gap
-            visible: doc.hasShot
+            visible: doc.hasContent
 
             IconButton {
                 glyph: "\u21ba"

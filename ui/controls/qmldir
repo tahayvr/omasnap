@@ -1,5 +1,6 @@
 singleton Ui 1.0 Ui.qml
 Chip 1.0 Chip.qml
+Dropdown 1.0 Dropdown.qml
 IconButton 1.0 IconButton.qml
 LabeledSlider 1.0 LabeledSlider.qml
 Section 1.0 Section.qml

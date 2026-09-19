@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "tahayvr.omasnap",
   "name": "OmaSnap",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "tahayvr",
   "license": "MIT",
-  "description": "Turn a screenshot into something worth posting: padding, backgrounds, rounded corners, shadows, annotations and one-click redaction.",
+  "description": "Turn a screenshot or a piece of code into something worth posting: padding, backgrounds, rounded corners, shadows, syntax highlighting, annotations and one-click redaction.",
   "kinds": [
     "overlay",
     "bar-widget"

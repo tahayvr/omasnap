@@ -87,4 +87,21 @@ else
   expect "no selection outline beside the box" 45 45     0 255   0
 fi
 
+# ---- code card -------------------------------------------------------------
+if [ $gpu = 1 ]; then
+  rm -f "$out/export-code.png"
+  clog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessCode.qml 2>&1)"
+  echo "$clog" | grep -E "file://|Error|error|Unable to assign|Warning" | head -10
+  if [ -f "$out/export-code.png" ]; then
+    read -r cw ch <<<"$(magick "$out/export-code.png" -format "%w %h" info:)"
+    # Card at (pad, pad); its top-left pixel is the code background.
+    cbg="$(magick "$out/export-code.png" -format "%[fx:int(255*p{40,40}.r+0.5)] %[fx:int(255*p{40,40}.g+0.5)] %[fx:int(255*p{40,40}.b+0.5)]" info:)"
+    [ "$cbg" = "32 32 48" ] && echo "ok   code card background" || { echo "FAIL code card background: $cbg"; fail=1; }
+    n="$(magick "$out/export-code.png" -crop $((cw-80))x$((ch-80))+40+40 +repage -format "%k" info:)"
+    [ "$n" -gt 40 ] && echo "ok   code text rendered ($n colours)" || { echo "FAIL code text missing ($n colours)"; fail=1; }
+  else
+    echo "FAIL code harness wrote nothing"; fail=1
+  fi
+fi
+
 exit $fail

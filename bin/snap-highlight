@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# snap-highlight [lang] [bat-theme] [numbers 0|1]  (code on stdin)
+# Prints ANSI-coloured code via bat when it is installed, plain text otherwise.
+set -u
+lang="${1:-}"
+theme="${2:-ansi}"
+numbers="${3:-0}"
+[ "$lang" = "auto" ] || [ "$lang" = "txt" ] && lang=""
+style=plain; [ "$numbers" = "1" ] && style=numbers
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+cat > "$tmp"
+
+if command -v bat >/dev/null 2>&1; then
+  out="$(COLORTERM=truecolor bat --color=always --paging=never --wrap=never \
+         --italic-text=always --terminal-width=4000 --style="$style" \
+         ${lang:+-l "$lang"} --theme="$theme" "$tmp" 2>/dev/null)" \
+    && { printf '%s\n' "$out"; exit 0; }
+  # Unknown language: try again as plain text.
+  out="$(COLORTERM=truecolor bat --color=always --paging=never --wrap=never \
+         --terminal-width=4000 --style="$style" --theme="$theme" "$tmp" 2>/dev/null)" \
+    && { printf '%s\n' "$out"; exit 0; }
+fi
+cat "$tmp"

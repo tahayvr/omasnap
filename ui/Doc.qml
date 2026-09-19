@@ -4,11 +4,26 @@ import "../lib/Model.js" as Model
 QtObject {
     id: doc
 
+    // A document is either a screenshot or a code card. Both report their
+    // pixel size through shotWidth/shotHeight so the frame maths is shared.
+    property string kind: "shot"            // shot | code
     property string shotPath: ""
     property int shotWidth: 0
     property int shotHeight: 0
     readonly property url shotUrl: shotPath ? "file://" + shotPath : ""
-    readonly property bool hasShot: shotPath !== "" && shotWidth > 0
+    readonly property bool hasContent: (kind === "code" ? codeText !== "" : shotPath !== "") && shotWidth > 0
+
+    property string codeText: ""
+    property string codeHtml: ""
+    property string codeLang: "auto"
+    property string codeDetected: "txt"     // what "auto" resolved to
+    readonly property string codeEffectiveLang: codeLang === "auto" ? codeDetected : codeLang
+    property string codeTheme: "omarchy"
+    property int codeFont: 16
+    property bool codeNumbers: false
+    property color codeBg: "#1e222a"
+    property color codeFg: "#e6e6e6"
+    readonly property int codePad: Math.round(codeFont * 1.6)
 
     property string bgMode: "auto"          // auto | solid | gradient | theme | none
     property color bgSolid: "#1e222a"
@@ -128,6 +143,7 @@ QtObject {
         clearAnnotations();
         padding = 5; ratio = "auto"; balance = true;
         radius = 3; shadow = 36; shadowOpacity = 0.45; shadowY = 16;
-        frame = "none"; bgMode = "auto"; tool = "select";
+        frame = "none"; bgMode = kind === "code" ? "gradient" : "auto"; tool = "select";
+        codeFont = 16; codeNumbers = false;
     }
 }

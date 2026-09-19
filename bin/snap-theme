@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Print the current Omarchy theme's colours as key=#rrggbb lines.
+set -u
+f="${OMARCHY_THEME_COLORS:-$HOME/.local/state/omarchy/current/theme/colors.toml}"
+[ -f "$f" ] || exit 0
+sed -nE 's/^[[:space:]]*([a-z_]+)[[:space:]]*=[[:space:]]*"(#[0-9A-Fa-f]{6})".*/\1=\2/p' "$f"

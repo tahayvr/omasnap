@@ -18,6 +18,7 @@ function lib(name) {
 
 const Model = lib("Model.js");
 const Redact = lib("Redact.js");
+const Code = lib("Code.js");
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -238,6 +239,78 @@ test("dedupe keeps the larger box and drops the one it swallows", () => {
         { x: 200, y: 0, w: 50, h: 20, label: "phone" }
     ]);
     eq(kept.map(b => b.label), ["token", "phone"]);
+});
+
+// ----------------------------------------------------------------- Code.js
+
+const pal = Code.defaultPalette("#eeeeee");
+const ESC = "\x1b[";
+
+test("truecolor runs become font tags, spaces and newlines survive", () => {
+    const html = Code.ansiToHtml(ESC + "38;2;255;0;0mfn" + ESC + "0m main()\n  x\n", pal);
+    eq(html, '<font color="#ff0000">fn</font>&nbsp;main()<br>&nbsp;&nbsp;x');
+});
+
+test("16-colour codes go through the palette, 256-colour through the cube", () => {
+    const html = Code.ansiToHtml(ESC + "35mkw" + ESC + "0m " + ESC + "38;5;238mnum" + ESC + "0m " + ESC + "38;5;196mr", pal);
+    eq(html, '<font color="' + pal.colors[5] + '">kw</font>&nbsp;<font color="#444444">num</font>&nbsp;<font color="#ff0000">r</font>');
+    eq(Code.color256(15, pal), pal.colors[15]);
+    eq(Code.color256(16, pal), "#000000");
+    eq(Code.color256(231, pal), "#ffffff");
+});
+
+test("bold, italic and underline nest and reset", () => {
+    eq(Code.ansiToHtml(ESC + "1m" + ESC + "3ma" + ESC + "23mb" + ESC + "0mc", pal), "<b><i>a</i></b><b>b</b>c");
+    eq(Code.ansiToHtml(ESC + "4mu" + ESC + "24mv", pal), "<u>u</u>v");
+});
+
+test("html is escaped and tabs expand", () => {
+    eq(Code.ansiToHtml("<a & b>\tc", pal), "&lt;a&nbsp;&amp;&nbsp;b&gt;&nbsp;&nbsp;&nbsp;&nbsp;c");
+});
+
+test("non-SGR escapes are dropped and trailing newlines trimmed", () => {
+    eq(Code.ansiToHtml(ESC + "Kx" + ESC + "2Jy\n\n", pal), "xy");
+    eq(Code.lineCount("a\nb\n\n"), 2);
+    eq(Code.lineCount(""), 0);
+});
+
+test("the omarchy palette comes from colors.toml with sensible fallbacks", () => {
+    const p = Code.paletteFromTheme("background=#111C18\nforeground=#C1C497\nred=#FF5345\nmuted=#53685B\nbright_red=#DB9F9C\n", "#ffffff");
+    eq([p.bg, p.fg, p.colors[0], p.colors[1], p.colors[7], p.colors[8], p.colors[9]],
+       ["#111c18", "#c1c497", "#111c18", "#ff5345", "#c1c497", "#53685b", "#db9f9c"]);
+    eq(p.colors[2], Code.XTERM[2], "missing colour falls back to xterm");
+    eq(Code.paletteFromTheme("", "#abcdef").fg, "#abcdef");
+});
+
+test("language guessing", () => {
+    const cases = {
+        rs:   "pub fn main() {\n    let mut x = 1;\n}",
+        go:   "package main\n\nfunc main() {\n\tx := 1\n}",
+        py:   "import os\n\ndef main():\n    print(os.getcwd())",
+        js:   "const x = require('fs');\nexport default () => x;",
+        ts:   "interface User { name: string }\nconst u: User = { name: 'a' };",
+        json: "{\"a\": [1, 2], \"b\": null}",
+        sh:   "#!/bin/bash\nfor f in *; do echo \"$f\"; done",
+        c:    "#include <stdio.h>\nint main(void) { return 0; }",
+        cpp:  "#include <iostream>\nint main() { std::cout << 1; }",
+        sql:  "SELECT id, name FROM users WHERE id = 1;",
+        yaml: "name: omasnap\nversion: 1\nkinds:\n  - overlay",
+        toml: "[package]\nname = \"omasnap\"",
+        css:  ".card { color: red; margin: 0; }",
+        html: "<div class=\"x\"><span>hi</span></div>",
+        md:   "# Title\n\nSome text\n\n```sh\nls\n```",
+        lua:  "local function f(x)\n  return x\nend",
+        java: "public class A { public static void main(String[] a) { System.out.println(1); } }",
+        cs:   "using System;\nnamespace X { public class A { } }",
+        txt:  "Just a sentence with nothing in particular."
+    };
+    for (const k in cases) eq(Code.guessLanguage(cases[k]), k, "guess for " + k);
+});
+
+test("themes resolve with a safe default", () => {
+    eq(Code.themeByKey("dracula").bat, "Dracula");
+    eq(Code.themeByKey("nope").key, "omarchy");
+    eq(Code.languageLabel("rs"), "Rust");
 });
 
 console.log(passed + " passed, " + failed + " failed");

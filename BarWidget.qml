@@ -27,10 +27,11 @@ BarWidget {
         anchors.centerIn: parent
         bar: root.bar
         text: root.icon
-        tooltipText: "OmaSnap: click to grab a region, right-click to open the editor"
+        tooltipText: "OmaSnap: click to grab a region, middle-click for a code card, right-click to open the editor"
         useActiveColor: false
         onPressed: function (mouseButton) {
             if (mouseButton === Qt.LeftButton) root.summon('{"capture":"region"}');
+            else if (mouseButton === Qt.MiddleButton) root.summon('{"code":true}');
             else if (mouseButton === Qt.RightButton) root.summon('{}');
         }
     }

@@ -37,6 +37,15 @@ the picture that should not be public.
 - Pixelation destroys the original pixels; it is not a blur that can be undone
 - Copy all text in the screenshot to the clipboard
 
+**Code cards**
+- Select code or text anywhere, press a key, and get a syntax-highlighted
+  card in the same frame, background and shadow
+- Language is detected from the text and can be overridden; Omarchy, Dracula,
+  Nord, Monokai, One Dark, GitHub and Solarized themes; font size; line numbers
+- The Omarchy theme uses your desktop theme's own terminal colours
+
+![OmaSnap code card](docs/screenshot-full-code.png)
+
 **Output**
 - Copy to clipboard or save to disk, at 1×, 2× or 3×
 - PNG, or JPEG with a quality setting
@@ -54,8 +63,8 @@ before you enable it.
 ## Usage
 
 Enabling the plugin puts an OmaSnap button in the bar. Left-click it to grab a
-region, right-click to reopen the editor on whatever you edited last. Move it
-with:
+region, middle-click to make a code card from the selected text, right-click
+to reopen the editor on whatever you edited last. Move it with:
 
 ```sh
 omarchy bar move tahayvr.omasnap --section center
@@ -65,11 +74,14 @@ Or bind keys in `~/.config/hypr/bindings.lua`:
 
 ```lua
 o.bind("SUPER + SHIFT + PRINT", "OmaSnap", "omarchy-shell shell summon tahayvr.omasnap '{\"capture\":\"region\"}'")
+o.bind("SUPER + SHIFT + C", "OmaSnap code card", "omarchy-shell shell summon tahayvr.omasnap '{\"code\":true}'")
 o.bind("SUPER + SHIFT + S", "OmaSnap editor", "omarchy-shell shell toggle tahayvr.omasnap '{}'")
 ```
 
 Inside the editor, the buttons at the top grab a new region, window or full
-screen, or open an existing file.
+screen, turn the selected text into a code card, or open an existing file.
+The code card takes the primary selection (whatever is highlighted), or the
+clipboard if nothing is highlighted.
 
 ### Keys
 
@@ -79,6 +91,7 @@ screen, or open an existing file.
 | `Ctrl+C` / `Ctrl+S` | Copy / save |
 | `Ctrl+Z` | Undo |
 | `Ctrl+N` | Grab another region |
+| `Ctrl+K` | Code card from the selected text |
 | `Delete` | Remove the selected annotation |
 | `Enter` | Finish typing a text label |
 | `Esc` | Deselect, then close |
@@ -90,6 +103,9 @@ Every call returns `ok`, or a short reason such as `busy` or `no shot`:
 ```sh
 omarchy-shell shell call tahayvr.omasnap edit ~/Pictures/Screenshots/shot.png
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # region | windows | fullscreen | smart
+omarchy-shell shell call tahayvr.omasnap code ''               # code card from the selection (or pass the text)
+omarchy-shell shell call tahayvr.omasnap set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
+omarchy-shell shell call tahayvr.omasnap info ''               # the document as JSON
 omarchy-shell shell call tahayvr.omasnap redact ''            # find and hide secrets
 omarchy-shell shell call tahayvr.omasnap copyText ''          # text to the clipboard
 omarchy-shell shell call tahayvr.omasnap save ''              # export to disk (and clipboard)
@@ -105,6 +121,7 @@ Everything optional degrades rather than breaking.
 | `omarchy` | Capture | Falls back to `grim` + `slurp` |
 | `imagemagick` | Auto background, JPEG export, sharper OCR | Auto background falls back to a flat colour |
 | `tesseract` | Hiding sensitive data, copying text | Those two buttons report that it is missing |
+| `bat` | Syntax highlighting on code cards | Code cards are plain text |
 | `wl-clipboard` | Copy to clipboard | Save to disk still works |
 | `zenity` or `fuzzel` | Opening an existing file | Falls back to the most recent screenshot |
 

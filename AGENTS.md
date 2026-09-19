@@ -23,20 +23,26 @@ Overlay.qml            entry point: shell contract, processes, keyboard, export
 BarWidget.qml          bar launcher (summons through bar.shell)
 ui/Doc.qml             document state, derived geometry, annotation list model
 ui/Stage.qml           the composition that gets grabbed (native pixel size)
+ui/Chrome.qml          window chrome shared by both cards
+ui/CodeBlock.qml       highlighted text sized by its contents
 ui/AnnotationLayer.qml annotation delegates, dragging, redaction sampling
 ui/Editor.qml          header, viewport, footer, drawing surface
 ui/Inspector.qml       settings column
 ui/ToolRail.qml        tool strip
-ui/controls/           Ui (metrics singleton), IconButton, Chip, Segmented, Swatch,
-                       Toggle, LabeledSlider, TextBox, Section; registered in qmldir
+ui/controls/           Ui (metrics singleton), IconButton, Chip, Segmented, Dropdown,
+                       Swatch, Toggle, LabeledSlider, TextBox, Section; registered in qmldir
 lib/Model.js           ratios, gradients, frame geometry, grab size, ids
 lib/Redact.js          secret patterns, guards, OCR TSV -> boxes
+lib/Code.js            languages, themes, ANSI -> StyledText, language guessing
 bin/snap-dir           resolve the screenshot directory the way omarchy does
 bin/snap-capture       take a shot, print its path
 bin/snap-palette       dominant colours, pushed into a comfortable band
 bin/snap-ocr           tesseract TSV (redact) or text
 bin/snap-deliver       encode + save / copy / clipboard text
 bin/snap-pick          file chooser fallback chain
+bin/snap-text          primary selection, else clipboard
+bin/snap-highlight     bat -> ANSI (plain text without bat)
+bin/snap-theme         current theme's colors.toml as key=hex lines
 tests/                 run.sh runs everything; see Testing
 ```
 
@@ -52,14 +58,34 @@ tests/                 run.sh runs everything; see Testing
   without telling the shell, or `toggle` desyncs.
 - `call <id> <fn> <arg>` invokes any function on the root item and returns its
   string result (`undefined` becomes `ok`). Public surface: `edit`, `capture`,
-  `save`, `copy`, `redact`, `copyText`. Keep those names stable; the README
-  documents them.
+  `code`, `save`, `copy`, `redact`, `copyText`, `set`, `info`. Keep those
+  names stable; the README documents them. `info` is not called `state`
+  because Item already has a `state` property.
 - Bar widgets extend `qs.Ui.BarWidget` and get `bar`, `moduleName`,
   `settings`. `bar.shell.summon(moduleName, payload)` is the in-process path;
   `omarchy-shell shell summon ...` via `execDetached` is the fallback.
 - Payloads: `{"path": "..."}` opens a file, `{"capture": "region|windows|
-  fullscreen|smart"}` captures first, `{}` with nothing loaded captures a
-  region (one-press hotkey behaviour), `{}` with a shot loaded just shows it.
+  fullscreen|smart"}` captures first, `{"code": true}` makes a code card from
+  the selection, `{"text": "..."}` from the given text, `{}` with nothing
+  loaded captures a region (one-press hotkey behaviour), `{}` with content
+  loaded just shows it.
+
+## Document kinds
+
+`doc.kind` is `shot` or `code`. Both report their pixel size through
+`shotWidth`/`shotHeight`, so frame geometry, ratio, padding, chrome, shadow,
+annotations and export are shared. A code card is measured by `CodeBlock`
+(text implicit size plus `codePad`) and pushed into the document; nothing
+else may write those two properties in code mode.
+
+Code flow: `code()` -> `bin/snap-text` -> `loadCode()` sets kind, guesses the
+language (`Code.guessLanguage`), applies the theme colours, and runs
+`bin/snap-highlight` (bat) whose ANSI output `Code.ansiToHtml` turns into
+StyledText (`<font color>`, `<b>`, `<i>`, `&nbsp;`, `<br>`). Language, theme
+and line-number changes re-run the highlighter; a run that finishes while
+another is pending re-runs once more. The `omarchy` theme is bat's `ansi`
+theme mapped through `bin/snap-theme`'s palette, refreshed when
+`Color.background` changes.
 
 ## Rendering model
 
@@ -77,8 +103,14 @@ the on-screen scale does not matter. Two things do:
 - **`doc.exporting`.** Raised for the grab frame; selection outlines and the
   text placeholder bind to it so they never reach the file.
 
-The card is a Quickshell `ClippingRectangle` (rounded clip) kept
-`visible: false` and drawn by a `MultiEffect` that adds the shadow. Redaction
+The screenshot card is a Quickshell `ClippingRectangle` (rounded clip) kept
+`visible: false` and drawn by a `MultiEffect` that adds the shadow. The code
+card is a plain rounded `Rectangle` that stays visible and sits *over* its
+`MultiEffect`, which then only contributes the shadow: inside the shell,
+descendants of a hidden effect source did not render (they did under the
+plain `qml` runtime), and a `ClippingRectangle` resized by its own child's
+measurement kept a stale texture. Do not move the code card back into a
+hidden source. Redaction
 samples a hidden full-size `Image` through a `ShaderEffectSource` with a tiny
 `textureSize` and `smooth: false`: each block is one sample, nothing to
 sharpen back. Annotations are stored in screenshot pixel coordinates and the
@@ -119,6 +151,8 @@ layer sits at `cardX, cardY + chromeH`.
   spacing 1, at caption or bodySmall size.
 - Fonts and colours come from the shell singletons `qs.Commons.Style` and
   `qs.Commons.Color` (`Color.menu.*` for the surface).
+- Text inside cards is `Text.StyledText`, not `RichText`: it is lighter and
+  supports everything the highlighter emits.
 - A `Flow` (Segmented, Chip rows) cannot be sized from its own implicit width;
   give it `parent.width` or an explicit width, never `width: implicitWidth`.
 - Comments explain a non-obvious why, not what; no banner separators.
@@ -147,8 +181,9 @@ tests/run.sh
    stub singletons (`tests/qml/stubs/qs/Commons`) and a stub
    `Quickshell.Widgets.ClippingRectangle` (the real one needs the Quickshell
    host), places one of every annotation, exports through `grabToImage`, and
-   ImageMagick checks pixels. On a Wayland session it opens a real window for
-   about a second to get the GPU; `OMASNAP_TEST_OFFSCREEN=1` uses the
+   ImageMagick checks pixels; `HarnessCode.qml` does the same for a code
+   card. On a Wayland session each opens a real window for about a second to
+   get the GPU; `OMASNAP_TEST_OFFSCREEN=1` uses the
    offscreen platform, which forces the software scene graph, where
    `MultiEffect` renders nothing, so the card checks are skipped there.
 
@@ -158,6 +193,10 @@ Live checks in the running shell, all over IPC (no mouse needed):
 omarchy plugin enable tahayvr.omasnap
 omarchy-shell shell summon tahayvr.omasnap '{"path":"/path/to/shot.png"}'
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # non-interactive
+printf 'fn main() {}\n' | wl-copy --primary                 # fake a selection
+omarchy-shell shell call tahayvr.omasnap code ''
+omarchy-shell shell call tahayvr.omasnap set '{"frame":"titlebar","codeNumbers":true}'
+omarchy-shell shell call tahayvr.omasnap info ''
 omarchy-shell shell call tahayvr.omasnap redact ''
 omarchy-shell shell call tahayvr.omasnap save ''
 omarchy-shell shell hide tahayvr.omasnap

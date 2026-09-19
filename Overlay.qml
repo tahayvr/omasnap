@@ -6,6 +6,7 @@ import qs.Commons
 import "ui"
 import "lib/Redact.js" as Redact
 import "lib/Model.js" as Model
+import "lib/Code.js" as Code
 
 Item {
     id: root
@@ -30,7 +31,25 @@ Item {
 
     Doc { id: doc }
 
-    Component.onCompleted: dirProc.running = true
+    Component.onCompleted: { dirProc.running = true; themeProc.running = true; }
+
+    // The desktop palette feeds the "Omarchy" code theme; refresh it when the
+    // shell's colours change.
+    property string themeLines: ""
+    Connections {
+        target: Color
+        function onBackgroundChanged() { themeProc.running = true; }
+    }
+    Process {
+        id: themeProc
+        command: ["bash", root.pluginDir + "bin/snap-theme"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.themeLines = text;
+                if (doc.kind === "code") root.applyCodeTheme();
+            }
+        }
+    }
 
     function open(payloadJson) {
         var payload = {};
@@ -41,9 +60,13 @@ Item {
 
         if (payload.path) {
             loadShot(String(payload.path));
+        } else if (payload.text) {
+            loadCode(String(payload.text));
+        } else if (payload.code) {
+            code();
         } else if (payload.capture) {
             capture(String(payload.capture));
-        } else if (!doc.hasShot) {
+        } else if (!doc.hasContent) {
             capture("region");
         }
         focusEditor();
@@ -70,6 +93,122 @@ Item {
         return "ok";
     }
 
+    // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
+    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "balance", "ratio",
+        "radius", "shadow", "shadowOpacity", "shadowY", "frame", "frameTitle", "exportScale", "format",
+        "quality", "tool", "inkColor", "inkWidth", "codeLang", "codeTheme", "codeFont", "codeNumbers"]
+    function set(json) {
+        var o;
+        try { o = JSON.parse(json); } catch (e) { return "bad json"; }
+        var applied = 0;
+        for (var k in o) if (settable.indexOf(k) !== -1) { doc[k] = o[k]; applied++; }
+        return applied ? "ok" : "nothing to set";
+    }
+
+    // info: the document as JSON.
+    function info() {
+        return JSON.stringify({
+            kind: doc.kind, opened: opened, hasContent: doc.hasContent,
+            shotPath: doc.shotPath, shotWidth: doc.shotWidth, shotHeight: doc.shotHeight,
+            outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
+            bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, frame: doc.frame,
+            codeLang: doc.codeLang, codeDetected: doc.codeDetected, codeTheme: doc.codeTheme,
+            codeFont: doc.codeFont, codeNumbers: doc.codeNumbers, codeBg: String(doc.codeBg),
+            codeFg: String(doc.codeFg), codeHtmlLength: doc.codeHtml.length
+        });
+    }
+
+    // code <text>: render the text; with no argument, the selected text.
+    function code(text) {
+        if (text && String(text).length) { loadCode(String(text)); opened = true; return "ok"; }
+        if (textProc.running) return "busy";
+        opened = true;
+        textProc.running = true;
+        return "ok";
+    }
+
+    Process {
+        id: textProc
+        command: ["bash", root.pluginDir + "bin/snap-text"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length) {
+                    root.loadCode(text);
+                } else if (!doc.hasContent) {
+                    root.dismiss();
+                } else {
+                    editor.statusText = "Nothing is selected";
+                }
+                root.focusEditor();
+            }
+        }
+    }
+
+    function loadCode(text) {
+        text = text.replace(/\r/g, "").replace(/\n+$/, "");
+        if (!text.length) return;
+        doc.clearAnnotations();
+        doc.kind = "code";
+        doc.shotPath = "";
+        doc.shotWidth = 0;
+        doc.shotHeight = 0;
+        doc.autoPalette = [];
+        if (doc.bgMode === "auto") doc.bgMode = "gradient";
+        doc.codeText = text;
+        doc.codeDetected = Code.guessLanguage(text);
+        doc.frameTitle = "snippet." + doc.codeEffectiveLang;
+        applyCodeTheme();
+        highlight();
+        editor.statusText = Code.lineCount(text) + " lines \u00b7 " + Code.languageLabel(doc.codeEffectiveLang);
+    }
+
+    function codePalette() {
+        var t = Code.themeByKey(doc.codeTheme);
+        if (t.key === "omarchy") return Code.paletteFromTheme(root.themeLines, String(Color.foreground));
+        return Code.defaultPalette(t.fg);
+    }
+
+    function applyCodeTheme() {
+        var t = Code.themeByKey(doc.codeTheme);
+        var p = codePalette();
+        doc.codeBg = t.bg || p.bg;
+        doc.codeFg = t.fg || p.fg;
+    }
+
+    function highlight() {
+        if (doc.kind !== "code" || !doc.codeText.length) return;
+        if (highlightProc.running) { highlightProc.pending = true; return; }
+        highlightProc.pending = false;
+        highlightProc.input = doc.codeText;
+        highlightProc.running = true;
+    }
+
+    Process {
+        id: highlightProc
+        property string input: ""
+        property bool pending: false
+        command: ["bash", root.pluginDir + "bin/snap-highlight", doc.codeEffectiveLang,
+                  Code.themeByKey(doc.codeTheme).bat, doc.codeNumbers ? "1" : "0"]
+        stdinEnabled: true
+        onRunningChanged: {
+            if (running) { write(input); stdinEnabled = false; }
+            else stdinEnabled = true;
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                doc.codeHtml = Code.ansiToHtml(text, root.codePalette());
+                if (highlightProc.pending) root.highlight();
+            }
+        }
+    }
+
+    Connections {
+        target: doc
+        function onCodeLangChanged() { doc.frameTitle = "snippet." + doc.codeEffectiveLang; root.highlight(); }
+        function onCodeThemeChanged() { root.applyCodeTheme(); root.highlight(); }
+        function onCodeNumbersChanged() { root.highlight(); }
+    }
+
     function focusEditor() {
         Qt.callLater(function () { if (window.visible) scope.forceActiveFocus(); });
     }
@@ -77,6 +216,10 @@ Item {
     function loadShot(path) {
         if (!path) return;
         doc.clearAnnotations();
+        doc.kind = "shot";
+        doc.codeText = "";
+        doc.codeHtml = "";
+        if (doc.bgMode === "gradient" && doc.autoPalette.length === 0) doc.bgMode = "auto";
         doc.shotWidth = 0;
         doc.shotHeight = 0;
         doc.shotPath = path;
@@ -127,7 +270,8 @@ Item {
     }
 
     function redact() {
-        if (!doc.hasShot) return "no shot";
+        if (doc.kind === "code") { editor.statusText = "Use the Hide tool to pixelate code"; return "no shot"; }
+        if (!doc.hasContent) return "no shot";
         if (ocrProc.running) return "busy";
         editor.busy = true;
         editor.statusText = "Reading the screenshot…";
@@ -137,7 +281,13 @@ Item {
     }
 
     function copyText() {
-        if (!doc.hasShot) return "no shot";
+        if (doc.kind === "code" && doc.codeText.length) {
+            clipText.text = doc.codeText;
+            clipText.running = true;
+            editor.statusText = "Code copied to the clipboard";
+            return "ok";
+        }
+        if (!doc.hasContent) return "no shot";
         if (ocrProc.running) return "busy";
         editor.busy = true;
         ocrProc.purpose = "text";
@@ -162,7 +312,7 @@ Item {
                 root.capturing = false;
                 if (path.length > 0 && path.indexOf("/") === 0) {
                     root.loadShot(path);
-                } else if (!doc.hasShot) {
+                } else if (!doc.hasContent) {
                     root.dismiss();    // cancelled with nothing to fall back to
                 } else {
                     editor.statusText = "Capture cancelled";
@@ -229,13 +379,15 @@ Item {
         property string text: ""
         command: ["bash", root.pluginDir + "bin/snap-deliver", "text"]
         stdinEnabled: true
+        // Closing stdin ends the input; reopen it so the next run can write.
         onRunningChanged: {
             if (running) { write(text); stdinEnabled = false; }
+            else stdinEnabled = true;
         }
     }
 
     function exportTo(path, andThen) {
-        if (!doc.hasShot) return "no shot";
+        if (!doc.hasContent) return "no shot";
         if (editor.busy) return "busy";
         if (doc.outputTooLarge) {
             editor.statusText = "Too large to render — pick a smaller export scale";
@@ -343,6 +495,7 @@ Item {
             case Qt.Key_S: root.save(); return true;
             case Qt.Key_Z: doc.undo(); return true;
             case Qt.Key_N: root.capture("region"); return true;
+            case Qt.Key_K: root.code(); return true;
             }
             return false;
         }
@@ -405,6 +558,7 @@ Item {
                 radius: 0
 
                 onCaptureRequested: function (mode) { root.capture(mode); }
+                onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()
                 onSaveRequested: root.save()
