@@ -68,20 +68,37 @@ test("optical balance lifts the card only when there is slack", () => {
     eq(auto.cardY, 100, "no lift in auto ratio");
 });
 
-test("window chrome is inside the card and the frame", () => {
-    for (const frame of ["dots", "titlebar"]) {
-        const g = Model.frameGeometry(Object.assign({}, base, { frame }));
-        ok(g.chromeH >= 22 && g.chromeH <= 44, frame + " chrome clamped");
-        eq(g.cardH, 500 + g.chromeH, frame + " card grows");
-        eq(g.frameH, 700 + g.chromeH, frame + " frame grows");
-    }
+test("the title bar is inside the card and the frame", () => {
+    const g = Model.frameGeometry(Object.assign({}, base, { frame: "titlebar" }));
+    ok(g.chromeH >= 22 && g.chromeH <= 44, "chrome clamped");
+    eq(g.cardH, 500 + g.chromeH, "card grows");
+    eq(g.frameH, 700 + g.chromeH, "frame grows");
     eq(Model.frameGeometry(Object.assign({}, base, { frame: "none" })).chromeH, 0);
+    eq(Model.chromeHeight({ shotHeight: 1000, frame: "dots" }), 0, "no window frame any more");
 });
 
 test("chrome scales with the shot but stays legible", () => {
-    eq(Model.chromeHeight({ shotHeight: 100, frame: "dots" }), 22, "small shot");
-    eq(Model.chromeHeight({ shotHeight: 4000, frame: "dots" }), 44, "huge shot");
-    eq(Model.chromeHeight({ shotHeight: 1000, frame: "dots" }), 42, "proportional");
+    eq(Model.chromeHeight({ shotHeight: 100, frame: "titlebar" }), 22, "small shot");
+    eq(Model.chromeHeight({ shotHeight: 4000, frame: "titlebar" }), 44, "huge shot");
+    eq(Model.chromeHeight({ shotHeight: 1000, frame: "titlebar" }), 42, "proportional");
+});
+
+test("the title bar tints itself from the card underneath", () => {
+    const dark = Model.chromeTint("#1e222a");
+    const light = Model.chromeTint("#eef1f4");
+    ok(Model.luminance(Model.parseHex(dark)) > Model.luminance(Model.parseHex("#1e222a")),
+       "lifted off a dark card");
+    ok(Model.luminance(Model.parseHex(light)) < Model.luminance(Model.parseHex("#eef1f4")),
+       "deepened on a light card");
+    ok(Model.luminance(Model.parseHex(Model.chromeTint("#000000"))) > 20,
+       "black still separates from the card");
+    // The tint keeps the card's hue, which is the whole point of sampling it.
+    const blue = Model.parseHex(Model.chromeTint("#204060"));
+    ok(blue.b > blue.r, "hue survives the tint");
+    eq(Model.chromeTint("not a colour"), "", "garbage falls through to the caller");
+    eq(Model.textOn("#eef1f4"), "#1b1b1b", "dark text on a light bar");
+    eq(Model.textOn("#1e222a"), "#f0f0f0", "light text on a dark bar");
+    eq(Model.textOn(""), "#e8e8e8", "a readable default with no colour");
 });
 
 test("geometry survives an empty document", () => {

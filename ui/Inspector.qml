@@ -197,8 +197,7 @@ Flickable {
                 current: doc.frame
                 options: [
                     { key: "none",     label: "No frame" },
-                    { key: "dots",     label: "Window" },
-                    { key: "titlebar", label: "Titled" }
+                    { key: "titlebar", label: "Title bar" }
                 ]
                 onPicked: function (k) { doc.frame = k; }
             }

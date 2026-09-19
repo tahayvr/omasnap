@@ -23,7 +23,7 @@ Overlay.qml            entry point: shell contract, processes, keyboard, export
 BarWidget.qml          bar launcher (summons through bar.shell)
 ui/Doc.qml             document state, derived geometry, annotation list model
 ui/Stage.qml           the composition that gets grabbed (native pixel size)
-ui/Chrome.qml          window chrome shared by both cards
+ui/Chrome.qml          title bar shared by both cards
 ui/CodeBlock.qml       highlighted text sized by its contents
 ui/AnnotationLayer.qml annotation delegates, dragging, redaction sampling
 ui/Editor.qml          header, viewport, footer, drawing surface
@@ -162,6 +162,15 @@ layer sits at `cardX, cardY + chromeH`.
 - All editor chrome is square: no `radius` on any control, the editor window,
   or the selection outline. Only the exported card has a radius, and that is a
   user setting.
+- **`doc.frame` is `none` or `titlebar`, nothing else.** There is no
+  macOS-style button row: Omarchy windows carry no titlebar buttons, so the
+  bar is the title alone. It tints itself from the card underneath rather
+  than from the theme, so the frame stays in harmony with what it frames:
+  `bin/snap-palette` prints one `#backdrop #source` pair per line, where the
+  first is pushed into a background-friendly lightness band (`autoPalette`)
+  and the second is the colour as it appears in the image (`shotPalette`);
+  `Model.chromeTint` steps that one away from the card and `Model.textOn`
+  picks readable title text. A code card tints from `doc.codeBg` instead.
 - Headings are uppercase: `Section` titles, the header wordmark and the empty
   state title use `font.capitalization: Font.AllUppercase` with letter
   spacing 1, at caption or bodySmall size.

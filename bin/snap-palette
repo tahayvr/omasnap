@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Print up to 5 background colours derived from an image, most dominant first,
-# one #rrggbb per line. Colours are pushed into a comfortable lightness band so
-# a screenshot full of white does not produce a blinding background.
+# Print up to 5 of an image's dominant colours, most dominant first, one
+# "#backdrop #source" pair per line. The first is pushed into a comfortable
+# lightness band so a screenshot full of white does not produce a blinding
+# background; the second is the colour as it appears in the image, which the
+# title bar tints itself with.
 set -uo pipefail
 exec </dev/null
 
@@ -23,8 +25,8 @@ function byte(s, i) { return nib(substr(s, i, 1)) * 16 + nib(substr(s, i + 1, 1)
   lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
   if (lum > 140) { k = 0.28; o = 178 }   # light source -> soft light backdrop
   else           { k = 0.52; o = 16  }   # dark source  -> deep muted backdrop
-  r = int(r * k + o); g = int(g * k + o); b = int(b * k + o)
-  if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255
-  printf "#%02x%02x%02x\n", r, g, b
+  br = int(r * k + o); bg = int(g * k + o); bb = int(b * k + o)
+  if (br > 255) br = 255; if (bg > 255) bg = 255; if (bb > 255) bb = 255
+  printf "#%02x%02x%02x #%02x%02x%02x\n", br, bg, bb, r, g, b
 }'
 exit 0

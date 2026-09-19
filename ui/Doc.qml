@@ -29,7 +29,8 @@ QtObject {
     property color bgSolid: "#1e222a"
     property string bgGradient: "dusk"
     property int bgAngle: 135
-    property var autoPalette: []            // filled by bin/snap-palette
+    property var autoPalette: []            // backdrop colours, bin/snap-palette
+    property var shotPalette: []            // the same colours as they appear in the shot
 
     property real padding: 5                // percent of the shot's longest edge
     property bool balance: true
@@ -39,7 +40,7 @@ QtObject {
     property real shadow: 36
     property real shadowOpacity: 0.45
     property real shadowY: 16
-    property string frame: "none"           // none | dots | titlebar
+    property string frame: "none"           // none | titlebar
     property string frameTitle: ""
 
     property int exportScale: 1
@@ -150,6 +151,7 @@ QtObject {
         codeHtml = "";
         frameTitle = "";
         autoPalette = [];
+        shotPalette = [];
     }
 
     function reset() {

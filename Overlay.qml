@@ -201,6 +201,7 @@ Item {
         doc.shotWidth = 0;
         doc.shotHeight = 0;
         doc.autoPalette = [];
+        doc.shotPalette = [];
         if (doc.bgMode === "auto") doc.bgMode = "gradient";
         doc.codeText = text;
         doc.codeDetected = Code.guessLanguage(text);
@@ -273,6 +274,7 @@ Item {
         doc.shotPath = path;
         doc.frameTitle = path.split("/").pop();
         doc.autoPalette = [];
+        doc.shotPalette = [];
         probe.source = "";
         probe.source = "file://" + path;
         paletteProc.path = path;
@@ -376,10 +378,17 @@ Item {
         command: ["bash", root.pluginDir + "bin/snap-palette", path]
         stdout: StdioCollector {
             onStreamFinished: {
-                var colors = text.trim().split("\n").filter(function (l) {
-                    return /^#[0-9a-fA-F]{6}$/.test(l.trim());
-                });
-                doc.autoPalette = colors.slice(0, 5);
+                // Each line is "#backdrop #source".
+                var backdrops = [], sources = [];
+                var lines = text.trim().split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var m = /^(#[0-9a-fA-F]{6})\s+(#[0-9a-fA-F]{6})$/.exec(lines[i].trim());
+                    if (!m) continue;
+                    backdrops.push(m[1]);
+                    sources.push(m[2]);
+                }
+                doc.autoPalette = backdrops.slice(0, 5);
+                doc.shotPalette = sources.slice(0, 5);
             }
         }
     }

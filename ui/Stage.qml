@@ -46,7 +46,18 @@ Item {
                                    ? Model.gradientByKey(doc.bgGradient).angle
                                    : doc.bgAngle
 
-    readonly property color chromeColor: Qt.darker(Color.background, 1.15)
+    // The title bar takes its colour from the card underneath it, so a shot
+    // and its frame stay in harmony: the code theme's own background, or the
+    // screenshot's dominant colour as sampled by bin/snap-palette.
+    readonly property string chromeSource: {
+        if (codeKind) return String(doc.codeBg);
+        return doc.shotPalette.length > 0 ? String(doc.shotPalette[0]) : "";
+    }
+    readonly property color chromeColor: {
+        var tint = Model.chromeTint(stage.chromeSource);
+        return tint ? tint : Qt.darker(Color.background, 1.15);
+    }
+    readonly property color chromeTextColor: Model.textOn(Model.chromeTint(stage.chromeSource))
     readonly property real cardRadius: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
                                                 Math.min(geo.cardW, geo.cardH) / 2) * unit
 
@@ -107,6 +118,7 @@ Item {
             doc: stage.doc
             height: stage.geo.chromeH * stage.unit
             color: stage.chromeColor
+            textColor: stage.chromeTextColor
         }
 
         Image {
@@ -139,6 +151,7 @@ Item {
             doc: stage.doc
             height: stage.geo.chromeH * stage.unit
             color: stage.chromeColor
+            textColor: stage.chromeTextColor
             topRadius: stage.cardRadius
         }
 
