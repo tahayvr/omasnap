@@ -74,7 +74,7 @@ Rectangle {
             IconButton { glyph: "\u25f0"; label: "Window"; onClicked: editor.captureRequested("windows") }
             IconButton { glyph: "\u2b1c"; label: "Screen"; onClicked: editor.captureRequested("fullscreen") }
             IconButton { glyph: "\u2039\u203a"; label: "Code"; tip: "Selected text as a code card"; onClicked: editor.codeRequested() }
-            IconButton { glyph: "\u2026"; tip: "Open a file"; onClicked: editor.openRequested() }
+            IconButton { glyph: "\uf1c5"; label: "File"; tip: "Open a file"; onClicked: editor.openRequested() }
         }
 
         IconButton {
@@ -271,7 +271,7 @@ Rectangle {
                 spacing: Ui.gap
                 IconButton { glyph: "\u2b1a"; label: "Capture a region"; onClicked: editor.captureRequested("region") }
                 IconButton { glyph: "\u2039\u203a"; label: "Code from selection"; onClicked: editor.codeRequested() }
-                IconButton { glyph: "\u2026"; label: "Open a file"; onClicked: editor.openRequested() }
+                IconButton { glyph: "\uf1c5"; label: "Open a file"; onClicked: editor.openRequested() }
             }
         }
     }
