@@ -163,6 +163,13 @@ layer sits at `cardX, cardY + chromeH`.
 - All editor chrome is square: no `radius` on any control, the editor window,
   or the selection outline. Only the exported card has a radius, and that is a
   user setting.
+- **A `LabeledSlider`'s readout is also its input.** The number is a
+  `TextInput`, so typing into it breaks the `text` binding to `value`; the
+  control puts the binding back with `Qt.binding` in `rebind()` after every
+  commit, cancel or focus loss, or the slider stops driving the readout.
+  A `DoubleValidator` bounded by `from`/`to` keeps the typing sane and
+  `commit()` clamps and ignores anything unparseable. `tests/qml/HarnessSlider.qml`
+  drives that round trip offscreen.
 - **Padding and inset are different spacings.** `doc.padding` grows the frame
   around the whole card; `doc.inset` grows the card around the shot and fills
   the new band with the shot's own edge colour, so a screenshot reads as
@@ -248,7 +255,8 @@ tests/run.sh
    `<dir>/qs` is a symlink to `$OMARCHY_PATH/shell`, so `qs.Commons` and
    `qs.Ui` resolve. Only hard categories fail the run. The `qmllint` on PATH
    is the old syntax-only Qt 5 tool and proves nothing.
-4. `tests/qml/render.sh`: `tests/qml/Harness.qml` loads `Doc` + `Stage` with
+4. `tests/qml/render.sh`: `tests/qml/HarnessSlider.qml` checks the editable
+   slider readout offscreen, then `tests/qml/Harness.qml` loads `Doc` + `Stage` with
    stub singletons (`tests/qml/stubs/qs/Commons`) and a stub
    `Quickshell.Widgets.ClippingRectangle` (the real one needs the Quickshell
    host), places one of every annotation, exports through `grabToImage`, and

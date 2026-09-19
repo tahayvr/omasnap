@@ -90,6 +90,14 @@ else
   expect "no selection outline beside the box" 45 45     0 255   0
 fi
 
+# ---- slider readout --------------------------------------------------------
+# Pure control logic, so it runs offscreen whatever the scene graph is doing.
+slog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen timeout 30 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessSlider.qml 2>&1)"
+echo "$slog" | grep -E "^qml: (ok|FAIL)" | sed 's/^qml: //'
+if echo "$slog" | grep -q "FAIL"; then fail=1; fi
+echo "$slog" | grep -q "^qml: ok   readout tracks the slider again" \
+  || { echo "FAIL slider harness did not run to the end"; fail=1; }
+
 # ---- inset -----------------------------------------------------------------
 # Second export from the same harness: inset 10% of 400 = 40px of the shot's
 # edge colour (forced to magenta) on every side, so the card grows to 480x280
