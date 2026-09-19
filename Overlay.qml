@@ -105,6 +105,41 @@ Item {
         return applied ? "ok" : "nothing to set";
     }
 
+    // annotate <json>: add annotations in screenshot pixels: one object
+    // {kind, x, y, w, h, color, width, text, index, strength}, or several as
+    // {"items": [...]} (the IPC CLI splits a bare top-level array on commas).
+    function annotate(json) {
+        var list;
+        try { list = JSON.parse(json); } catch (e) { return "bad json"; }
+        if (list && Array.isArray(list.items)) list = list.items;
+        if (!Array.isArray(list)) list = [list];
+        var added = 0;
+        for (var i = 0; i < list.length; i++) {
+            var o = list[i];
+            if (!o || !o.kind) continue;
+            var a = Model.newAnnotation(String(o.kind), Number(o.x) || 0, Number(o.y) || 0);
+            a.w = Number(o.w) || 0;
+            a.h = Number(o.h) || 0;
+            a.color = o.color ? String(o.color) : String(doc.inkColor);
+            a.width = Number(o.width) || doc.inkWidth;
+            a.text = o.text ? String(o.text) : "";
+            a.strength = Number(o.strength) || Math.max(6, Math.round(doc.geo.shotW / 90));
+            if (a.kind === "step") {
+                doc.stepCounter += 1;
+                a.index = Number(o.index) || doc.stepCounter;
+                if (!a.w) {
+                    var size = Math.max(22, Math.round(a.width * 9));
+                    a.x -= size / 2; a.y -= size / 2; a.w = size; a.h = size;
+                }
+            }
+            doc.annotations.append(a);
+            added++;
+        }
+        doc.selectedId = "";
+        doc.annotationsEdited();
+        return added ? "ok" : "nothing added";
+    }
+
     // info: the document as JSON.
     function info() {
         return JSON.stringify({

@@ -177,6 +177,20 @@ test("an email is found and boxed to the word that holds it", () => {
     ok(b.y < 30 && b.y + b.h > 48, "box covers the line height");
 });
 
+test("a match inside a longer word is narrowed to its characters", () => {
+    // One OCR word of 32 chars at x = 10, width 288: the email starts at char 12.
+    const found = Redact.findSensitive(tsv("ADMIN_EMAIL=john.doe@example.com"), ALL);
+    eq(found.boxes.length, 1);
+    const b = found.boxes[0];
+    ok(b.x > 10 + 288 * 0.3 && b.x < 10 + 288 * 0.4, "starts after the label, got x=" + b.x);
+    ok(b.x + b.w > 10 + 288 - 8, "runs to the end of the word");
+    // A misread character ends the pattern early; the box must still cover the whole word.
+    const word = "KEY=sk-ant-api03-Zx9Qw2Lm8Np4Rt6\u00e9Yu1Io3Pa5Sd7Fg0Hj2Kl4Zx9Qw2";
+    const cut = Redact.findSensitive(tsv(word), ALL);
+    eq(cut.boxes.length, 1);
+    ok(cut.boxes[0].x + cut.boxes[0].w > 10 + word.length * 9 - 8, "no visible tail after a misread");
+});
+
 test("a card number split across OCR words is boxed as one span", () => {
     const found = Redact.findSensitive(tsv("card 4111 1111 1111 1111 ok"), ALL);
     eq(found.boxes.length, 1, "one box, not one per word or one per pattern");
@@ -217,8 +231,10 @@ test("switching a class off suppresses it, and nothing else picks it up", () => 
     eq(Redact.findSensitive(tsv("mail a@b.io"), []).boxes, []);
 });
 
-test("low-confidence words are ignored", () => {
+test("low-confidence words are ignored unless long enough to be a secret", () => {
     eq(Redact.findSensitive(tsv("mail a@b.io", { conf: 20 }), ALL).boxes, []);
+    const found = Redact.findSensitive(tsv("KEY=sk-ant-api03-Zx9Qw2Lm8Np4Rt6Yu1Io3Pa5Sd7Fg0Hj2Kl4Zx9Qw2", { conf: 4 }), ALL);
+    eq(labels(found), ["API key"]);
 });
 
 test("matches never cross OCR lines", () => {

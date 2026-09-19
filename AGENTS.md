@@ -58,9 +58,12 @@ tests/                 run.sh runs everything; see Testing
   without telling the shell, or `toggle` desyncs.
 - `call <id> <fn> <arg>` invokes any function on the root item and returns its
   string result (`undefined` becomes `ok`). Public surface: `edit`, `capture`,
-  `code`, `save`, `copy`, `redact`, `copyText`, `set`, `info`. Keep those
-  names stable; the README documents them. `info` is not called `state`
-  because Item already has a `state` property.
+  `code`, `save`, `copy`, `redact`, `copyText`, `set`, `info`, `annotate`.
+  Keep those names stable; the README documents them. `info` is not called
+  `state` because Item already has a `state` property. An IPC argument that
+  starts with `[` is split on commas by the CLI, so `annotate` takes
+  `{"items": [...]}` rather than a bare array, and any argument with a
+  literal space is split too (use `\u0020` inside JSON strings).
 - Bar widgets extend `qs.Ui.BarWidget` and get `bar`, `moduleName`,
   `settings`. `bar.shell.summon(moduleName, payload)` is the in-process path;
   `omarchy-shell shell summon ...` via `execDetached` is the fallback.
@@ -160,6 +163,9 @@ layer sits at `cardX, cardY + chromeH`.
   and degrade instead of failing. Scratch files go to `$XDG_RUNTIME_DIR`.
 - OCR upscales shots under 2400px (200%) and under 3200px (150%) before
   tesseract, then maps boxes back; 4K is read as is (~6 s, vs ~60 s doubled).
+- OCR words under 35% confidence are dropped only when shorter than eight
+  characters: tesseract is least confident about exactly the random strings
+  worth hiding, and an API key was missed before this rule.
 - Redaction guards: Luhn for cards, entropy for bare tokens, and the phone /
   IP guards reject dates, dotted quads, loopback and version strings. Extend
   `PATTERNS`/`CLASSES` in `lib/Redact.js` and add a case to `tests/run.js`.

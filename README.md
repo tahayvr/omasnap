@@ -17,16 +17,22 @@ the picture that should not be public.
 - Corner radius, shadow depth, and an optional window frame with traffic
   lights or a title
 
+![Framing](docs/framing.png)
+
 **Backgrounds**
 - Auto, sampled from the screenshot itself and kept in a comfortable range so
   a white UI does not give a blinding backdrop
 - Gradient presets, flat colours, or the colours of your current Omarchy theme
 - None, for a transparent PNG
 
+![Backgrounds](docs/backgrounds.png)
+
 **Annotation**
 - Arrows, boxes, ellipses, highlighter, text labels and numbered step badges
 - Select an annotation to drag it; a selected text label takes what you type
 - Annotations stay pinned to the screenshot when you change padding or ratio
+
+![Annotations](docs/annotations.png)
 
 **Hide sensitive data**
 - One click finds and pixelates emails, API keys, JWTs, AWS keys, GitHub
@@ -36,6 +42,8 @@ the picture that should not be public.
   loopback addresses are left alone
 - Pixelation destroys the original pixels; it is not a blur that can be undone
 - Copy all text in the screenshot to the clipboard
+
+![Hiding sensitive data](docs/redaction.png)
 
 **Code cards**
 - Select code or text anywhere, press a key, and get a syntax-highlighted
@@ -105,6 +113,7 @@ omarchy-shell shell call tahayvr.omasnap edit ~/Pictures/Screenshots/shot.png
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # region | windows | fullscreen | smart
 omarchy-shell shell call tahayvr.omasnap code ''               # code card from the selection (or pass the text)
 omarchy-shell shell call tahayvr.omasnap set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
+omarchy-shell shell call tahayvr.omasnap annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
 omarchy-shell shell call tahayvr.omasnap info ''               # the document as JSON
 omarchy-shell shell call tahayvr.omasnap redact ''            # find and hide secrets
 omarchy-shell shell call tahayvr.omasnap copyText ''          # text to the clipboard
