@@ -139,6 +139,19 @@ QtObject {
         annotationsEdited();
     }
 
+    // Back to the empty state; styling settings are kept.
+    function clearContent() {
+        clearAnnotations();
+        kind = "shot";
+        shotPath = "";
+        shotWidth = 0;
+        shotHeight = 0;
+        codeText = "";
+        codeHtml = "";
+        frameTitle = "";
+        autoPalette = [];
+    }
+
     function reset() {
         clearAnnotations();
         padding = 5; ratio = "auto"; balance = true;

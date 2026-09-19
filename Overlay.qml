@@ -66,8 +66,11 @@ Item {
             code();
         } else if (payload.capture) {
             capture(String(payload.capture));
-        } else if (!doc.hasContent) {
-            capture("region");
+        } else {
+            // A plain open always starts clean: the empty state offers
+            // region, code and file, and nothing from last time lingers.
+            editor.statusText = "";
+            doc.clearContent();
         }
         focusEditor();
     }

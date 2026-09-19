@@ -69,9 +69,9 @@ tests/                 run.sh runs everything; see Testing
   `omarchy-shell shell summon ...` via `execDetached` is the fallback.
 - Payloads: `{"path": "..."}` opens a file, `{"capture": "region|windows|
   fullscreen|smart"}` captures first, `{"code": true}` makes a code card from
-  the selection, `{"text": "..."}` from the given text, `{}` with nothing
-  loaded captures a region (one-press hotkey behaviour), `{}` with content
-  loaded just shows it.
+  the selection, `{"text": "..."}` from the given text, and `{}` always
+  opens the empty starting state (`doc.clearContent()`), never a leftover
+  document. Styling settings survive between opens; content does not.
 
 ## Document kinds
 

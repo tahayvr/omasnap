@@ -72,7 +72,7 @@ before you enable it.
 
 Enabling the plugin puts an OmaSnap button in the bar. Left-click it to grab a
 region, middle-click to make a code card from the selected text, right-click
-to reopen the editor on whatever you edited last. Move it with:
+to open the editor fresh and choose from there. Move it with:
 
 ```sh
 omarchy bar move tahayvr.omasnap --section center
