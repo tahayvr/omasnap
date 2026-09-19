@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# List the Omarchy themes installed on this system, one "slug<TAB>Name" per
+# line. omarchy prints display names; the directory holding a theme is the
+# name lowercased with spaces as dashes, which is also the key the plugin
+# stores. Themes without colors are skipped: there is nothing to render.
+set -u
+exec </dev/null
+
+omarchy theme list 2>/dev/null | while IFS= read -r name; do
+  [ -n "$name" ] || continue
+  slug="$(printf '%s' "$name" | tr '[:upper:] ' '[:lower:]-')"
+  dir="$(omarchy theme dir "$slug" 2>/dev/null)"
+  [ -n "$dir" ] && [ -f "$dir/colors.toml" ] || continue
+  printf '%s\t%s\n' "$slug" "$name"
+done

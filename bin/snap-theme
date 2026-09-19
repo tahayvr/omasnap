@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-# Print the current Omarchy theme's colours as key=#rrggbb lines.
+# snap-theme [slug]
+# Print an Omarchy theme's colours as key=#rrggbb lines. With no argument
+# that is the theme in use; with a slug it is that installed theme, which is
+# how a code card can wear a theme the desktop is not wearing.
 set -u
 exec </dev/null
-f="${OMARCHY_THEME_COLORS:-$HOME/.local/state/omarchy/current/theme/colors.toml}"
+
+slug="${1:-}"
+if [ -n "$slug" ]; then
+  dir="$(omarchy theme dir "$slug" 2>/dev/null)"
+  f="$dir/colors.toml"
+else
+  f="${OMARCHY_THEME_COLORS:-$HOME/.local/state/omarchy/current/theme/colors.toml}"
+fi
+
 [ -f "$f" ] || exit 0
 sed -nE 's/^[[:space:]]*([a-z_]+)[[:space:]]*=[[:space:]]*"(#[0-9A-Fa-f]{6})".*/\1=\2/p' "$f"

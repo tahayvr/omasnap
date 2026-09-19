@@ -32,7 +32,12 @@ Item {
 
     Doc { id: doc }
 
-    Component.onCompleted: { dirProc.running = true; themeProc.running = true; wallpaperProc.running = true; }
+    Component.onCompleted: {
+        dirProc.running = true;
+        themeProc.running = true;
+        wallpaperProc.running = true;
+        themeListProc.running = true;
+    }
 
     // The desktop palette feeds the "Omarchy" code theme; refresh it when the
     // shell's colours change.
@@ -48,6 +53,39 @@ Item {
             onStreamFinished: {
                 root.themeLines = text;
                 if (doc.kind === "code") root.applyCodeTheme();
+            }
+        }
+    }
+
+    // Every Omarchy theme installed here, offered as a code card theme.
+    property var systemThemes: []
+    Process {
+        id: themeListProc
+        command: ["bash", root.pluginDir + "bin/snap-themes"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var rows = [], lines = text.trim().split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var parts = lines[i].split("\t");
+                    if (parts.length === 2 && parts[0].length) rows.push({ key: parts[0], label: parts[1] });
+                }
+                root.systemThemes = rows;
+            }
+        }
+    }
+
+    // A card can wear a theme the desktop is not wearing, so that theme's
+    // palette is read separately from the one driving the editor's chrome.
+    property string codeThemeLines: ""
+    Process {
+        id: codeThemeProc
+        property string theme: ""
+        command: ["bash", root.pluginDir + "bin/snap-theme", theme]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.codeThemeLines = text;
+                root.applyCodeTheme();
+                root.highlight();
             }
         }
     }
@@ -225,6 +263,7 @@ Item {
     function codePalette() {
         var t = Code.themeByKey(doc.codeTheme);
         if (t.key === "omarchy") return Code.paletteFromTheme(root.themeLines, String(Color.foreground));
+        if (t.system) return Code.paletteFromTheme(root.codeThemeLines, "");
         return Code.defaultPalette(t.fg);
     }
 
@@ -265,7 +304,18 @@ Item {
     Connections {
         target: doc
         function onCodeLangChanged() { doc.frameTitle = "snippet." + doc.codeEffectiveLang; root.highlight(); }
-        function onCodeThemeChanged() { root.applyCodeTheme(); root.highlight(); }
+        function onCodeThemeChanged() {
+            var t = Code.themeByKey(doc.codeTheme);
+            if (t.system) {
+                // applyCodeTheme and highlight run once its palette arrives.
+                root.codeThemeLines = "";
+                codeThemeProc.theme = t.key;
+                codeThemeProc.running = true;
+                return;
+            }
+            root.applyCodeTheme();
+            root.highlight();
+        }
         function onCodeNumbersChanged() { root.highlight(); }
     }
 
@@ -639,6 +689,7 @@ Item {
                 id: editor
                 anchors.fill: parent
                 doc: doc
+                systemThemes: root.systemThemes
                 radius: 0
 
                 onCaptureRequested: function (mode) { root.capture(mode); }

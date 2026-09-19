@@ -46,7 +46,8 @@ bin/snap-pick          system file picker via the portal
 bin/snap-portal.py     XDG portal FileChooser client (holds the D-Bus connection)
 bin/snap-text          primary selection, else clipboard
 bin/snap-highlight     bat -> ANSI
-bin/snap-theme         current theme's colors.toml as key=hex lines
+bin/snap-theme         a theme's colors.toml as key=hex lines
+bin/snap-themes        the Omarchy themes installed here
 tests/                 run.sh runs everything; see Testing
 ```
 
@@ -187,6 +188,16 @@ layer sits at `cardX, cardY + chromeH`.
   A `DoubleValidator` bounded by `from`/`to` keeps the typing sane and
   `commit()` clamps and ignores anything unparseable. `tests/qml/HarnessControls.qml`
   drives that round trip offscreen, along with the tooltip.
+- **Code card themes are Omarchy's own, listed at runtime.** `THEMES` in
+  `lib/Code.js` holds only `omarchy` (follow the desktop) and the bat themes
+  Omarchy ships no equivalent for; every installed Omarchy theme is added by
+  `bin/snap-themes`, which slugs `omarchy theme list` into the directory
+  names `omarchy theme dir` wants. Anything `themeByKey` does not recognise
+  is therefore treated as one of those: bat's `ansi` output mapped through
+  that theme's palette, exactly like `omarchy`, with the palette read by
+  `bin/snap-theme <slug>` into `codeThemeLines` — kept apart from
+  `themeLines`, which is the desktop's current theme and drives the chrome.
+  Do not add a bat theme whose key collides with a theme directory name.
 - **A `Text` with a proportional `lineHeight` measures taller than it looks.**
   Qt hangs the extra spacing below every line, the last one included, so
   `CodeBlock` subtracts that trailing leading from `naturalH`; without it the

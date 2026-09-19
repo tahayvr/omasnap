@@ -7,6 +7,7 @@ Rectangle {
     id: editor
 
     property var doc
+    property var systemThemes: []
     property string statusText: ""
     property bool busy: false
 
@@ -280,6 +281,7 @@ Rectangle {
     Inspector {
         id: inspector
         doc: editor.doc
+        systemThemes: editor.systemThemes
         anchors { top: header.bottom; bottom: footer.top; right: parent.right }
         width: Style.space(300)
         visible: doc.hasContent

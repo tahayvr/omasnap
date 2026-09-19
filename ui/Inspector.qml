@@ -8,6 +8,7 @@ import "../lib/Code.js" as Code
 Flickable {
     id: insp
     property var doc
+    property var systemThemes: []
 
     signal autoRedactRequested()
     signal copyTextRequested()
@@ -30,7 +31,14 @@ Flickable {
 
             Dropdown {
                 current: doc.codeTheme
-                options: Code.THEMES.map(function (t) { return { key: t.key, label: t.label }; })
+                visibleRows: 12          // the list is long once themes load
+                // Omarchy first, then every theme installed on this system,
+                // then bat's own for the palettes Omarchy does not ship.
+                options: [{ key: "omarchy", label: "Omarchy" }]
+                    .concat(insp.systemThemes)
+                    .concat(Code.THEMES.slice(1).map(function (t) {
+                        return { key: t.key, label: t.label };
+                    }))
                 onPicked: function (k) { doc.codeTheme = k; }
             }
 

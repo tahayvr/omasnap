@@ -355,10 +355,21 @@ test("language guessing", () => {
     for (const k in cases) eq(Code.guessLanguage(cases[k]), k, "guess for " + k);
 });
 
-test("themes resolve with a safe default", () => {
+test("themes resolve, and anything unlisted is an installed Omarchy theme", () => {
     eq(Code.themeByKey("dracula").bat, "Dracula");
-    eq(Code.themeByKey("nope").key, "omarchy");
+    eq(Code.themeByKey("").key, "omarchy", "no key falls back");
     eq(Code.languageLabel("rs"), "Rust");
+
+    // The system themes arrive at runtime from bin/snap-themes, keyed by
+    // their directory name, so an unknown key is one of those rather than
+    // an error: it renders as bat's ansi output through that theme's palette.
+    const t = Code.themeByKey("tokyo-night");
+    eq(t.bat, "ansi", "rendered through the ansi mapping");
+    eq(t.system, true, "flagged so the overlay fetches its palette");
+    eq(t.bg, "", "colours come from the palette, not the table");
+    eq(t.label, "Tokyo Night", "directory name becomes a readable label");
+    eq(Code.themeByKey("catppuccin-latte").label, "Catppuccin Latte");
+    eq(Code.themeByKey("nord").system, true, "bat's Nord no longer shadows Omarchy's");
 });
 
 console.log(passed + " passed, " + failed + " failed");
