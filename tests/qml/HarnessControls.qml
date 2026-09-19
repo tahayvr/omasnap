@@ -1,15 +1,33 @@
 import QtQuick
+import QtQuick.Window
 import "../../ui/controls"
 
-// LabeledSlider's readout is an editable field, which means its text binding
-// is broken the moment anyone types into it. This drives that field directly
-// and checks the value round trip; tests/qml/render.sh greps the output.
-Item {
+// Editor controls that cannot be checked by looking at an exported image:
+// LabeledSlider's readout is an editable field, so its text binding is broken
+// the moment anyone types into it, and IconButton's tooltip has to reparent
+// itself out of the button to be drawn at all. tests/qml/render.sh greps the
+// output of this harness.
+Window {
     id: win
-    width: 300
-    height: 200
+    visible: true
+    width: 400
+    height: 300
 
     property real model: 5
+
+    IconButton {
+        id: button
+        x: 20
+        y: 200
+        glyph: "\u21b6"
+        tip: "Undo"
+    }
+
+    Tooltip {
+        id: loose
+        target: button
+        text: "Undo"
+    }
 
     LabeledSlider {
         id: slider
@@ -67,6 +85,30 @@ Item {
         e.text = "3"; e.rebind();
         win.check("escape abandons the edit", e.text, "7.3");
         win.check("escape leaves the value alone", win.model, 7.25);
+
+        // A tooltip left inside its button would be painted under whatever
+        // panel sits next to it, so it has to end up on the content item.
+        win.check("tooltip escapes its target", loose.parent === win.contentItem, true);
+        win.check("tooltip starts hidden", loose.visible, false);
+        loose.show = true;
+        win.check("tooltip shows", loose.visible, true);
+        win.check("tooltip sits beside the button",
+                  loose.x >= button.x + button.width, true);
+        win.check("tooltip stays inside the window",
+                  loose.x + loose.width <= win.width && loose.y >= 0
+                  && loose.y + loose.height <= win.height, true);
+        loose.show = false;
+        win.check("tooltip hides again", loose.visible, false);
+
+        // The button's own tooltip has reparented itself too, so look for it
+        // among the content item's children rather than the button's.
+        var own = null;
+        var siblings = win.contentItem.children;
+        for (var i = 0; i < siblings.length; i++)
+            if (siblings[i] !== loose && siblings[i].hasOwnProperty("target")
+                && siblings[i].target === button) own = siblings[i];
+        win.check("IconButton carries a tooltip", own !== null, true);
+        if (own) win.check("tooltip text follows tip", own.text, button.tip);
 
         Qt.quit();
     })

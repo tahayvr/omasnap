@@ -101,6 +101,7 @@ Rectangle {
         anchors { top: header.bottom; bottom: footer.top; left: parent.left }
         width: implicitWidth
         visible: doc.hasContent
+        onStatus: function (text) { editor.statusText = text; }
     }
 
     Item {

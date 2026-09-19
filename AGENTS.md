@@ -30,7 +30,8 @@ ui/Editor.qml          header, viewport, footer, drawing surface
 ui/Inspector.qml       settings column
 ui/ToolRail.qml        tool strip
 ui/controls/           Ui (metrics singleton), IconButton, Chip, Segmented, Dropdown,
-                       Swatch, Toggle, LabeledSlider, TextBox, Section; registered in qmldir
+                       Swatch, Toggle, LabeledSlider, TextBox, Tooltip, Section;
+                       registered in qmldir
 lib/Model.js           ratios, gradients, frame geometry, grab size, ids
 lib/Redact.js          secret patterns, guards, OCR TSV -> boxes
 lib/Code.js            languages, themes, ANSI -> StyledText, language guessing
@@ -164,6 +165,15 @@ layer sits at `cardX, cardY + chromeH`.
 - All editor chrome is square: no `radius` on any control, the editor window,
   or the selection outline. Only the exported card has a radius, and that is a
   user setting.
+- **A `Tooltip` reparents itself to the window's content item.** Left inside
+  its button it would be painted under whatever panel sits beside it: the
+  tool rail is declared before the viewport, so anything overflowing the rail
+  goes under the viewport's background. `IconButton` gives every control with
+  a `tip` one, after a 350 ms hold so a pointer crossing the rail does not
+  trail labels. Placement is computed in `place()` when the tooltip appears
+  rather than bound, because `mapToItem` is a one-off; it only flips sides or
+  clamps once the parent reports a size, since a content item mid-setup
+  reports none and would push the tooltip into a corner.
 - **`doc.bgMode` is `auto | solid | gradient | theme | desktop | none`.**
   `desktop` draws `doc.desktopBg`, the wallpaper resolved by
   `bin/snap-wallpaper` from omarchy's `current/background` symlink. Resolving
@@ -175,8 +185,8 @@ layer sits at `cardX, cardY + chromeH`.
   control puts the binding back with `Qt.binding` in `rebind()` after every
   commit, cancel or focus loss, or the slider stops driving the readout.
   A `DoubleValidator` bounded by `from`/`to` keeps the typing sane and
-  `commit()` clamps and ignores anything unparseable. `tests/qml/HarnessSlider.qml`
-  drives that round trip offscreen.
+  `commit()` clamps and ignores anything unparseable. `tests/qml/HarnessControls.qml`
+  drives that round trip offscreen, along with the tooltip.
 - **Padding and inset are different spacings.** `doc.padding` grows the frame
   around the whole card; `doc.inset` grows the card around the shot and fills
   the new band with the shot's own edge colour, so a screenshot reads as
@@ -262,8 +272,8 @@ tests/run.sh
    `<dir>/qs` is a symlink to `$OMARCHY_PATH/shell`, so `qs.Commons` and
    `qs.Ui` resolve. Only hard categories fail the run. The `qmllint` on PATH
    is the old syntax-only Qt 5 tool and proves nothing.
-4. `tests/qml/render.sh`: `tests/qml/HarnessSlider.qml` checks the editable
-   slider readout offscreen, then `tests/qml/Harness.qml` loads `Doc` + `Stage` with
+4. `tests/qml/render.sh`: `tests/qml/HarnessControls.qml` checks the editable
+   slider readout and the tooltip offscreen, then `tests/qml/Harness.qml` loads `Doc` + `Stage` with
    stub singletons (`tests/qml/stubs/qs/Commons`) and a stub
    `Quickshell.Widgets.ClippingRectangle` (the real one needs the Quickshell
    host), places one of every annotation, exports through `grabToImage`, and

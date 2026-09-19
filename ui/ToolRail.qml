@@ -5,6 +5,9 @@ import "controls"
 Item {
     id: rail
     property var doc
+    signal status(string text)
+
+    readonly property int annotationCount: rail.doc ? rail.doc.annotations.count : 0
 
     readonly property var tools: [
         { key: "select",    glyph: "↖", name: "Move",      hint: "V" },
@@ -56,17 +59,28 @@ Item {
         anchors.bottomMargin: Ui.row
         spacing: Ui.gap
 
+        // Both are no-ops on an unannotated shot, so they say so instead of
+        // looking like a button that does nothing.
         IconButton {
             glyph: "↶"
             flat: true
-            tip: "Undo"
-            onClicked: rail.doc.undo()
+            enabled: rail.annotationCount > 0
+            tip: "Undo (Ctrl+Z)"
+            onClicked: {
+                rail.doc.undo();
+                rail.status("Undid the last annotation");
+            }
         }
         IconButton {
             glyph: "✕"
             flat: true
-            tip: "Clear annotations"
-            onClicked: rail.doc.clearAnnotations()
+            enabled: rail.annotationCount > 0
+            tip: "Clear every annotation"
+            onClicked: {
+                var n = rail.annotationCount;
+                rail.doc.clearAnnotations();
+                rail.status("Cleared " + n + (n === 1 ? " annotation" : " annotations"));
+            }
         }
     }
 }

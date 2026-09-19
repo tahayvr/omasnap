@@ -48,11 +48,28 @@ Rectangle {
         }
     }
 
+    opacity: root.enabled ? 1 : 0.35
+
+    Tooltip {
+        target: root
+        text: root.tip
+        show: hold.running === false && ma.containsMouse && !ma.pressed && root.tip !== ""
+    }
+
+    // A tooltip that appears the instant the pointer crosses the button is
+    // noise while the pointer is only passing through the rail.
+    Timer {
+        id: hold
+        interval: 350
+    }
+
     MouseArea {
         id: ma
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onEntered: hold.restart()
+        onExited: hold.stop()
         onClicked: root.clicked()
     }
 }
