@@ -16,60 +16,45 @@ the picture that should not be public.
 ## Features
 
 **Framing**
-- Padding as a percentage of the shot's longest edge, so one value looks the
-  same on a small crop and a 4K grab
+- Padding, aspect ratio presets, corner radius, shadow and an optional title bar
 - Inset, which extends the screenshot's own edge color outwards to give a
-  cramped window some breathing room without a visible seam
-- Aspect ratio presets, including 1:1, 9:16 and the 1.91:1 used by link
-  previews, with optical balance so the shot does not sit low in a tall frame
-- Corner radius, shadow depth, and an optional title bar that tints itself
-  from the image
+  cramped window room to breathe
 
 ![Framing](assets/showcase/framing.png)
 
 **Backgrounds**
-- Auto, sampled from the screenshot itself and kept in a comfortable range so
-  a white UI does not give a blinding backdrop
-- Gradient presets, flat colors, or the colors of your current Omarchy theme
-- Desktop, which puts your current wallpaper behind the shot
-- None, for a transparent PNG
+- Auto from the screenshot, gradients, flat colors, your Omarchy theme, your
+  wallpaper, or none for a transparent PNG
 
 ![Backgrounds](assets/showcase/backgrounds.png)
 
 **Annotation**
-- Arrows, boxes, ellipses, highlighter, text labels and numbered step badges
-- Select an annotation to drag it; a selected text label takes what you type
-- Annotations stay pinned to the screenshot when you change padding or ratio
+- Arrows, boxes, ellipses, highlighter, text labels and numbered steps
+- Drag to move, and they stay pinned to the Snap when you reframe
 
 ![Annotations](assets/showcase/annotations.png)
 
 **Hide sensitive data**
-- One click finds and pixelates emails, API keys, JWTs, AWS keys, GitHub
-  tokens, card numbers, IBANs, IP addresses and phone numbers
-- Each category can be switched off
-- Card numbers are Luhn-checked and dates, version numbers, hashes and
-  loopback addresses are left alone
-- Pixelation destroys the original pixels; it is not a blur that can be undone
-- Copy all text in the screenshot to the clipboard
+- One click pixelates emails, API keys, JWTs, AWS and GitHub tokens, card
+  numbers, IBANs, IP addresses and phone numbers, each category switchable
+- Card numbers are Luhn-checked; dates, versions, hashes and loopback
+  addresses are left alone
+- Pixelation is destructive, not a blur that can be undone
+- Or copy the screenshot's text to the clipboard
 
 ![Hiding sensitive data](assets/showcase/redaction.png)
 
 **Code cards**
-- Select code or text anywhere, press a key, and get a syntax-highlighted
-  card in the same frame, background and shadow
-- Language is detected from the text and can be overridden
-- Every Omarchy theme installed on your machine is offered, so a card can wear
-  Tokyo Night while your desktop stays on something else, plus Dracula,
-  Monokai, One Dark, GitHub and Solarized
-- The Omarchy theme follows your desktop's own terminal colors
-- Font size and line numbers
+- Any selected text becomes a syntax-highlighted card in the same frame
+- Language detected or chosen, font size, line numbers
+- Every Omarchy theme you have installed, plus Dracula, Monokai, One Dark,
+  GitHub and Solarized
 
-![OmaSnap code card](assets/showcase/screenshot-full-code.jpg)
+![OmaSnap code card preview](assets/showcase/screenshot-full-code.jpg)
 
 **Output**
-- Copy to clipboard or save to disk, at 1× (the screen's own pixels), 2× or 3×
-- PNG, or JPEG with a quality setting
-- What you see in the preview is what lands in the file
+- Clipboard or disk, PNG or JPEG, at 1x, 2x or 3x
+- The preview is the file
 
 ## Install
 
@@ -82,7 +67,7 @@ before you enable it.
 
 ## Usage
 
-Enabling the plugin puts an OmaSnap button in the bar. Left-click it to grab a
+Enabling the plugin puts an OmaSnap button 󱥚  in the bar. Left-click it to grab a
 region, middle-click to make a code card from the selected text, right-click
 to open the editor fresh and choose from there. Move it with:
 
@@ -98,19 +83,17 @@ o.bind("SUPER + SHIFT + C", "OmaSnap code card", "omarchy-shell shell summon tah
 o.bind("SUPER + SHIFT + S", "OmaSnap editor", "omarchy-shell shell toggle tahayvr.omasnap '{}'")
 ```
 
-Inside the editor, the buttons at the top grab a new region, window or full
-screen, turn the selected text into a code card, or open an existing image
-through the system file picker.
-The code card takes the primary selection (whatever is highlighted), or the
+The buttons at the top of the editor grab a region, window or screen, make a
+code card, or open a file. A code card takes the primary selection, or the
 clipboard if nothing is highlighted.
 
 ### Keys
 
 | Key | Action |
 | --- | --- |
-| `V` `A` `R` `O` `T` `S` `H` `B` | Move, arrow, box, ellipse, text, step, highlight, hide |
-| `Ctrl+C` / `Ctrl+S` | Copy / save |
-| `Ctrl+Z` | Undo |
+| `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B` | move, arrow, box, ellipse, text, step, highlight, hide |
+| `Ctrl+C` / `Ctrl+S` | copy / save |
+| `Ctrl+Z` | undo |
 | `Ctrl+N` | Grab another region |
 | `Ctrl+K` | Code card from the selected text |
 | `Delete` | Remove the selected annotation |
@@ -122,7 +105,7 @@ clipboard if nothing is highlighted.
 Every call returns `ok`, or a short reason such as `busy` or `no shot`:
 
 ```sh
-omarchy-shell shell call tahayvr.omasnap edit ~/Pictures/Screenshots/shot.png
+omarchy-shell shell call tahayvr.omasnap edit ~/Pictures/Screenshots/snap.png
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # region | windows | fullscreen | smart
 omarchy-shell shell call tahayvr.omasnap code ''               # code card from the selection (or pass the text)
 omarchy-shell shell call tahayvr.omasnap pick ''               # system file picker
@@ -147,12 +130,9 @@ All of these ship with Omarchy:
 - `python-gobject`
 - `xdg-desktop-portal`
 
-Screenshots are read from and written to the directory Omarchy uses:
-`$OMARCHY_SCREENSHOT_DIR`, else `$XDG_PICTURES_DIR`, else `~/Pictures`. OCR
-uses `$OMARCHY_OCR_LANGS` (default `eng`), like `omarchy capture text`.
-
-Saved files are named `snap-<date>_<time>.png` (or `.jpg`). On a fractionally
-scaled monitor the file can be one pixel off the size shown in the footer.
+Snaps are read from and saved to the directory Omarchy uses
+(`$OMARCHY_SCREENSHOT_DIR`, else `$XDG_PICTURES_DIR`, else `~/Pictures`) as
+`snap-<date>_<time>.png`. OCR follows `$OMARCHY_OCR_LANGS`.
 
 ## Licence
 
