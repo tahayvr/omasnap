@@ -156,6 +156,13 @@ Flickable {
                 onMoved: function (v) { doc.padding = v; }
             }
 
+            LabeledSlider {
+                label: "Inset"
+                value: doc.inset
+                from: 0; to: 20; decimals: 1; suffix: "%"
+                onMoved: function (v) { doc.inset = v; }
+            }
+
             Segmented {
                 current: doc.ratio
                 minWidth: Style.space(48)

@@ -83,6 +83,21 @@ test("chrome scales with the shot but stays legible", () => {
     eq(Model.chromeHeight({ shotHeight: 1000, frame: "titlebar" }), 42, "proportional");
 });
 
+test("the inset grows the card around the shot", () => {
+    const g = Model.frameGeometry(Object.assign({}, base, { inset: 5 }));
+    eq(g.inset, 50, "5% of the longest edge");
+    eq(g.cardW, 1000 + 100, "card widened both sides");
+    eq(g.cardH, 500 + 100, "card heightened both sides");
+    eq(g.shotW, 1000, "the shot itself is untouched");
+    eq(g.shotH, 500, "the shot itself is untouched");
+    // The title bar sits above the inset, not inside it.
+    const t = Model.frameGeometry(Object.assign({}, base, { inset: 5, frame: "titlebar" }));
+    eq(t.cardH, 500 + 100 + t.chromeH, "chrome adds on top of the inset");
+    eq(Model.frameGeometry(base).inset, 0, "no inset by default");
+    eq(Model.insetSize({ shotWidth: 0, shotHeight: 0, inset: 10 }), 0, "empty document");
+    eq(Model.insetSize({ shotWidth: 800, shotHeight: 500 }), 0, "missing property");
+});
+
 test("the title bar tints itself from the card underneath", () => {
     const dark = Model.chromeTint("#1e222a");
     const light = Model.chromeTint("#eef1f4");

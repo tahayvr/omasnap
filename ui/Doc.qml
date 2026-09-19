@@ -31,8 +31,10 @@ QtObject {
     property int bgAngle: 135
     property var autoPalette: []            // backdrop colours, bin/snap-palette
     property var shotPalette: []            // the same colours as they appear in the shot
+    property string shotEdge: ""            // the shot's edge colour, bin/snap-edge
 
     property real padding: 5                // percent of the shot's longest edge
+    property real inset: 0                  // same units, inside the card
     property bool balance: true
     property string ratio: "auto"
 
@@ -64,6 +66,7 @@ QtObject {
         shotWidth: doc.shotWidth,
         shotHeight: doc.shotHeight,
         padding: doc.padding,
+        inset: doc.inset,
         ratio: doc.ratio,
         balance: doc.balance,
         frame: doc.frame
@@ -152,11 +155,12 @@ QtObject {
         frameTitle = "";
         autoPalette = [];
         shotPalette = [];
+        shotEdge = "";
     }
 
     function reset() {
         clearAnnotations();
-        padding = 5; ratio = "auto"; balance = true;
+        padding = 5; inset = 0; ratio = "auto"; balance = true;
         radius = 3; shadow = 36; shadowOpacity = 0.45; shadowY = 16;
         frame = "none"; bgMode = kind === "code" ? "gradient" : "auto"; tool = "select";
         codeFont = 16; codeNumbers = false;

@@ -98,7 +98,7 @@ Item {
     }
 
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
-    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "balance", "ratio",
+    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "shadowOpacity", "shadowY", "frame", "frameTitle", "exportScale", "format",
         "quality", "tool", "inkColor", "inkWidth", "codeLang", "codeTheme", "codeFont", "codeNumbers"]
     function set(json) {
@@ -150,7 +150,8 @@ Item {
             kind: doc.kind, opened: opened, capturing: capturing, picking: picking, busy: editor.busy, hasContent: doc.hasContent,
             shotPath: doc.shotPath, shotWidth: doc.shotWidth, shotHeight: doc.shotHeight,
             outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
-            bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, frame: doc.frame,
+            bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, inset: doc.inset,
+            frame: doc.frame, shotEdge: doc.shotEdge,
             codeLang: doc.codeLang, codeDetected: doc.codeDetected, codeTheme: doc.codeTheme,
             codeFont: doc.codeFont, codeNumbers: doc.codeNumbers, codeBg: String(doc.codeBg),
             codeFg: String(doc.codeFg), codeHtmlLength: doc.codeHtml.length
@@ -202,6 +203,7 @@ Item {
         doc.shotHeight = 0;
         doc.autoPalette = [];
         doc.shotPalette = [];
+        doc.shotEdge = "";
         if (doc.bgMode === "auto") doc.bgMode = "gradient";
         doc.codeText = text;
         doc.codeDetected = Code.guessLanguage(text);
@@ -275,10 +277,13 @@ Item {
         doc.frameTitle = path.split("/").pop();
         doc.autoPalette = [];
         doc.shotPalette = [];
+        doc.shotEdge = "";
         probe.source = "";
         probe.source = "file://" + path;
         paletteProc.path = path;
         paletteProc.running = true;
+        edgeProc.path = path;
+        edgeProc.running = true;
     }
 
     Image {
@@ -389,6 +394,18 @@ Item {
                 }
                 doc.autoPalette = backdrops.slice(0, 5);
                 doc.shotPalette = sources.slice(0, 5);
+            }
+        }
+    }
+
+    Process {
+        id: edgeProc
+        property string path: ""
+        command: ["bash", root.pluginDir + "bin/snap-edge", path]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var c = text.trim();
+                doc.shotEdge = /^#[0-9a-fA-F]{6}$/.test(c) ? c : "";
             }
         }
     }

@@ -5,7 +5,7 @@ set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$here/out"
 mkdir -p "$out"
-rm -f "$out/export.png"
+rm -f "$out/export.png" "$out/export-inset.png"
 
 # Synthetic screenshot: white left half, black right half, and a band of
 # 1px red/blue stripes through the middle that redaction has to destroy.
@@ -26,7 +26,7 @@ log="$(cd "$here" && QSG_INFO=1 QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platf
 backend=gpu; echo "$log" | grep -q "Loading backend software" && backend=software
 echo "platform=$platform backend=$backend $(echo "$log" | grep -oE 'HARNESS.*')"
 echo "$log" | grep -E "file://|Error|error|Unable to assign|Warning" | head -20
-echo "$log" | grep -q "HARNESS ok" || { echo "FAIL harness did not report a successful grab"; echo "$log" | tail -5; exit 1; }
+echo "$log" | grep -q "HARNESS export ok" || { echo "FAIL harness did not report a successful grab"; echo "$log" | tail -5; exit 1; }
 if echo "$log" | grep -qE "Error|error|Unable to assign"; then echo "FAIL runtime errors above"; fail_log=1; else fail_log=0; fi
 gpu=1; [ "$backend" = "software" ] && gpu=0
 [ -f "$out/export.png" ] || { echo "no export written"; exit 1; }
@@ -88,6 +88,31 @@ else
   # On the software path the shot is absent, so the same spots must be the bare background.
   expect "empty label exported nothing"      70 150     0 255   0
   expect "no selection outline beside the box" 45 45     0 255   0
+fi
+
+# ---- inset -----------------------------------------------------------------
+# Second export from the same harness: inset 10% of 400 = 40px of the shot's
+# edge colour (forced to magenta) on every side, so the card grows to 480x280
+# and the frame, padded by 10% of 480, to 576x376.
+if [ $gpu = 1 ]; then
+  if [ -f "$out/export-inset.png" ]; then
+    isize="$(magick "$out/export-inset.png" -format "%wx%h" info:)"
+    [ "$isize" = "576x376" ] && echo "ok   inset export size $isize" \
+      || { echo "FAIL inset export size: $isize (want 576x376)"; fail=1; }
+    ipx() { magick "$out/export-inset.png" -format "%[fx:int(255*p{$1,$2}.r+0.5)] %[fx:int(255*p{$1,$2}.g+0.5)] %[fx:int(255*p{$1,$2}.b+0.5)]" info:; }
+    iexpect() { local got; got="$(ipx "$2" "$3")"
+      if [ "$got" = "$4 $5 $6" ]; then echo "ok   $1"; else echo "FAIL $1: got $got want $4 $5 $6"; fail=1; fi; }
+    iexpect "inset band is the edge colour (left)" 60 180   255 0 255
+    iexpect "inset band is the edge colour (top)" 288 60    255 0 255
+    iexpect "background still outside the card"    20 180     0 255 0
+    iexpect "shot moved in by the inset (white half)" 150 150  255 255 255
+    iexpect "shot moved in by the inset (black half)" 400 150    0   0 0
+    # The box sits at shot (10,10); its left border must move in with the shot,
+    # which is what proves AnnotationLayer picked up the inset origin.
+    iexpect "annotations follow the shot"          100 123   0   0 255
+  else
+    echo "FAIL inset export missing"; fail=1
+  fi
 fi
 
 # ---- code card -------------------------------------------------------------

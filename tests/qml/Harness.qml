@@ -68,22 +68,38 @@ Window {
         grabTimer.start();
     }
 
+    // grabToImage is asynchronous, so the two exports are chained rather than
+    // fired together: the second one changes the geometry the first is using.
+    function grab(name, done) {
+        doc.exporting = true;
+        Qt.callLater(function () {
+            var size = Model.grabSize(doc.outWidth, doc.outHeight, stage.dpr);
+            var ok = stage.grabToImage(function (r) {
+                var wrote = r.saveToFile(win.outDir + name + ".png");
+                console.warn("HARNESS " + name + " " + (wrote ? "ok" : "write-failed")
+                             + " expected " + doc.outWidth + "x" + doc.outHeight
+                             + " dpr " + stage.dpr);
+                done();
+            }, Qt.size(size.w, size.h));
+            if (!ok) { console.warn("HARNESS grab-failed"); Qt.quit(); }
+        });
+    }
+
     Timer {
         id: grabTimer
         interval: 600
-        onTriggered: {
-            doc.exporting = true;
-            Qt.callLater(function () {
-                var ok = stage.grabToImage(function (r) {
-                    var wrote = r.saveToFile(win.outDir + "export.png");
-                    console.warn("HARNESS " + (wrote ? "ok" : "write-failed")
-                                 + " expected " + doc.outWidth + "x" + doc.outHeight
-                                 + " dpr " + stage.dpr);
-                    Qt.quit();
-                }, Qt.size(Model.grabSize(doc.outWidth, doc.outHeight, stage.dpr).w,
-                           Model.grabSize(doc.outWidth, doc.outHeight, stage.dpr).h));
-                if (!ok) { console.warn("HARNESS grab-failed"); Qt.quit(); }
-            });
-        }
+        onTriggered: win.grab("export", function () {
+            // The inset extends the shot's edge colour: the left edge of this
+            // synthetic shot is white, the right edge black.
+            doc.shotEdge = "#ff00ff";
+            doc.inset = 10;              // 10% of 400 = 40px on every side
+            insetTimer.start();
+        })
+    }
+
+    Timer {
+        id: insetTimer
+        interval: 250
+        onTriggered: win.grab("export-inset", function () { Qt.quit(); })
     }
 }

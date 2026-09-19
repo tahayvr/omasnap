@@ -37,6 +37,7 @@ lib/Code.js            languages, themes, ANSI -> StyledText, language guessing
 bin/snap-dir           resolve the screenshot directory the way omarchy does
 bin/snap-capture       omarchy capture, print the path it wrote
 bin/snap-palette       dominant colours, pushed into a comfortable band
+bin/snap-edge          the shot's edge colour, for the inset
 bin/snap-ocr           tesseract TSV (redact) or text
 bin/snap-deliver       encode + save / copy / clipboard text
 bin/snap-pick          system file picker via the portal
@@ -162,6 +163,18 @@ layer sits at `cardX, cardY + chromeH`.
 - All editor chrome is square: no `radius` on any control, the editor window,
   or the selection outline. Only the exported card has a radius, and that is a
   user setting.
+- **Padding and inset are different spacings.** `doc.padding` grows the frame
+  around the whole card; `doc.inset` grows the card around the shot and fills
+  the new band with the shot's own edge colour, so a screenshot reads as
+  having more room inside its window. Both are a percentage of the shot's
+  longest edge, and `Model.frameGeometry` returns the resolved `inset` in
+  shot pixels. Everything that positions itself against the shot has to add
+  it: the `Image`/`CodeBlock` inside the card, `AnnotationLayer`'s origin and
+  `Editor.toShot`. The colour comes from `bin/snap-edge`, which samples the
+  border ring rather than the whole image, because the most common colour
+  overall often belongs to a content area that never touches the edge and
+  would leave a visible seam; `doc.shotPalette[0]` is the fallback and a code
+  card carries on its own `codeBg`.
 - **`doc.frame` is `none` or `titlebar`, nothing else.** There is no
   macOS-style button row: Omarchy windows carry no titlebar buttons, so the
   bar is the title alone. It tints itself from the card underneath rather

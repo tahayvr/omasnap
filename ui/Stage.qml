@@ -58,6 +58,17 @@ Item {
         return tint ? tint : Qt.darker(Color.background, 1.15);
     }
     readonly property color chromeTextColor: Model.textOn(Model.chromeTint(stage.chromeSource))
+
+    // What an inset extends outwards: the shot's own edge colour, so the
+    // extension continues the image instead of butting up against it. The
+    // overall dominant colour is the fallback, and a code card just carries
+    // on its own background.
+    readonly property color insetColor: {
+        if (codeKind) return doc.codeBg;
+        if (doc.shotEdge.length) return doc.shotEdge;
+        if (doc.shotPalette.length > 0) return doc.shotPalette[0];
+        return stage.chromeColor;
+    }
     readonly property real cardRadius: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
                                                 Math.min(geo.cardW, geo.cardH) / 2) * unit
 
@@ -111,7 +122,8 @@ Item {
         width: Math.max(1, stage.geo.cardW * stage.unit)
         height: Math.max(1, stage.geo.cardH * stage.unit)
         radius: stage.cardRadius
-        color: stage.geo.chromeH > 0 ? stage.chromeColor : "transparent"
+        color: stage.geo.inset > 0 ? stage.insetColor
+             : (stage.geo.chromeH > 0 ? stage.chromeColor : "transparent")
         visible: !stage.codeKind
 
         Chrome {
@@ -123,7 +135,8 @@ Item {
 
         Image {
             visible: !stage.codeKind
-            y: stage.geo.chromeH * stage.unit
+            x: stage.geo.inset * stage.unit
+            y: (stage.geo.chromeH + stage.geo.inset) * stage.unit
             width: Math.max(1, stage.geo.shotW * stage.unit)
             height: Math.max(1, stage.geo.shotH * stage.unit)
             source: stage.codeKind ? "" : stage.doc.shotUrl
@@ -160,7 +173,8 @@ Item {
         CodeBlock {
             id: codeBlock
             doc: stage.doc
-            y: stage.geo.chromeH * stage.unit
+            x: stage.geo.inset * stage.unit
+            y: (stage.geo.chromeH + stage.geo.inset) * stage.unit
             transformOrigin: Item.TopLeft
             scale: stage.unit
             // The card takes its size from the text, not the other way round.
@@ -196,8 +210,8 @@ Item {
         pixelSource: stage.codeKind ? codeSource : pixelSource
         interactive: stage.interactive && stage.doc.tool === "select" && !stage.doc.exporting
         viewScale: stage.scale * stage.unit
-        x: stage.geo.cardX * stage.unit
-        y: (stage.geo.cardY + stage.geo.chromeH) * stage.unit
+        x: (stage.geo.cardX + stage.geo.inset) * stage.unit
+        y: (stage.geo.cardY + stage.geo.chromeH + stage.geo.inset) * stage.unit
         width: Math.max(1, stage.geo.shotW)
         height: Math.max(1, stage.geo.shotH)
         transformOrigin: Item.TopLeft

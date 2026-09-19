@@ -177,8 +177,8 @@ Rectangle {
 
                 function toShot(px, py) {
                     var k = viewport.fit * stage.unit;
-                    return Qt.point(px / k - doc.geo.cardX,
-                                    py / k - doc.geo.cardY - doc.geo.chromeH);
+                    return Qt.point(px / k - doc.geo.cardX - doc.geo.inset,
+                                    py / k - doc.geo.cardY - doc.geo.chromeH - doc.geo.inset);
                 }
 
                 onPressed: function (e) {
