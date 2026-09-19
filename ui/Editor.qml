@@ -121,17 +121,23 @@ Rectangle {
                        (height - margin * 2) / Math.max(1, stage.height), 1)
             : 1
 
-        // Checkerboard behind (never inside) the stage for transparent backgrounds.
-        Canvas {
+        // Checkerboard behind (never inside) the stage for a transparent
+        // background. A tiled image, not a Canvas: a Canvas can skip its
+        // paint when the window is re-mapped, which left the frame looking
+        // see-through.
+        Rectangle {
             anchors.fill: holder
+            anchors.margins: -1
             visible: doc.bgMode === "none" && doc.hasContent
-            onPaint: {
-                var ctx = getContext("2d"), s = 10;
-                ctx.fillStyle = "#2a2a2a"; ctx.fillRect(0, 0, width, height);
-                ctx.fillStyle = "#343434";
-                for (var y = 0; y < height; y += s)
-                    for (var x = 0; x < width; x += s)
-                        if (((x / s) + (y / s)) % 2 === 0) ctx.fillRect(x, y, s, s);
+            color: "transparent"
+            border.width: 1
+            border.color: Ui.hairline
+            Image {
+                anchors.fill: parent
+                anchors.margins: 1
+                fillMode: Image.Tile
+                smooth: false
+                source: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqCRMRCizhZEVqAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTA5LTE5VDE3OjEwOjQ0KzAwOjAwqwR2NQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0wOS0xOVQxNzoxMDo0NCswMDowMNpZzokAAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMDktMTlUMTc6MTA6NDQrMDA6MDCNTO9WAAAAEGNhTnYAAAAIAAAACAAAAAAAAAAAsu1W2QAAAChJREFUKM9jtLJ3YcAGBIWEsYozMZAIRjUQA1hwhff7d2+Hih+GgwYAZ8cEFYSK+YEAAAAASUVORK5CYII="
             }
         }
 
