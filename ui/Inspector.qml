@@ -1,0 +1,297 @@
+import QtQuick
+import qs.Commons
+import "controls"
+import "../lib/Model.js" as Model
+import "../lib/Redact.js" as Redact
+
+Flickable {
+    id: insp
+    property var doc
+
+    signal autoRedactRequested()
+    signal copyTextRequested()
+
+    contentWidth: width
+    contentHeight: col.implicitHeight + Ui.pad * 2
+    clip: true
+    boundsBehavior: Flickable.StopAtBounds
+
+    Column {
+        id: col
+        x: Ui.pad
+        y: Ui.pad
+        width: insp.width - Ui.pad * 2
+        spacing: Ui.section
+
+        Section {
+            title: "Background"
+
+            Segmented {
+                current: doc.bgMode
+                options: [
+                    { key: "auto",     label: "Auto" },
+                    { key: "gradient", label: "Gradient" },
+                    { key: "solid",    label: "Solid" },
+                    { key: "theme",    label: "Theme" },
+                    { key: "none",     label: "None" }
+                ]
+                onPicked: function (k) { doc.bgMode = k; }
+            }
+
+            Text {
+                width: parent.width
+                visible: doc.bgMode === "auto" && doc.autoPalette.length === 0
+                wrapMode: Text.WordWrap
+                text: "Sampling the screenshot… install imagemagick if this stays empty."
+                color: Ui.textMuted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            Flow {
+                width: parent.width
+                spacing: Ui.gap
+                visible: doc.bgMode === "auto" && doc.autoPalette.length > 0
+                Repeater {
+                    model: doc.autoPalette
+                    Swatch {
+                        required property var modelData
+                        required property int index
+                        swatchColor: modelData
+                        active: index === 0
+                        onPicked: {
+                            var p = doc.autoPalette.slice();
+                            p.unshift(p.splice(index, 1)[0]);
+                            doc.autoPalette = p;
+                        }
+                    }
+                }
+            }
+
+            Flow {
+                width: parent.width
+                spacing: Ui.gap
+                visible: doc.bgMode === "gradient"
+                Repeater {
+                    model: Model.GRADIENTS
+                    Rectangle {
+                        required property var modelData
+                        width: Ui.tile
+                        height: Ui.swatch
+                        border.width: doc.bgGradient === modelData.key ? 2 : (ma.containsMouse ? 1 : 0)
+                        border.color: doc.bgGradient === modelData.key ? Color.foreground : Ui.textMuted
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0; color: modelData.a }
+                            GradientStop { position: 1; color: modelData.b }
+                        }
+                        MouseArea {
+                            id: ma
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: doc.bgGradient = modelData.key
+                        }
+                    }
+                }
+            }
+
+            Flow {
+                width: parent.width
+                spacing: Ui.gap
+                visible: doc.bgMode === "solid"
+                Repeater {
+                    model: ["#0d0d12", "#1e222a", "#2d333f", "#f2f2f2", "#e8e2d5",
+                            "#1b3a4b", "#3c1f4a", "#4a2b1f", "#20402c"]
+                    Swatch {
+                        required property var modelData
+                        swatchColor: modelData
+                        active: Qt.colorEqual(doc.bgSolid, modelData)
+                        onPicked: doc.bgSolid = modelData
+                    }
+                }
+            }
+        }
+
+        Section {
+            title: "Framing"
+
+            LabeledSlider {
+                label: "Padding"
+                value: doc.padding
+                from: 0; to: 30; decimals: 1; suffix: "%"
+                onMoved: function (v) { doc.padding = v; }
+            }
+
+            Segmented {
+                current: doc.ratio
+                minWidth: Style.space(48)
+                options: Model.RATIOS.map(function (r) { return { key: r.key, label: r.label }; })
+                onPicked: function (k) { doc.ratio = k; }
+            }
+
+            Toggle {
+                label: "Optical balance"
+                hint: "Lifts the shot slightly so it does not read as sitting low"
+                checked: doc.balance
+                onToggled: function (v) { doc.balance = v; }
+            }
+        }
+
+        Section {
+            title: "Screenshot"
+
+            LabeledSlider {
+                label: "Corner radius"
+                value: doc.radius
+                from: 0; to: 25; decimals: 1; suffix: "%"
+                onMoved: function (v) { doc.radius = v; }
+            }
+            LabeledSlider {
+                label: "Shadow"
+                value: doc.shadow
+                from: 0; to: 100; decimals: 0
+                onMoved: function (v) { doc.shadow = v; }
+            }
+            LabeledSlider {
+                label: "Shadow depth"
+                value: doc.shadowY
+                from: 0; to: 100; decimals: 0
+                onMoved: function (v) { doc.shadowY = v; }
+            }
+
+            Segmented {
+                current: doc.frame
+                options: [
+                    { key: "none",     label: "No frame" },
+                    { key: "dots",     label: "Window" },
+                    { key: "titlebar", label: "Titled" }
+                ]
+                onPicked: function (k) { doc.frame = k; }
+            }
+
+            TextBox {
+                id: titleInput
+                visible: doc.frame === "titlebar"
+                placeholder: "Window title"
+                text: doc.frameTitle
+                onTextChanged: if (doc.frameTitle !== text) doc.frameTitle = text
+                onDone: insp.forceActiveFocus()
+                // Typing breaks the binding above; follow the document by hand.
+                Connections {
+                    target: doc
+                    function onFrameTitleChanged() {
+                        if (titleInput.text !== doc.frameTitle) titleInput.text = doc.frameTitle;
+                    }
+                }
+            }
+        }
+
+        Section {
+            title: "Ink"
+
+            Flow {
+                width: parent.width
+                spacing: Ui.gap
+                Repeater {
+                    model: ["#ff5f56", "#ffbd2e", "#27c93f", "#4aa6c7", "#b0577f", "#ffffff", "#111111"]
+                    Swatch {
+                        required property var modelData
+                        swatchColor: modelData
+                        active: Qt.colorEqual(doc.inkColor, modelData)
+                        onPicked: doc.inkColor = modelData
+                    }
+                }
+                Swatch {
+                    swatchColor: Color.accent
+                    active: Qt.colorEqual(doc.inkColor, Color.accent)
+                    onPicked: doc.inkColor = Color.accent
+                }
+            }
+
+            LabeledSlider {
+                label: "Stroke"
+                value: doc.inkWidth
+                from: 1; to: 16; decimals: 0
+                onMoved: function (v) { doc.inkWidth = v; }
+            }
+        }
+
+        Section {
+            title: "Hide sensitive data"
+
+            Flow {
+                width: parent.width
+                spacing: Ui.gap
+                Repeater {
+                    model: Redact.CLASSES
+                    Chip {
+                        required property var modelData
+                        label: modelData.label
+                        on: doc.redactClasses.indexOf(modelData.key) !== -1
+                        onToggled: {
+                            var c = doc.redactClasses.slice();
+                            var i = c.indexOf(modelData.key);
+                            if (i === -1) c.push(modelData.key); else c.splice(i, 1);
+                            doc.redactClasses = c;
+                        }
+                    }
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Ui.gap
+                IconButton {
+                    width: (parent.width - Ui.gap) / 2
+                    glyph: "░"
+                    label: "Find and hide"
+                    onClicked: insp.autoRedactRequested()
+                }
+                IconButton {
+                    width: (parent.width - Ui.gap) / 2
+                    glyph: "⎘"
+                    label: "Copy text"
+                    onClicked: insp.copyTextRequested()
+                }
+            }
+        }
+
+        Section {
+            title: "Export"
+
+            Row {
+                width: parent.width
+                spacing: Ui.row
+                Segmented {
+                    minWidth: Style.space(44); width: minWidth * 3 + Ui.gap * 2
+                    current: String(doc.exportScale)
+                    options: [{ key: "1", label: "1×" }, { key: "2", label: "2×" }, { key: "3", label: "3×" }]
+                    onPicked: function (k) { doc.exportScale = parseInt(k, 10); }
+                }
+                Segmented {
+                    minWidth: Style.space(52); width: minWidth * 2 + Ui.gap
+                    current: doc.format
+                    options: [{ key: "png", label: "PNG" }, { key: "jpg", label: "JPEG" }]
+                    onPicked: function (k) { doc.format = k; }
+                }
+            }
+
+            LabeledSlider {
+                visible: doc.format === "jpg"
+                label: "Quality"
+                value: doc.quality
+                from: 40; to: 100; decimals: 0
+                onMoved: function (v) { doc.quality = v; }
+            }
+
+            Text {
+                width: parent.width
+                text: doc.outWidth + " × " + doc.outHeight + " px"
+                color: Ui.textMuted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+        }
+    }
+}

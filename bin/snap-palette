@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Print up to 5 background colours derived from an image, most dominant first,
+# one #rrggbb per line. Colours are pushed into a comfortable lightness band so
+# a screenshot full of white does not produce a blinding background.
+set -uo pipefail
+
+img="${1:-}"
+[ -f "$img" ] || exit 0
+
+if command -v magick >/dev/null 2>&1; then
+  IM="magick"
+elif command -v convert >/dev/null 2>&1; then
+  IM="convert"
+else
+  exit 0   # no imagemagick: the UI falls back to a solid colour
+fi
+
+"$IM" "$img" -resize 400x400\> -colors 8 -depth 8 -format %c histogram:info:- 2>/dev/null \
+| sort -rn \
+| grep -oE '#[0-9A-Fa-f]{6}' \
+| head -n 5 \
+| awk '
+function nib(c) { return index("0123456789abcdef", tolower(c)) - 1 }
+function byte(s, i) { return nib(substr(s, i, 1)) * 16 + nib(substr(s, i + 1, 1)) }
+{
+  hex = substr($0, 2)
+  r = byte(hex, 1)
+  g = byte(hex, 3)
+  b = byte(hex, 5)
+  lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  if (lum > 140) { k = 0.28; o = 178 }   # light source -> soft light backdrop
+  else           { k = 0.52; o = 16  }   # dark source  -> deep muted backdrop
+  r = int(r * k + o); g = int(g * k + o); b = int(b * k + o)
+  if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255
+  printf "#%02x%02x%02x\n", r, g, b
+}'
+exit 0

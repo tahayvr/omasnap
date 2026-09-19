@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# snap-deliver copy <png> ""     <format> <quality>  -> image onto the clipboard
+# snap-deliver save <png> <dest> <format> <quality>  -> final file on disk (+ clipboard)
+# snap-deliver text                                  -> stdin onto the clipboard
+set -uo pipefail
+
+action="${1:-copy}"
+
+if [ "$action" = "text" ]; then
+  if command -v wl-copy >/dev/null 2>&1; then wl-copy; else cat >/dev/null; fi
+  exit 0
+fi
+
+src="${2:-}"
+dest="${3:-}"
+format="${4:-png}"
+quality="${5:-92}"
+[ -f "$src" ] || { echo "Nothing to write"; exit 1; }
+
+encode() { # encode <in> <out>
+  if [ "$format" = "jpg" ]; then
+    if command -v magick >/dev/null 2>&1; then
+      magick "$1" -background white -flatten -quality "$quality" "$2"
+    elif command -v convert >/dev/null 2>&1; then
+      convert "$1" -background white -flatten -quality "$quality" "$2"
+    else
+      cp -f "$1" "$2"
+    fi
+  else
+    cp -f "$1" "$2"
+  fi
+}
+
+case "$action" in
+  copy)
+    tmp="${src%.png}.out.${format}"
+    encode "$src" "$tmp"
+    if command -v wl-copy >/dev/null 2>&1; then
+      mime="image/png"; [ "$format" = "jpg" ] && mime="image/jpeg"
+      wl-copy --type "$mime" < "$tmp"
+      echo "Copied to the clipboard"
+    else
+      echo "wl-clipboard is not installed"
+    fi
+    rm -f "$tmp"
+    ;;
+  save)
+    [ -n "$dest" ] || { echo "No destination"; exit 1; }
+    mkdir -p "$(dirname "$dest")"
+    encode "$src" "$dest"
+    if command -v wl-copy >/dev/null 2>&1; then
+      mime="image/png"; [ "$format" = "jpg" ] && mime="image/jpeg"
+      wl-copy --type "$mime" < "$dest"
+    fi
+    if command -v omarchy-notification-send >/dev/null 2>&1; then
+      omarchy-notification-send "Saved $(basename "$dest")" --image "$dest" >/dev/null 2>&1 || true
+    elif command -v notify-send >/dev/null 2>&1; then
+      notify-send -a "OmaSnap" -i "$dest" "Saved" "$(basename "$dest")" || true
+    fi
+    echo "Saved $(basename "$dest")"
+    ;;
+esac
+exit 0

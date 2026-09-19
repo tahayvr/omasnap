@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# snap-capture [region|windows|fullscreen|smart] [dir]
+# Take a screenshot and print the path of the resulting file on stdout.
+# Prints nothing if the user cancelled.
+set -uo pipefail
+
+mode="${1:-region}"
+dir="${2:-}"
+case "$mode" in
+  region|windows|fullscreen|smart) ;;
+  *) mode="region" ;;
+esac
+
+if [ -z "$dir" ]; then
+  dir="$(bash "$(dirname "$0")/snap-dir")"
+fi
+mkdir -p "$dir"
+
+# `omarchy capture screenshot ... save` prints the file it wrote. The marker
+# is a fallback for a build that stays quiet: the newest image since we
+# started is the one it took.
+marker="$(mktemp)"
+sleep 0.05
+
+path=""
+if command -v omarchy >/dev/null 2>&1; then
+  path="$(omarchy capture screenshot "$mode" save 2>/dev/null | grep '^/' | tail -n1)"
+else
+  # Standalone fallback for non-Omarchy Hyprland setups.
+  out="$dir/screenshot-$(date +%Y-%m-%d_%H-%M-%S).png"
+  case "$mode" in
+    fullscreen) grim "$out" >/dev/null 2>&1 && path="$out" ;;
+    *)          geom="$(slurp 2>/dev/null)" && [ -n "$geom" ] \
+                  && grim -g "$geom" "$out" >/dev/null 2>&1 && path="$out" ;;
+  esac
+fi
+
+if [ -z "$path" ] || [ ! -f "$path" ]; then
+  path="$(find "$dir" -maxdepth 1 -type f \
+            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) \
+            -newer "$marker" -printf '%T@ %p\n' 2>/dev/null \
+            | sort -rn | head -n1 | cut -d' ' -f2-)"
+fi
+rm -f "$marker"
+
+[ -n "$path" ] && [ -f "$path" ] && printf '%s\n' "$path"
+exit 0

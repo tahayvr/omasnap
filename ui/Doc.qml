@@ -1,0 +1,133 @@
+import QtQuick
+import "../lib/Model.js" as Model
+
+QtObject {
+    id: doc
+
+    property string shotPath: ""
+    property int shotWidth: 0
+    property int shotHeight: 0
+    readonly property url shotUrl: shotPath ? "file://" + shotPath : ""
+    readonly property bool hasShot: shotPath !== "" && shotWidth > 0
+
+    property string bgMode: "auto"          // auto | solid | gradient | theme | none
+    property color bgSolid: "#1e222a"
+    property string bgGradient: "dusk"
+    property int bgAngle: 135
+    property var autoPalette: []            // filled by bin/snap-palette
+
+    property real padding: 5                // percent of the shot's longest edge
+    property bool balance: true
+    property string ratio: "auto"
+
+    property real radius: 3                 // percent of the card's shorter edge
+    property real shadow: 36
+    property real shadowOpacity: 0.45
+    property real shadowY: 16
+    property string frame: "none"           // none | dots | titlebar
+    property string frameTitle: ""
+
+    property int exportScale: 2
+    property string format: "png"
+    property int quality: 92
+
+    property string tool: "select"
+    property color inkColor: "#ff5f56"
+    property real inkWidth: 4
+    property int stepCounter: 0
+    property string selectedId: ""
+
+    property var redactClasses: ["email", "secret", "card", "net", "phone"]
+
+    // True for the grab frame; editing affordances bind to it.
+    property bool exporting: false
+
+    property ListModel annotations: ListModel { dynamicRoles: true }
+
+    readonly property var geo: Model.frameGeometry({
+        shotWidth: doc.shotWidth,
+        shotHeight: doc.shotHeight,
+        padding: doc.padding,
+        ratio: doc.ratio,
+        balance: doc.balance,
+        frame: doc.frame
+    })
+
+    readonly property int outWidth: Math.round(geo.frameW * exportScale)
+    readonly property int outHeight: Math.round(geo.frameH * exportScale)
+    readonly property bool outputTooLarge: outWidth > Model.MAX_OUTPUT_SIDE
+                                           || outHeight > Model.MAX_OUTPUT_SIDE
+
+    // Not `annotationsChanged`: that name belongs to the property.
+    signal annotationsEdited()
+
+    property string _previousSelectedId: ""
+
+    onSelectedIdChanged: {
+        var prev = _previousSelectedId;
+        _previousSelectedId = selectedId;
+        if (prev === "" || prev === selectedId) return;
+        var i = indexOfId(prev);
+        if (i < 0) return;
+        var a = annotations.get(i);
+        if (a.kind === "text" && a.text === "") {
+            annotations.remove(i);
+            annotationsEdited();
+        }
+    }
+
+    function addAnnotation(obj) {
+        annotations.append(obj);
+        selectedId = obj.uid;
+        annotationsEdited();
+    }
+
+    function indexOfId(uid) {
+        for (var i = 0; i < annotations.count; i++)
+            if (annotations.get(i).uid === uid) return i;
+        return -1;
+    }
+
+    function selectedAnnotation() {
+        var i = indexOfId(selectedId);
+        return i < 0 ? null : annotations.get(i);
+    }
+
+    function updateAnnotation(uid, patch) {
+        var i = indexOfId(uid);
+        if (i < 0) return;
+        annotations.set(i, patch);
+        annotationsEdited();
+    }
+
+    function removeAnnotation(uid) {
+        var i = indexOfId(uid);
+        if (i < 0) return;
+        if (selectedId === uid) selectedId = "";
+        annotations.remove(i);
+        annotationsEdited();
+    }
+
+    function clearAnnotations() {
+        selectedId = "";
+        annotations.clear();
+        stepCounter = 0;
+        annotationsEdited();
+    }
+
+    function undo() {
+        if (annotations.count === 0) return;
+        selectedId = "";
+        var last = annotations.get(annotations.count - 1);
+        if (last.kind === "step") stepCounter = Math.max(0, stepCounter - 1);
+        annotations.remove(annotations.count - 1);
+        annotationsEdited();
+    }
+
+    function reset() {
+        clearAnnotations();
+        padding = 5; ratio = "auto"; balance = true;
+        radius = 3; shadow = 36; shadowOpacity = 0.45; shadowY = 16;
+        frame = "none"; bgMode = "auto"; tool = "select";
+    }
+}

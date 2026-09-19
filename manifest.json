@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "tahayvr.omasnap",
+  "name": "OmaSnap",
+  "version": "0.2.0",
+  "author": "tahayvr",
+  "license": "MIT",
+  "description": "Turn a screenshot into something worth posting: padding, backgrounds, rounded corners, shadows, annotations and one-click redaction.",
+  "kinds": [
+    "overlay",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "overlay": "Overlay.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "keepLoaded": true,
+  "barWidget": {
+    "displayName": "OmaSnap",
+    "category": "Capture",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "icon": "󱓒"
+    },
+    "schema": [
+      {
+        "key": "icon",
+        "type": "string",
+        "label": "Bar icon"
+      }
+    ],
+    "description": "Grab a region and beautify it"
+  }
+}

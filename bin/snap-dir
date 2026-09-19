@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Print the directory screenshots land in, resolved the same way omarchy
+# resolves it: OMARCHY_SCREENSHOT_DIR, then XDG_PICTURES_DIR, then ~/Pictures.
+set -u
+[ -f "$HOME/.config/user-dirs.dirs" ] && . "$HOME/.config/user-dirs.dirs" 2>/dev/null
+printf '%s\n' "${OMARCHY_SCREENSHOT_DIR:-${XDG_PICTURES_DIR:-$HOME/Pictures}}"

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Print a chosen image path. Uses whatever picker is available.
+set -uo pipefail
+dir="${1:-$HOME/Pictures}"
+
+if command -v zenity >/dev/null 2>&1; then
+  zenity --file-selection --title="Open a screenshot" --filename="$dir/" \
+         --file-filter='Images | *.png *.jpg *.jpeg *.webp' 2>/dev/null
+  exit 0
+fi
+
+list="$(find "$dir" -maxdepth 2 -type f \
+        \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) \
+        -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 200 | cut -d' ' -f2-)"
+[ -n "$list" ] || exit 0
+
+if command -v fuzzel >/dev/null 2>&1; then
+  printf '%s\n' "$list" | fuzzel --dmenu --prompt='screenshot> ' 2>/dev/null
+elif command -v walker >/dev/null 2>&1; then
+  printf '%s\n' "$list" | walker --dmenu 2>/dev/null
+else
+  printf '%s\n' "$list" | head -n1
+fi
+exit 0

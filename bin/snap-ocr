@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# snap-ocr <image> [redact|text]
+#   redact -> word-level TSV with bounding boxes in the image's own pixels
+#   text   -> plain text
+# Exit 1: no such image. Exit 2: tesseract is not installed.
+set -uo pipefail
+
+img="${1:-}"
+purpose="${2:-redact}"
+[ -f "$img" ] || exit 1
+
+command -v tesseract >/dev/null 2>&1 || exit 2
+lang="${OMARCHY_OCR_LANGS:-eng}"
+
+if [ "$purpose" = "text" ]; then
+  tesseract "$img" stdout --psm 3 -l "$lang" -c preserve_interword_spaces=1 2>/dev/null
+  exit 0
+fi
+
+# psm 11 finds sparse text anywhere on screen, which is what a UI screenshot
+# is. Tesseract reads small UI text far more reliably at twice the size, so
+# small and medium shots are upscaled (when imagemagick is around) and the
+# boxes mapped back down afterwards. A 4K grab is already big enough, and
+# doubling it would make tesseract take the better part of a minute.
+scale=100
+if command -v magick >/dev/null 2>&1; then
+  longest="$(magick identify -format '%[fx:max(w,h)]' "$img" 2>/dev/null)"
+  if [ -n "$longest" ] && [ "$longest" -lt 2400 ]; then
+    scale=200
+  elif [ -n "$longest" ] && [ "$longest" -lt 3200 ]; then
+    scale=150
+  fi
+fi
+
+if [ "$scale" = 100 ]; then
+  tesseract "$img" stdout --psm 11 -l "$lang" tsv 2>/dev/null
+else
+  magick "$img" -filter Lanczos -resize "${scale}%" png:- 2>/dev/null \
+  | tesseract stdin stdout --psm 11 -l "$lang" tsv 2>/dev/null \
+  | awk -F'\t' -v f="$scale" 'BEGIN { OFS = "\t"; f = f / 100 }
+      NR > 1 && $1 == 5 { $7 = int($7 / f); $8 = int($8 / f); $9 = int($9 / f + 0.999); $10 = int($10 / f + 0.999) }
+      { print }'
+fi
+exit 0

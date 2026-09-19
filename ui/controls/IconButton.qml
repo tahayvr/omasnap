@@ -1,0 +1,58 @@
+import QtQuick
+import qs.Commons
+
+Rectangle {
+    id: root
+    property string glyph: ""
+    property string label: ""
+    property bool active: false
+    property bool flat: false
+    property bool primary: false
+    property string tip: ""
+    signal clicked()
+
+    implicitWidth: label !== "" ? row.implicitWidth + Ui.padX * 2 : Ui.button
+    implicitHeight: Ui.button
+    color: primary ? (ma.containsMouse ? Qt.lighter(Color.accent, 1.12) : Color.accent)
+         : active ? Ui.fillActive
+         : ma.containsMouse ? Ui.fillHover
+         : flat ? "transparent"
+         : Ui.fill
+    border.width: active ? 1 : 0
+    border.color: Ui.borderActive
+    Behavior on color { ColorAnimation { duration: 90 } }
+
+    readonly property color ink: primary ? Color.background : active ? Color.accent : Ui.text
+
+    Row {
+        id: row
+        anchors.centerIn: parent
+        spacing: Ui.gap
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.glyph
+            visible: root.glyph !== ""
+            color: root.ink
+            font.family: Style.font.family
+            font.pixelSize: Style.font.icon
+        }
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.label
+            visible: root.label !== ""
+            color: root.ink
+            font.family: Style.font.family
+            font.pixelSize: Style.font.bodySmall
+            font.bold: root.primary
+        }
+    }
+
+    MouseArea {
+        id: ma
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
+    }
+}
