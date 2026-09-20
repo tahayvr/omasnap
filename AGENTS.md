@@ -206,9 +206,9 @@ qs log -p "$OMARCHY_PATH/shell" --tail 300 | grep -iE "omasnap|TypeError"
 - **A locked screen wedges every screen capture.** `grim` blocks in `poll`,
   `grabToImage` never calls back, and the plugin's export sits at `busy`
   forever. Nothing in the symptoms points at the lock. Check it first.
-- Summoning `{}` with nothing loaded starts a `slurp` region picker and blocks
-  other calls with `busy` until it finishes or `pkill -x slurp`.
-  `/proc/<slurp>/wchan` says `anon_pipe_read` if it is stuck on stdin.
+- A capture blocks other calls with `busy` until `slurp` finishes or
+  `pkill -x slurp`. `/proc/<slurp>/wchan` says `anon_pipe_read` if it is
+  stuck on stdin.
 - Qt logs to journald when stderr is not a terminal; set
   `QT_FORCE_STDERR_LOGGING=1` when running QML by hand or you see nothing.
   `/usr/bin/qml` is Qt 5 — use `/usr/lib/qt6/bin/qml`.
