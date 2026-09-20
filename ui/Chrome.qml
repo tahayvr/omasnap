@@ -19,7 +19,7 @@ Rectangle {
         color: chrome.textColor
         opacity: 0.8
         font.family: Style.font.family
-        font.pixelSize: chrome.height * 0.42
+        font.pixelSize: Math.round(chrome.height * 0.5)
         elide: Text.ElideMiddle
         width: parent.width * 0.7
         horizontalAlignment: Text.AlignHCenter

@@ -70,7 +70,7 @@ test("optical balance lifts the card only when there is slack", () => {
 
 test("the title bar is inside the card and the frame", () => {
     const g = Model.frameGeometry(Object.assign({}, base, { frame: "titlebar" }));
-    ok(g.chromeH >= 22 && g.chromeH <= 44, "chrome clamped");
+    ok(g.chromeH >= 28 && g.chromeH <= 48, "chrome clamped");
     eq(g.cardH, 500 + g.chromeH, "card grows");
     eq(g.frameH, 700 + g.chromeH, "frame grows");
     eq(Model.frameGeometry(Object.assign({}, base, { frame: "none" })).chromeH, 0);
@@ -78,9 +78,9 @@ test("the title bar is inside the card and the frame", () => {
 });
 
 test("chrome scales with the shot but stays legible", () => {
-    eq(Model.chromeHeight({ shotHeight: 100, frame: "titlebar" }), 22, "small shot");
-    eq(Model.chromeHeight({ shotHeight: 4000, frame: "titlebar" }), 44, "huge shot");
-    eq(Model.chromeHeight({ shotHeight: 1000, frame: "titlebar" }), 42, "proportional");
+    eq(Model.chromeHeight({ shotHeight: 100, frame: "titlebar" }), 28, "small shot");
+    eq(Model.chromeHeight({ shotHeight: 4000, frame: "titlebar" }), 48, "huge shot");
+    eq(Model.chromeHeight({ shotHeight: 1000, frame: "titlebar" }), 45, "proportional");
 });
 
 test("the inset grows the card around the shot", () => {
