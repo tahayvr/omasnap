@@ -25,6 +25,7 @@ ui/Doc.qml             document state, derived geometry, annotation list model
 ui/Stage.qml           the composition that gets grabbed (native pixel size)
 ui/Chrome.qml          title bar shared by both cards
 ui/MeshGradient.qml    multipoint background: radial fills over a base
+ui/Wordmark.qml        the logo asset, colorised to a given foreground
 ui/CodeBlock.qml       highlighted text sized by its contents
 ui/AnnotationLayer.qml annotation delegates, dragging, redaction sampling
 ui/Editor.qml          header, viewport, footer, drawing surface
@@ -72,7 +73,15 @@ tests/                 run.sh runs everything; see Testing
   `{"items": [...]}` rather than a bare array, and any argument with a
   literal space is split too (use `\u0020` inside JSON strings).
 - Bar widgets extend `qs.Ui.BarWidget` and get `bar`, `moduleName`,
-  `settings`. `bar.shell` is the same `PluginShellApi` facade the overlay
+  `settings`. A popup hangs off `qs.Ui.PopupCard`, which wants `anchorItem`
+  and `bar` and owns the anchoring, the theme's popup chrome and the
+  click-outside dismissal; its default property is the card's content, and
+  `fittedContentWidth`/`fittedContentHeight` size it against the screen.
+  OmaSnap's right-click menu is one of those, built from the same parts the
+  first-party panels use — `PanelSeparator` and `Style.hoverFillFor` for the
+  row highlight, `PanelToolTip` for the per-row hints — so it wears whatever
+  the bar wears. The wordmark at the top is the button that opens the editor,
+  which is why there is no row for it. Left and middle click stay direct. `bar.shell` is the same `PluginShellApi` facade the overlay
   gets, wired for every bar entry by `plugins/bar/Bar.qml`, so
   `bar.shell.summon(moduleName, payload)` is the only path the widget needs.
 - Payloads: `{"path": "..."}` opens a file, `{"capture": "region|windows|
@@ -212,6 +221,13 @@ layer sits at `cardX, cardY + chromeH`.
   card carried half a line of dead space under the code and read as
   bottom-heavy. `render.sh` trims the exported card to its ink and compares
   the margins, so a regression shows up as "code card is lopsided".
+- **The logo is a wordmark, and it has to be colorised.** `assets/logo` holds
+  a 1365x280 image of the word, fixed cyan with an orange shadow, so used
+  straight it would be the one thing on screen ignoring the theme.
+  `ui/Wordmark.qml` runs it through `MultiEffect` at `colorization: 1` and
+  takes the foreground to tint with, which is what both the editor header and
+  the bar menu use. It is nearly 5:1, so it cannot serve as the bar icon; that
+  stays a Nerd Font glyph in a square slot.
 - **The shadow is one number, and it is measured against the padding.**
   `doc.shadow` runs 0 to 100 and `Stage` turns it into radius, drop and
   opacity together, so the slider only ever makes the shadow bigger. All three

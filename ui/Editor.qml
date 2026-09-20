@@ -45,15 +45,10 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Ui.row
 
-            Text {
+            Wordmark {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "OmaSnap"
-                color: Ui.text
-                font.family: Style.font.family
-                font.pixelSize: Style.font.bodySmall
-                font.bold: true
-                font.capitalization: Font.AllUppercase
-                font.letterSpacing: 1
+                markHeight: Style.font.bodySmall * 1.5
+                tint: Ui.text
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
