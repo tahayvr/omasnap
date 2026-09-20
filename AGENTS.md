@@ -99,6 +99,10 @@ Imposed by the host, so none of it is negotiable from in here.
 - `drag.target` overwrites `x`/`y` bindings; restore them after writing a move
   back into the model.
 - Integer properties such as `font.pixelSize` warn on doubles; `Math.round`.
+- **The Qt engine reports an escaped slash as `\\/` in `RegExp.source`**, so
+  a pattern rebuilt from `.source` (`findSensitive` does, to add `g`) never
+  matches one. Write slashes as `[/]`. Node shows nothing wrong; the unit
+  test scans the patterns for it.
 - A tooltip left inside its own button is painted under whatever panel is a
   later sibling. `ui/controls/Tooltip.qml` reparents to the window content item
   for that reason, and computes its position on show, since `mapToItem` is a

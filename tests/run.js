@@ -247,6 +247,31 @@ test("keys and tokens", () => {
     ok(found.counts["token"] >= 2, "jwt and github token");
 });
 
+test("a password in a url is boxed from the password on, the scheme and user stay", () => {
+    // One OCR word at x = 10, 9px a character: the password starts at char 30.
+    // The box runs to the end of the word like every other match, so the
+    // host goes with it; a misread mid-password must not leave a tail.
+    const url = "DATABASE_URL=postgres://admin:hunter2@db.internal:5432/prod";
+    const found = Redact.findSensitive(tsv(url), ALL);
+    eq(labels(found), ["password"]);
+    const b = found.boxes[0];
+    ok(b.x > 10 + 29 * 9 && b.x < 10 + 31 * 9, "starts at the password, got x=" + b.x);
+    ok(b.x + b.w > 10 + url.length * 9 - 8, "runs to the end of the word");
+    eq(Redact.findSensitive(tsv("see https://example.com/login for details"), ALL).boxes, [], "a url without credentials");
+    // Without the class the email pattern still sees user@host; off both and nothing is left.
+    eq(Redact.findSensitive(tsv(url), ALL.filter(k => k !== "secret" && k !== "email")).boxes, [], "off with keys and tokens");
+});
+
+test("no pattern escapes a slash", () => {
+    // The Qt engine reports \/ as \\/ in RegExp.source, and findSensitive
+    // rebuilds each pattern from .source to add the g flag, so an escaped
+    // slash silently never matches there. [/] survives both engines.
+    for (const p of Redact.PATTERNS) {
+        ok(!/\\\//.test(p.re.source), p.key + " escapes a slash");
+        if (p.skip) ok(!/\\\//.test(p.skip.source), p.key + ": skip escapes a slash");
+    }
+});
+
 test("plain prose, versions, timestamps and hashes are left alone", () => {
     const found = Redact.findSensitive(tsv("Built v1.2.3.4 at 2026-09-19 06:09:00 commit d41d8cd98f00b204e9800998ecf8427e on 127.0.0.1 with 12 items"), ALL);
     eq(found.boxes, [], "no false positives");
