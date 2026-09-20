@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC
 import qs.Commons
 import "controls"
 import "../lib/Model.js" as Model
@@ -17,6 +18,20 @@ Flickable {
     contentHeight: col.implicitHeight + Ui.pad * 2
     clip: true
     boundsBehavior: Flickable.StopAtBounds
+
+    // Always on when there is more below: at the default height the export
+    // controls sit past the fold, and nothing else says so.
+    QQC.ScrollBar.vertical: QQC.ScrollBar {
+        id: vbar
+        policy: QQC.ScrollBar.AlwaysOn
+        visible: vbar.size < 1
+        hoverEnabled: true
+        background: null
+        contentItem: Rectangle {
+            implicitWidth: Style.space(3)
+            color: Ui.tint(vbar.pressed ? 0.45 : vbar.hovered ? 0.32 : 0.18)
+        }
+    }
 
     Column {
         id: col
