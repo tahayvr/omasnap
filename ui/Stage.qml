@@ -79,6 +79,15 @@ Item {
         if (doc.shotPalette.length > 0) return doc.shotPalette[0];
         return stage.chromeColor;
     }
+    // One slider drives the whole shadow. Spread, drop and opacity all rise
+    // together from nothing, so it reads as "bigger" rather than "sharper";
+    // the old control fed the slider straight into the blur, which made 1 a
+    // hard shadow and 100 a soft one.
+    readonly property real shadowAmount: Math.max(0, Math.min(1, doc.shadow / 100))
+
+    // The gap between the card and the edge of the frame. The shadow has to
+    // finish inside it; with no padding there is nowhere for one to fall.
+    readonly property real shadowRoom: Math.max(0, doc.geo.pad * unit)
     readonly property real cardRadius: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
                                                 Math.min(geo.cardW, geo.cardH) / 2) * unit
 
@@ -138,11 +147,18 @@ Item {
         width: card.width
         height: card.height
         autoPaddingEnabled: true
-        shadowEnabled: stage.doc.shadow > 0 && stage.doc.bgMode !== "none"
-        blurMax: Math.max(32, Math.min(96, Math.round(stage.geo.cardW * stage.unit * 0.03)))
-        shadowBlur: Math.max(0, Math.min(1, stage.doc.shadow / 100))
-        shadowColor: Qt.rgba(0, 0, 0, stage.doc.shadowOpacity)
-        shadowVerticalOffset: stage.doc.shadowY / 100 * Math.max(8, stage.geo.pad) * stage.unit
+        shadowEnabled: stage.shadowAmount > 0 && stage.shadowRoom > 1
+                       && stage.doc.bgMode !== "none"
+        // blurMultiplier buys radius at the cost of sampling quality, and it
+        // showed as stepping down the falloff, so the radius comes from
+        // blurMax alone. Everything is measured against shadowRoom: reach and
+        // drop together stay inside the padding, so the shadow fades out
+        // rather than running into the edge of the frame and being cut square.
+        blurMax: Math.round(Math.max(8, Math.min(160, stage.shadowRoom * 1.15)))
+        blurMultiplier: 0
+        shadowBlur: 0.45 + 0.55 * stage.shadowAmount
+        shadowColor: Qt.rgba(0, 0, 0, 0.38 * stage.shadowAmount)
+        shadowVerticalOffset: stage.shadowRoom * 0.30 * stage.shadowAmount
         shadowHorizontalOffset: 0
     }
 

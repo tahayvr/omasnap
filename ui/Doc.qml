@@ -45,9 +45,7 @@ QtObject {
     property string ratio: "auto"
 
     property real radius: 3                 // percent of the card's shorter edge
-    property real shadow: 36
-    property real shadowOpacity: 0.45
-    property real shadowY: 16
+    property real shadow: 45                // one control: spread, drop, opacity
     property string frame: "none"           // none | titlebar
     property string frameTitle: ""
 
@@ -167,7 +165,7 @@ QtObject {
     function reset() {
         clearAnnotations();
         padding = 5; inset = 0; ratio = "auto"; balance = true;
-        radius = 3; shadow = 36; shadowOpacity = 0.45; shadowY = 16;
+        radius = 3; shadow = 45;
         frame = "none"; bgMode = kind === "code" ? "gradient" : "auto"; tool = "select";
         codeFont = 16; codeNumbers = false;
     }

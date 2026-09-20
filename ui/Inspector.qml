@@ -222,12 +222,6 @@ Flickable {
                 from: 0; to: 100; decimals: 0
                 onMoved: function (v) { doc.shadow = v; }
             }
-            LabeledSlider {
-                label: "Shadow depth"
-                value: doc.shadowY
-                from: 0; to: 100; decimals: 0
-                onMoved: function (v) { doc.shadowY = v; }
-            }
 
             Segmented {
                 current: doc.frame

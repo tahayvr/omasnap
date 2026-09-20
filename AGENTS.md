@@ -212,6 +212,18 @@ layer sits at `cardX, cardY + chromeH`.
   card carried half a line of dead space under the code and read as
   bottom-heavy. `render.sh` trims the exported card to its ink and compares
   the margins, so a regression shows up as "code card is lopsided".
+- **The shadow is one number, and it is measured against the padding.**
+  `doc.shadow` runs 0 to 100 and `Stage` turns it into radius, drop and
+  opacity together, so the slider only ever makes the shadow bigger. All three
+  are fractions of `shadowRoom`, the gap between the card and the edge of the
+  frame, so the shadow always finishes inside the picture; sizing it off the
+  card instead let it reach the border and get cut square. With no padding
+  there is no room and no shadow, which is correct.
+  Do not reach for `blurMultiplier` to make it larger: it buys radius by
+  dropping sampling quality and shows as stepping down the falloff. The radius
+  comes from `blurMax` alone. And `shadowBlur` must not be driven straight off
+  the slider — that was the original fault, where 1 gave a one-percent radius,
+  meaning a hard dark outline, and 100 gave a soft one.
 - **A background preset is either a ramp or a mesh, never both.** A ramp
   carries `stops` and an `angle` and varies along one axis. A multipoint
   preset carries `base` and `points` — colors at `{x, y}` fractions of the

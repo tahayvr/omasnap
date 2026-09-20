@@ -146,7 +146,7 @@ Item {
 
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
     readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "inset", "balance", "ratio",
-        "radius", "shadow", "shadowOpacity", "shadowY", "frame", "frameTitle", "exportScale", "format",
+        "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
         "quality", "tool", "inkColor", "inkWidth", "codeLang", "codeTheme", "codeFont", "codeNumbers"]
     function set(json) {
         var o;
