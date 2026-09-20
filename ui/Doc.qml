@@ -166,7 +166,7 @@ QtObject {
         clearAnnotations();
         padding = 5; inset = 0; ratio = "auto"; balance = false;
         radius = 3; shadow = 45;
-        frame = "none"; bgMode = kind === "code" ? "gradient" : "auto"; tool = "select";
+        frame = "none"; bgMode = "auto"; tool = "select";
         codeFont = 16; codeNumbers = false;
     }
 }

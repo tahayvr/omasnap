@@ -82,7 +82,7 @@ Flickable {
 
             Text {
                 width: parent.width
-                visible: doc.bgMode === "auto" && doc.autoPalette.length === 0
+                visible: doc.kind === "shot" && doc.bgMode === "auto" && doc.autoPalette.length === 0
                 wrapMode: Text.WordWrap
                 text: "Sampling the screenshot…"
                 color: Ui.textMuted
@@ -93,7 +93,7 @@ Flickable {
             Flow {
                 width: parent.width
                 spacing: Ui.gap
-                visible: doc.bgMode === "auto" && doc.autoPalette.length > 0
+                visible: doc.kind === "shot" && doc.bgMode === "auto" && doc.autoPalette.length > 0
                 Repeater {
                     model: doc.autoPalette
                     Swatch {

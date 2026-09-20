@@ -251,7 +251,6 @@ Item {
         doc.autoPalette = [];
         doc.shotPalette = [];
         doc.shotEdge = "";
-        if (doc.bgMode === "auto") doc.bgMode = "gradient";
         doc.codeText = text;
         doc.codeDetected = Code.guessLanguage(text);
         doc.frameTitle = "snippet." + doc.codeEffectiveLang;
@@ -329,7 +328,6 @@ Item {
         doc.kind = "shot";
         doc.codeText = "";
         doc.codeHtml = "";
-        if (doc.bgMode === "gradient" && doc.autoPalette.length === 0) doc.bgMode = "auto";
         doc.shotWidth = 0;
         doc.shotHeight = 0;
         doc.shotPath = path;
