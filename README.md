@@ -62,6 +62,9 @@ the picture that should not be public.
 omarchy plugin add https://github.com/tahayvr/omasnap.git --enable
 ```
 
+Remove it with `omarchy plugin remove tahayvr.omasnap`, or `omarchy plugin
+disable tahayvr.omasnap` to keep it installed but off.
+
 Plugins run as unsandboxed code inside your shell process. Read the source
 before you enable it.
 
