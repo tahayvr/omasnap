@@ -55,21 +55,27 @@ Imposed by the host, so none of it is negotiable from in here.
   test stub came out exact, which is why the harness never saw it. The shot
   is a `Shape` whose `ShapePath.fillItem` is the hidden `Image`: that samples
   the image's own texture one texel per shot pixel, rounded corners included.
-- **The `unit` scaling is load-bearing.** The `MultiEffect` shadow texture is
-  allocated at item size times the window ratio, so laying out in screen
-  units keeps it one texel per shot pixel. `AnnotationLayer` and `CodeBlock`
-  keep shot-pixel coordinates and are placed with `scale: unit`;
-  `Editor.toShot` inverts it.
-- **Both cards stay visible and sit *over* their `MultiEffect`**, which then
-  only contributes the shadow. Two verified reasons: inside the shell,
-  descendants of a hidden effect source did not render at all (they did under
-  the plain `qml` runtime), and `MultiEffect`'s auto padding shifts its copy of
-  the source by a fraction of a device pixel, resampling the screenshot. Do not
-  move either card back into a hidden source.
+- **The `unit` scaling is load-bearing.** The stage is laid out in shot
+  pixels times `unit`, so a stage scale of 1 shows the shot life-size and
+  the grab is 1:1. `AnnotationLayer` and `CodeBlock` keep shot-pixel
+  coordinates and are placed with `scale: unit`; `Editor.toShot` inverts it.
+- **The shadow is a `ShaderEffect` too** (`ui/Shadow.qml`,
+  `assets/shaders/shadow.frag`): the closed-form Gaussian blur of a rounded
+  box, dithered. `MultiEffect`'s shadow stepped into rings at the radii a
+  padded frame asks for and broke down past `blurMax` 64, and it needed the
+  cards drawn over a hidden copy of themselves. Nothing goes through
+  `MultiEffect` now except the wordmark's colorisation.
 - **`doc.exporting`** is raised for the grab frame. Anything that must not
   reach the file — selection outlines, the empty-text placeholder — binds to it.
-- **`blurMultiplier` buys blur radius by dropping sampling quality** and shows
-  as stepping down a shadow's falloff. Get radius from `blurMax` instead.
+- **Linear ramps are a `ShaderEffect`** (`ui/Ramp.qml`,
+  `assets/shaders/ramp.frag`), not a `Rectangle` gradient: an 8-bit ramp
+  steps a level every dozen pixels and a dark auto background showed the
+  bands. Only noise added *before* quantisation cures that; grain laid over
+  the finished gradient leaves the step in the local mean and only hides it
+  once it is visible itself (tried at 1% and 4.5%, both rejected). Rebuild
+  the `.qsb` with the command in the shader's header after editing it, and
+  commit both. Meshes still go through `QtQuick.Shapes`. `half` is a
+  reserved word in the shader language qsb compiles.
 - Redaction samples a hidden full-size `Image` through a `ShaderEffectSource`
   with a tiny `textureSize` and `smooth: false`, so each block is one sample
   with nothing to sharpen back out.
@@ -177,8 +183,8 @@ components and checks exported pixels with ImageMagick.
 - On a Wayland session the harnesses open a real window for about a second to
   get the GPU. `OMASNAP_TEST_OFFSCREEN=1` forces the offscreen platform.
 - Whether the card rendered is decided by **sampling the exported picture**,
-  not by the backend name — the software scene graph's `MultiEffect` support
-  varies by Qt and Mesa build.
+  not by the backend name — what the software scene graph can draw varies by
+  Qt and Mesa build.
 - The harnesses take their output directory as the last argument, and
   `render.sh` points it at `$XDG_RUNTIME_DIR`. See the reload note below.
 

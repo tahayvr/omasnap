@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -84,14 +83,16 @@ Item {
         return stage.chromeColor;
     }
     // One slider drives the whole shadow. Spread, drop and opacity all rise
-    // together from nothing, so it reads as "bigger" rather than "sharper";
-    // the old control fed the slider straight into the blur, which made 1 a
-    // hard shadow and 100 a soft one.
+    // together from nothing, so it reads as "bigger" rather than "sharper".
+    // Everything is measured against shadowRoom, the padding between the
+    // card and the edge of the frame: three sigmas plus the drop stay inside
+    // it, so the shadow fades out rather than being cut square at the edge.
     readonly property real shadowAmount: Math.max(0, Math.min(1, doc.shadow / 100))
-
-    // The gap between the card and the edge of the frame. The shadow has to
-    // finish inside it; with no padding there is nowhere for one to fall.
     readonly property real shadowRoom: Math.max(0, doc.geo.pad * unit)
+    readonly property real shadowSigma: stage.shadowRoom * (0.08 + 0.17 * stage.shadowAmount)
+    readonly property real shadowDrop: stage.shadowRoom * 0.25 * stage.shadowAmount
+    readonly property real shadowAlpha: 0.62 * stage.shadowAmount
+
     readonly property real cardRadius: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
                                                 Math.min(geo.cardW, geo.cardH) / 2) * unit
 
@@ -123,47 +124,22 @@ Item {
         cache: true
     }
 
-    Item {
+    Ramp {
         anchors.fill: parent
-        clip: true
         visible: stage.doc.bgMode !== "none" && !stage.desktopBg && stage.gradientBg
-        Rectangle {
-            readonly property real diag: Math.sqrt(stage.width * stage.width + stage.height * stage.height)
-            width: diag
-            height: diag
-            anchors.centerIn: parent
-            rotation: stage.bgAngle
-            gradient: Gradient {
-                GradientStop { position: stage.bgStops[0].at; color: stage.bgStops[0].color }
-                GradientStop { position: stage.bgStops[1].at; color: stage.bgStops[1].color }
-                GradientStop { position: stage.bgStops[2].at; color: stage.bgStops[2].color }
-                GradientStop { position: stage.bgStops[3].at; color: stage.bgStops[3].color }
-                GradientStop { position: stage.bgStops[4].at; color: stage.bgStops[4].color }
-            }
-        }
+        stops: stage.bgStops
+        angle: stage.bgAngle
     }
 
-    MultiEffect {
+    Shadow {
         readonly property Item card: stage.codeKind ? codeCard : shotCard
-        source: card
-        x: card.x
-        y: card.y
-        width: card.width
-        height: card.height
-        autoPaddingEnabled: true
-        shadowEnabled: stage.shadowAmount > 0 && stage.shadowRoom > 1
-                       && stage.doc.bgMode !== "none"
-        // blurMultiplier buys radius at the cost of sampling quality, and it
-        // showed as stepping down the falloff, so the radius comes from
-        // blurMax alone. Everything is measured against shadowRoom: reach and
-        // drop together stay inside the padding, so the shadow fades out
-        // rather than running into the edge of the frame and being cut square.
-        blurMax: Math.round(Math.max(8, Math.min(160, stage.shadowRoom * 1.15)))
-        blurMultiplier: 0
-        shadowBlur: 0.45 + 0.55 * stage.shadowAmount
-        shadowColor: Qt.rgba(0, 0, 0, 0.38 * stage.shadowAmount)
-        shadowVerticalOffset: stage.shadowRoom * 0.30 * stage.shadowAmount
-        shadowHorizontalOffset: 0
+        anchors.fill: parent
+        visible: stage.shadowAmount > 0 && stage.shadowRoom > 1
+                 && stage.doc.bgMode !== "none"
+        box: Qt.rect(card.x, card.y + stage.shadowDrop, card.width, card.height)
+        sigma: stage.shadowSigma
+        corner: stage.cardRadius
+        tint: Qt.rgba(0, 0, 0, stage.shadowAlpha)
     }
 
     // Screenshot card. The shot is not drawn as an Image inside a clip: every
@@ -171,8 +147,7 @@ Item {
     // resamples it on a fractional scale, where the card is not a whole
     // number of logical pixels. The Shape fills a rounded rectangle straight
     // from the image's own texture, one texel per shot pixel, so a 1x export
-    // is the file. Like the code card it stays visible over its effect, which
-    // then only adds the shadow.
+    // is the file.
     Rectangle {
         id: shotCard
         x: stage.geo.cardX * stage.unit
@@ -228,9 +203,7 @@ Item {
     }
 
     // Code card: text is inset by its padding, so a rounded Rectangle needs
-    // no clipping. It stays visible and sits over the effect above, which
-    // then only contributes the shadow: children of a hidden effect source
-    // did not render inside the shell.
+    // no clipping.
     Rectangle {
         id: codeCard
         visible: stage.codeKind
