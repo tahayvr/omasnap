@@ -27,25 +27,34 @@ Item {
     width: Math.max(1, geo.frameW * unit)
     height: Math.max(1, geo.frameH * unit)
 
-    readonly property bool gradientBg: doc.bgMode === "gradient"
-                                       || (doc.bgMode === "auto" && doc.autoPalette.length > 1)
+    readonly property var bgPreset: doc.bgMode === "gradient"
+                                    ? Model.gradientByKey(doc.bgGradient) : null
+    readonly property bool meshBg: Model.gradientIsMesh(bgPreset)
+    readonly property bool gradientBg: !meshBg
+                                       && (doc.bgMode === "gradient"
+                                           || (doc.bgMode === "auto" && doc.autoPalette.length > 1))
     readonly property bool desktopBg: doc.bgMode === "desktop"
 
     readonly property color bgA: {
-        if (doc.bgMode === "gradient") return Model.gradientByKey(doc.bgGradient).a;
         if (doc.bgMode === "auto" && doc.autoPalette.length > 0) return doc.autoPalette[0];
         if (doc.bgMode === "theme") return Color.background;
         return doc.bgSolid;
     }
-    readonly property color bgB: {
-        if (doc.bgMode === "gradient") return Model.gradientByKey(doc.bgGradient).b;
-        if (doc.bgMode === "auto" && doc.autoPalette.length > 1) return doc.autoPalette[1];
-        if (doc.bgMode === "theme") return Qt.darker(Color.background, 1.4);
-        return doc.bgSolid;
+
+    // Always Model.GRADIENT_STOPS long, so the stops below can be bound one
+    // by one. A Repeater cannot live inside a Gradient, and building the
+    // stops at runtime would mean re-creating them on every theme change.
+    readonly property var bgStops: {
+        if (doc.bgMode === "gradient")
+            return Model.gradientStops(Model.gradientByKey(doc.bgGradient).stops);
+        if (doc.bgMode === "auto" && doc.autoPalette.length > 1)
+            return Model.gradientStops([String(doc.autoPalette[0]), String(doc.autoPalette[1])]);
+        return Model.gradientStops([String(stage.bgA)]);
     }
-    readonly property int bgAngle: doc.bgMode === "gradient"
-                                   ? Model.gradientByKey(doc.bgGradient).angle
-                                   : doc.bgAngle
+    // A multipoint preset has no angle to read, so fall back rather than
+    // assigning undefined to an int.
+    readonly property int bgAngle: stage.bgPreset && stage.bgPreset.angle !== undefined
+                                   ? stage.bgPreset.angle : doc.bgAngle
 
     // The title bar takes its color from the card underneath it, so a shot
     // and its frame stay in harmony: the code theme's own background, or the
@@ -75,8 +84,17 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        visible: stage.doc.bgMode !== "none" && !stage.desktopBg && !stage.gradientBg
+        visible: stage.doc.bgMode !== "none" && !stage.desktopBg && !stage.meshBg
+                 && !stage.gradientBg
         color: stage.bgA
+    }
+
+    // A multipoint preset: colors scattered over the frame instead of a ramp.
+    MeshGradient {
+        anchors.fill: parent
+        visible: stage.meshBg
+        base: stage.meshBg ? stage.bgPreset.base : "transparent"
+        points: stage.meshBg ? Model.meshPoints(stage.bgPreset) : []
     }
 
     // The desktop wallpaper, cropped to the frame the way a compositor would.
@@ -103,8 +121,11 @@ Item {
             anchors.centerIn: parent
             rotation: stage.bgAngle
             gradient: Gradient {
-                GradientStop { position: 0.0; color: stage.bgA }
-                GradientStop { position: 1.0; color: stage.bgB }
+                GradientStop { position: stage.bgStops[0].at; color: stage.bgStops[0].color }
+                GradientStop { position: stage.bgStops[1].at; color: stage.bgStops[1].color }
+                GradientStop { position: stage.bgStops[2].at; color: stage.bgStops[2].color }
+                GradientStop { position: stage.bgStops[3].at; color: stage.bgStops[3].color }
+                GradientStop { position: stage.bgStops[4].at; color: stage.bgStops[4].color }
             }
         }
     }

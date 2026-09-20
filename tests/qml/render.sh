@@ -8,7 +8,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 # seven, which knocked the live overlay out from under whoever was using it.
 out="${XDG_RUNTIME_DIR:-/tmp}/omasnap-tests"
 mkdir -p "$out"
-rm -f "$out/export.png" "$out/export-inset.png"
+rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png"
 
 # Synthetic screenshot: white left half, black right half, and a band of
 # 1px red/blue stripes through the middle that redaction has to destroy.
@@ -105,7 +105,7 @@ fi
 slog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen timeout 30 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessControls.qml 2>&1)"
 echo "$slog" | grep -E "^qml: (ok|FAIL)" | sed 's/^qml: //'
 if echo "$slog" | grep -q "FAIL"; then fail=1; fi
-echo "$slog" | grep -q "^qml: ok   and still points at the file" \
+echo "$slog" | grep -q "^qml: ok   every mesh swatch carries its own points" \
   || { echo "FAIL controls harness did not run to the end"; fail=1; }
 
 # ---- inset -----------------------------------------------------------------
@@ -131,6 +131,58 @@ if [ $gpu = 1 ]; then
   else
     echo "FAIL inset export missing"; fail=1
   fi
+fi
+
+# ---- multipoint gradient ---------------------------------------------------
+# aurora runs #08203e -> #15756b -> #9fe0a8 at 150 degrees, so the background
+# runs light mint at the top left to dark navy at the bottom right, turning
+# through a saturated teal on the way. That teal is the whole point: a plain
+# ramp between the two ends passes through about #53806f instead, which these
+# tolerances tell apart.
+if [ -f "$out/export-gradient.png" ]; then
+  gpx() { magick "$out/export-gradient.png" -format "%[fx:int(255*p{$1,$2}.r+0.5)] %[fx:int(255*p{$1,$2}.g+0.5)] %[fx:int(255*p{$1,$2}.b+0.5)]" info:; }
+  gexpect() { # gexpect "name" X Y R G B
+    local got; got="$(gpx "$2" "$3")"
+    read -r r g b <<<"$got"
+    if (( r-$4 > 20 || $4-r > 20 || g-$5 > 20 || $5-g > 20 || b-$6 > 20 || $6-b > 20 )); then
+      echo "FAIL $1 at $2,$3: expected $4 $5 $6, got $got"; fail=1
+    else
+      echo "ok   $1"
+    fi
+  }
+  # The far corner is not quite t=1: the ramp is drawn on a square rotated
+  # over the frame, so the corner sits a little short of the final color.
+  gexpect "gradient starts at its last stop"  20  20   138 208 159
+  gexpect "gradient ends at its first stop"  700 500     8  32  62
+  gexpect "and turns through the middle one" 700 120    21 117 107
+else
+  echo "FAIL gradient export missing"; fail=1
+fi
+
+# ---- multipoint (mesh) gradient --------------------------------------------
+# bloom puts violet top left, rose top right, amber bottom right and teal
+# bottom left. A ramp cannot do that: whatever its angle, the two ends of one
+# diagonal must bracket the two ends of the other. Reading all four corners is
+# what separates a mesh from a ramp.
+if [ -f "$out/export-mesh.png" ]; then
+  mpx() { magick "$out/export-mesh.png" -format "%[fx:int(255*p{$1,$2}.r+0.5)] %[fx:int(255*p{$1,$2}.g+0.5)] %[fx:int(255*p{$1,$2}.b+0.5)]" info:; }
+  mexpect() { # mexpect "name" X Y R G B
+    local got; got="$(mpx "$2" "$3")"
+    read -r r g b <<<"$got"
+    if (( r-$4 > 26 || $4-r > 26 || g-$5 > 26 || $5-g > 26 || b-$6 > 26 || $6-b > 26 )); then
+      echo "FAIL $1 at $2,$3: expected $4 $5 $6, got $got"; fail=1
+    else
+      echo "ok   $1"
+    fi
+  }
+  # The corners sit where the fills have already faded part way into the
+  # base, so these are the colors the frame really carries there.
+  mexpect "mesh is violet at the top left"    30  30    86  81 178
+  mexpect "rose at the top right"            690  30   224  86 122
+  mexpect "amber at the bottom right"        690 490   191 126  83
+  mexpect "and teal at the bottom left"       30 490    46 197 182
+else
+  echo "FAIL mesh export missing"; fail=1
 fi
 
 # ---- code card -------------------------------------------------------------

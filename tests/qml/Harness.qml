@@ -108,6 +108,32 @@ Window {
     Timer {
         id: insetTimer
         interval: 250
-        onTriggered: win.grab("export-inset", function () { Qt.quit(); })
+        onTriggered: win.grab("export-inset", function () {
+            // A preset that turns through a color on its way. Plenty of
+            // padding so there is background to sample, and no card in the
+            // way of the middle of the ramp.
+            doc.inset = 0;
+            doc.padding = 40;
+            doc.bgMode = "gradient";
+            doc.bgGradient = "aurora";
+            gradientTimer.start();
+        })
+    }
+
+    Timer {
+        id: gradientTimer
+        interval: 250
+        onTriggered: win.grab("export-gradient", function () {
+            // A multipoint preset, which varies in two directions rather than
+            // one: the test reads corners a ramp could not tell apart.
+            doc.bgGradient = "bloom";
+            meshTimer.start();
+        })
+    }
+
+    Timer {
+        id: meshTimer
+        interval: 350
+        onTriggered: win.grab("export-mesh", function () { Qt.quit(); })
     }
 }

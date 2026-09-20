@@ -117,15 +117,35 @@ Flickable {
                 Repeater {
                     model: Model.GRADIENTS
                     Rectangle {
+                        id: swatch
                         required property var modelData
                         width: Ui.tile
                         height: Ui.swatch
                         border.width: doc.bgGradient === modelData.key ? 2 : (ma.containsMouse ? 1 : 0)
                         border.color: doc.bgGradient === modelData.key ? Color.foreground : Ui.textMuted
-                        gradient: Gradient {
+                        // Same five slots as the stage, so a preset that turns
+                        // through a color previews as one. Addressed by id: a
+                        // GradientStop's `parent` is not the Rectangle, and the
+                        // swatches came out black when they were written that way.
+                        readonly property bool mesh: Model.gradientIsMesh(modelData)
+                        readonly property var stops: Model.gradientStops(modelData.stops)
+
+                        MeshGradient {
+                            anchors.fill: parent
+                            visible: swatch.mesh
+                            base: swatch.mesh ? swatch.modelData.base : "transparent"
+                            points: swatch.mesh ? Model.meshPoints(swatch.modelData) : []
+                        }
+
+                        gradient: swatch.mesh ? null : linear
+                        Gradient {
+                            id: linear
                             orientation: Gradient.Horizontal
-                            GradientStop { position: 0; color: modelData.a }
-                            GradientStop { position: 1; color: modelData.b }
+                            GradientStop { position: swatch.stops[0].at; color: swatch.stops[0].color }
+                            GradientStop { position: swatch.stops[1].at; color: swatch.stops[1].color }
+                            GradientStop { position: swatch.stops[2].at; color: swatch.stops[2].color }
+                            GradientStop { position: swatch.stops[3].at; color: swatch.stops[3].color }
+                            GradientStop { position: swatch.stops[4].at; color: swatch.stops[4].color }
                         }
                         MouseArea {
                             id: ma

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import "../../ui"
 import "../../ui/controls"
+import "../../lib/Model.js" as Model
 
 // Editor controls that cannot be checked by looking at an exported image:
 // LabeledSlider's readout is an editable field, so its text binding is broken
@@ -17,6 +18,27 @@ Window {
     property real model: 5
 
     Doc { id: doc }
+
+    // Off to the side; only its gradient swatches are under test.
+    Inspector { id: inspector; doc: doc; x: 1000; width: 300; height: 800 }
+
+    function meshLayer(item) {
+        for (var i = 0; i < item.children.length; i++) {
+            var c = item.children[i];
+            if (c.hasOwnProperty("base") && c.hasOwnProperty("points")) return c;
+        }
+        return null;
+    }
+
+    function swatches(item, out) {
+        for (var i = 0; i < item.children.length; i++) {
+            var c = item.children[i];
+            if (c.hasOwnProperty("stops") && c.hasOwnProperty("mesh")
+                && c.hasOwnProperty("modelData")) out.push(c);
+            win.swatches(c, out);
+        }
+        return out;
+    }
 
     IconButton {
         id: button
@@ -124,6 +146,40 @@ Window {
                   String(doc.shotUrl) !== first, true);
         win.check("and still points at the file",
                   String(doc.shotUrl).indexOf("/tmp/omasnap-example.png") > 0, true);
+
+        // The inspector previews each preset with the same stop list the stage
+        // uses. A GradientStop's `parent` is not the swatch, and writing it
+        // that way rendered every swatch black, which nothing else would catch.
+        doc.bgMode = "gradient";
+        var sw = win.swatches(inspector, []);
+        win.check("a swatch per preset", sw.length, Model.GRADIENTS.length);
+        var ramps = sw.filter(function (s) { return !s.mesh; });
+        var bad = ramps.filter(function (s) {
+            var want = Model.gradientStops(s.modelData.stops);
+            return s.gradient.stops.length !== Model.GRADIENT_STOPS
+                || String(s.gradient.stops[0].color) !== want[0].color
+                || String(s.gradient.stops[1].color) !== want[1].color;
+        });
+        win.check("every ramp swatch shows its own colors", bad.length, 0);
+        var aurora = ramps.filter(function (s) { return s.modelData.key === "aurora"; })[0];
+        win.check("a three-stop swatch previews its middle color",
+                  aurora ? String(aurora.gradient.stops[1].color) : "",
+                  "#15756b");
+
+        // A mesh swatch paints through MeshGradient instead, so it must carry
+        // one, with the preset's points, and no ramp of its own.
+        var meshes = sw.filter(function (s) { return s.mesh; });
+        win.check("the multipoint presets preview as meshes",
+                  meshes.length, Model.GRADIENTS.filter(Model.gradientIsMesh).length);
+        var badMesh = meshes.filter(function (s) {
+            var layer = win.meshLayer(s);
+            return !layer || layer.points.length !== Model.meshPoints(s.modelData).length
+                || String(layer.base) !== String(s.modelData.base)
+                // A mesh swatch must not also carry a ramp; QML reads a
+                // gradient set to null back as undefined, not null.
+                || !!s.gradient;
+        });
+        win.check("every mesh swatch carries its own points", badMesh.length, 0);
 
         Qt.quit();
     })

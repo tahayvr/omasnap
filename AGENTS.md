@@ -24,6 +24,7 @@ BarWidget.qml          bar launcher (summons through bar.shell)
 ui/Doc.qml             document state, derived geometry, annotation list model
 ui/Stage.qml           the composition that gets grabbed (native pixel size)
 ui/Chrome.qml          title bar shared by both cards
+ui/MeshGradient.qml    multipoint background: radial fills over a base
 ui/CodeBlock.qml       highlighted text sized by its contents
 ui/AnnotationLayer.qml annotation delegates, dragging, redaction sampling
 ui/Editor.qml          header, viewport, footer, drawing surface
@@ -148,6 +149,10 @@ layer sits at `cardX, cardY + chromeH`.
   property, and `Loader` makes itself the context object of what it loads and
   exposes `item`. Both shadow the id inside delegates and inline components.
   The layer is `anno`, the delegate is `entry`.
+- **A `GradientStop`'s `parent` is not the item being painted.** Reaching a
+  property of the `Rectangle` through `parent` from inside its `Gradient`
+  silently yields nothing, and every gradient swatch in the inspector came out
+  black. Address the rectangle by id.
 - **Properties on non-root items are not in scope unqualified.** Inside a
   child of `track`, write `track.norm`, not `norm`. The Qt 6 linter reports
   these as `[unqualified]`; the ones left are `doc` (a root property) and
@@ -207,6 +212,25 @@ layer sits at `cardX, cardY + chromeH`.
   card carried half a line of dead space under the code and read as
   bottom-heavy. `render.sh` trims the exported card to its ink and compares
   the margins, so a regression shows up as "code card is lopsided".
+- **A background preset is either a ramp or a mesh, never both.** A ramp
+  carries `stops` and an `angle` and varies along one axis. A multipoint
+  preset carries `base` and `points` — colors at `{x, y}` fractions of the
+  frame, each fading out over `r` — and varies in two, which is what a linear
+  gradient cannot do. `Model.gradientIsMesh` picks between them and
+  `Model.meshPoints` clamps them into the frame. `ui/MeshGradient.qml` draws
+  one: Qt has no radial fill for a `Rectangle`, so each point is a `Shape`
+  covering the frame with a `RadialGradient` from its color to the same color
+  at zero alpha, and it needs `Shape.CurveRenderer` to come out smooth. A mesh
+  preset has no `angle`, so anything reading one has to fall back or it
+  assigns undefined to an int.
+- **A gradient preset is a list of stops, not a pair of colors.** `GRADIENTS`
+  entries carry `stops`, either colors spread evenly end to end or
+  `{at, color}` for one placed by hand, and `Model.gradientStops` always
+  returns exactly `GRADIENT_STOPS` of them: a shorter preset repeats its last
+  color at position 1, which renders identically. The fixed length is what
+  lets `Stage` and the inspector swatches bind the stops one by one, since a
+  `Repeater` cannot live inside a `Gradient`. Raise `GRADIENT_STOPS` and add
+  the matching `GradientStop` in both places if a preset ever needs more.
 - **Padding and inset are different spacings.** `doc.padding` grows the frame
   around the whole card; `doc.inset` grows the card around the shot and fills
   the new band with the shot's own edge color, so a screenshot reads as

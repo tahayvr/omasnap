@@ -122,7 +122,7 @@ test("geometry survives an empty document", () => {
 });
 
 test("gradients and ratios resolve by key with a safe default", () => {
-    eq(Model.gradientByKey("moss").a, "#1f3d2b");
+    eq(Model.gradientByKey("moss").stops[0], "#1f3d2b");
     eq(Model.gradientByKey("nope").key, Model.GRADIENTS[0].key);
     ok(Model.RATIOS.some(r => r.key === "auto" && r.r === 0));
 });
@@ -353,6 +353,76 @@ test("language guessing", () => {
         txt:  "Just a sentence with nothing in particular."
     };
     for (const k in cases) eq(Code.guessLanguage(cases[k]), k, "guess for " + k);
+});
+
+test("a gradient always yields the same number of stops", () => {
+    const n = Model.GRADIENT_STOPS;
+
+    // Two colors: the pair, then the tail repeating the last one at the end,
+    // which renders the same as a two-stop gradient.
+    const two = Model.gradientStops(Model.gradientByKey("dusk").stops);
+    eq(two.length, n, "padded to the slot count");
+    eq(two[0].at, 0); eq(two[0].color, "#3b2f5e");
+    eq(two[1].at, 1); eq(two[1].color, "#7b5ea7");
+    ok(two.slice(2).every(s => s.at === 1 && s.color === "#7b5ea7"), "tail repeats");
+
+    // Three and four colors spread evenly across the whole run.
+    const three = Model.gradientStops(Model.gradientByKey("aurora").stops);
+    eq(three.length, n);
+    eq(three[1].at, 0.5, "middle color sits halfway");
+    eq(three[2].color, "#9fe0a8", "and the last one lands at the end");
+    const four = Model.gradientStops(Model.gradientByKey("nebula").stops);
+    eq(Math.round(four[1].at * 100) / 100, 0.33);
+    eq(Math.round(four[2].at * 100) / 100, 0.67);
+
+    // A hand-placed stop keeps its position, and is clamped into range.
+    const hand = Model.gradientStops([{ at: 0, color: "#000000" },
+                                      { at: 0.2, color: "#ff0000" },
+                                      { at: 4, color: "#ffffff" }]);
+    eq(hand[1].at, 0.2, "kept where it was put");
+    eq(hand[2].at, 1, "and clamped");
+
+    // Degenerate input still fills every slot, or the stage's bindings break.
+    eq(Model.gradientStops([]).length, n, "nothing at all");
+    eq(Model.gradientStops(["#123456"]).length, n, "a single color");
+    eq(Model.gradientStops(["#123456"])[0].at, 0);
+    ok(Model.gradientStops(["#123456"]).every(s => s.color === "#123456"));
+
+    const linear = Model.GRADIENTS.filter(g => !Model.gradientIsMesh(g));
+    ok(linear.some(g => g.stops.length > 2), "some presets turn through a color");
+    ok(linear.every(g => g.stops.length <= n), "and none exceeds the slots");
+    eq(Model.gradientStopCount("aurora"), 3);
+    eq(Model.gradientStopCount("dusk"), 2);
+});
+
+test("a multipoint preset places its colors around the frame", () => {
+    const mesh = Model.GRADIENTS.filter(Model.gradientIsMesh);
+    ok(mesh.length >= 10, "there are multipoint presets");
+    ok(mesh.every(g => g.base && !g.stops), "each has a base and no ramp");
+    ok(mesh.every(g => Model.meshPoints(g).length >= 3), "and at least three points");
+
+    // A ramp is not a mesh and a mesh is not a ramp; nothing carries both.
+    ok(!Model.gradientIsMesh(Model.gradientByKey("dusk")), "dusk is a ramp");
+    ok(Model.gradientIsMesh(Model.gradientByKey("bloom")), "bloom is a mesh");
+    eq(Model.gradientStopCount("bloom"), 0, "a mesh has no stops to count");
+    eq(Model.meshPoints(Model.gradientByKey("dusk")).length, 0, "and a ramp has no points");
+
+    const p = Model.meshPoints(Model.gradientByKey("bloom"))[0];
+    eq(p.x, 0.18); eq(p.y, 0.2); eq(p.color, "#6d4bd6");
+    ok(p.r > 0, "with a radius to fade over");
+
+    // Points are kept near the frame and given a usable radius, so a bad
+    // preset cannot push a fill somewhere it will never be seen.
+    const odd = Model.meshPoints({ points: [
+        { x: 9, y: -9, r: 0, color: "#ffffff" },
+        { x: 0.5, y: 0.5, color: "#000000" },
+        { x: 0.5, y: 0.5 }
+    ] });
+    eq(odd.length, 2, "a point without a color is dropped");
+    eq(odd[0].x, 1.5, "x clamped");
+    eq(odd[0].y, -0.5, "y clamped");
+    ok(odd[0].r > 0, "radius floored");
+    ok(odd[1].r > 0, "a missing radius still gets one");
 });
 
 test("themes resolve, and anything unlisted is an installed Omarchy theme", () => {
