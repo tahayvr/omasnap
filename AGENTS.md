@@ -1,344 +1,153 @@
 # AGENTS.md
 
-Working notes for anyone (human or agent) changing OmaSnap. Users should read
-`README.md`; this file is about how the plugin is built, tested and debugged.
+Things that cost time to find out and cannot be read off the source. Users
+want `README.md`; this is the traps, the outside contracts, and how to run it.
 
-## What this is
+OmaSnap is an Omarchy shell plugin (`tahayvr.omasnap`) living inside the
+long-lived Quickshell process `omarchy-shell`: an `overlay` (the editor) and a
+`bar-widget`, `keepLoaded` so the last edit survives a hide. Capture, OCR,
+image encoding and the clipboard are delegated to `omarchy`, `tesseract`,
+ImageMagick and `wl-copy`; the plugin owns the beautify, annotate and export
+stage only.
 
-An Omarchy shell plugin (id `tahayvr.omasnap`, display name **OmaSnap**) that
-runs inside the long-lived Quickshell process `omarchy-shell`. It declares two
-kinds in `manifest.json`: an `overlay` (`Overlay.qml`, the editor) and a
-`bar-widget` (`BarWidget.qml`, the launcher). `keepLoaded: true` keeps the
-overlay mounted between summons so the last edit survives.
+## Shell contract
 
-Capture is delegated to `omarchy capture screenshot <mode> save`; OCR to
-`tesseract`; color sampling and JPEG encoding to ImageMagick; clipboard to
-`wl-copy`. The plugin owns only the beautify, annotate and export stage.
+Imposed by the host, so none of it is negotiable from in here.
 
-## Layout
+- The host injects `omarchyPath`, `shell` and `manifest` into the overlay root
+  *after* load. `shell` is a capability-scoped facade that can only act on this
+  plugin's own id.
+- `summon <id> <json>` calls `open(payloadJson)`, `hide <id>` calls `close()`.
+  **`close()` must be idempotent**: `dismiss()` calls it and then
+  `shell.hide()`, which calls it again. Never close from the inside without
+  telling the shell, or `toggle` desyncs.
+- `call <id> <fn> <arg>` invokes any root function and returns its string
+  result (`undefined` becomes `ok`). Public surface: `edit`, `capture`, `code`,
+  `pick`, `save`, `copy`, `redact`, `copyText`, `set`, `info`, `annotate`.
+  Keep those names stable; the README documents them. `info` cannot be called
+  `state` because `Item` already has one.
+- **The CLI splits an argument starting with `[` on commas, and splits on
+  literal spaces.** So `annotate` takes `{"items": [...]}` rather than a bare
+  array, and any string value needs a literal \u0020 instead of a space.
+- Bar widgets get `bar`, `moduleName`, `settings`. `bar.shell` is the same
+  facade the overlay gets, wired per entry by the shell's own `Bar.qml`.
+- Payloads: `{"path":…}`, `{"capture":"region|windows|fullscreen|smart"}`,
+  `{"code":true}`, `{"text":…}`, and `{}` for the empty starting state.
+  Styling survives between opens; content does not.
 
-```
-manifest.json          overlay + bar-widget, keepLoaded
-Overlay.qml            entry point: shell contract, processes, keyboard, export
-BarWidget.qml          bar launcher (summons through bar.shell)
-ui/Doc.qml             document state, derived geometry, annotation list model
-ui/Stage.qml           the composition that gets grabbed (native pixel size)
-ui/Chrome.qml          title bar shared by both cards
-ui/MeshGradient.qml    multipoint background: radial fills over a base
-ui/Wordmark.qml        the logo asset, colorised to a given foreground
-ui/CodeBlock.qml       highlighted text sized by its contents
-ui/AnnotationLayer.qml annotation delegates, dragging, redaction sampling
-ui/Editor.qml          header, viewport, footer, drawing surface
-ui/Inspector.qml       settings column
-ui/ToolRail.qml        tool strip
-ui/controls/           Ui (metrics singleton), IconButton, Chip, Segmented, Dropdown,
-                       Swatch, Toggle, LabeledSlider, TextBox, Tooltip, Section;
-                       registered in qmldir
-lib/Model.js           ratios, gradients, frame geometry, grab size, ids
-lib/Redact.js          secret patterns, guards, OCR TSV -> boxes
-lib/Code.js            languages, themes, ANSI -> StyledText, language guessing
-bin/snap-dir           resolve the screenshot directory the way omarchy does
-bin/snap-capture       omarchy capture, print the path it wrote
-bin/snap-palette       dominant colors, pushed into a comfortable band
-bin/snap-edge          the shot's edge color, for the inset
-bin/snap-wallpaper     the wallpaper omarchy is showing
-bin/snap-ocr           tesseract TSV (redact) or text
-bin/snap-deliver       encode + save / copy / clipboard text
-bin/snap-pick          system file picker via the portal
-bin/snap-portal.py     XDG portal FileChooser client (holds the D-Bus connection)
-bin/snap-text          primary selection, else clipboard
-bin/snap-highlight     bat -> ANSI
-bin/snap-theme         a theme's colors.toml as key=hex lines
-bin/snap-themes        the Omarchy themes installed here
-tests/                 run.sh runs everything; see Testing
-```
+## Rendering
 
-## Shell contract (from `$OMARCHY_PATH/shell/README.md` and `shell.qml`)
+`Stage` is what `grabToImage()` grabs. It is laid out in shot pixels times
+`unit = 1 / dpr` and displayed scaled by `viewport.fit`.
 
-- The host injects `omarchyPath`, `shell`, `manifest` into the overlay root
-  after load. `shell` is a capability-scoped facade (`PluginShellApi.qml`)
-  that can only `summon`/`hide`/`toggle`/`isPluginOpen` for this plugin's own
-  id.
-- `summon <id> <json>` calls `open(payloadJson)`; `hide <id>` calls `close()`.
-  `close()` must be idempotent: our own `dismiss()` calls `close()` and then
-  `shell.hide()`, which calls `close()` again. Do not close from inside
-  without telling the shell, or `toggle` desyncs.
-- `call <id> <fn> <arg>` invokes any function on the root item and returns its
-  string result (`undefined` becomes `ok`). Public surface: `edit`, `capture`,
-  `code`, `pick`, `save`, `copy`, `redact`, `copyText`, `set`, `info`,
-  `annotate`.
-  Keep those names stable; the README documents them. `info` is not called
-  `state` because Item already has a `state` property. An IPC argument that
-  starts with `[` is split on commas by the CLI, so `annotate` takes
-  `{"items": [...]}` rather than a bare array, and any argument with a
-  literal space is split too (use `\u0020` inside JSON strings).
-- Bar widgets extend `qs.Ui.BarWidget` and get `bar`, `moduleName`,
-  `settings`. A popup hangs off `qs.Ui.PopupCard`, which wants `anchorItem`
-  and `bar` and owns the anchoring, the theme's popup chrome and the
-  click-outside dismissal; its default property is the card's content, and
-  `fittedContentWidth`/`fittedContentHeight` size it against the screen.
-  OmaSnap's right-click menu is one of those, built from the same parts the
-  first-party panels use — `PanelSeparator` and `Style.hoverFillFor` for the
-  row highlight, `PanelToolTip` for the per-row hints — so it wears whatever
-  the bar wears. The wordmark at the top is the button that opens the editor,
-  which is why there is no row for it. Left and middle click stay direct. `bar.shell` is the same `PluginShellApi` facade the overlay
-  gets, wired for every bar entry by `plugins/bar/Bar.qml`, so
-  `bar.shell.summon(moduleName, payload)` is the only path the widget needs.
-- Payloads: `{"path": "..."}` opens a file, `{"capture": "region|windows|
-  fullscreen|smart"}` captures first, `{"code": true}` makes a code card from
-  the selection, `{"text": "..."}` from the given text, and `{}` always
-  opens the empty starting state (`doc.clearContent()`), never a leftover
-  document. Styling settings survive between opens; content does not.
+- **`grabToImage(cb, size)` multiplies `size` by the window's *effective*
+  DPR** — 1.6 on a fractionally scaled monitor, while `Screen.devicePixelRatio`
+  claims 2. `Model.grabSize()` divides it out and `scope.dpr` reads
+  `Window.window.devicePixelRatio`. The file can land a pixel off the footer
+  number; that is preferred to resampling.
+- **The `unit` scaling is load-bearing.** Effect textures (`ClippingRectangle`
+  clip, `MultiEffect`) are allocated at item size times the window ratio, so
+  laying out in screen units makes them exactly one texel per shot pixel and a
+  1x export pixel-exact. `AnnotationLayer` and `CodeBlock` keep shot-pixel
+  coordinates and are placed with `scale: unit`; `Editor.toShot` inverts it.
+- **Both cards stay visible and sit *over* their `MultiEffect`**, which then
+  only contributes the shadow. Two verified reasons: inside the shell,
+  descendants of a hidden effect source did not render at all (they did under
+  the plain `qml` runtime), and `MultiEffect`'s auto padding shifts its copy of
+  the source by a fraction of a device pixel, resampling the screenshot. Do not
+  move either card back into a hidden source.
+- **`doc.exporting`** is raised for the grab frame. Anything that must not
+  reach the file — selection outlines, the empty-text placeholder — binds to it.
+- **`blurMultiplier` buys blur radius by dropping sampling quality** and shows
+  as stepping down a shadow's falloff. Get radius from `blurMax` instead.
+- Redaction samples a hidden full-size `Image` through a `ShaderEffectSource`
+  with a tiny `textureSize` and `smooth: false`, so each block is one sample
+  with nothing to sharpen back out.
 
-## Document kinds
+## QML traps, all paid for once already
 
-`doc.kind` is `shot` or `code`. Both report their pixel size through
-`shotWidth`/`shotHeight`, so frame geometry, ratio, padding, chrome, shadow,
-annotations and export are shared. A code card is measured by `CodeBlock`
-(text implicit size plus `codePad`) and `Stage` *binds* the document's size
-to it while `kind` is `code`; nothing else may write those two properties in
-code mode. It has to be a binding: `loadCode` zeroes the size, and rendering
-the same snippet again leaves the block's natural size unchanged, so a
-change signal would not fire and the card came up empty.
-
-Code flow: `code()` -> `bin/snap-text` -> `loadCode()` sets kind, guesses the
-language (`Code.guessLanguage`), applies the theme colors, and runs
-`bin/snap-highlight` (bat) whose ANSI output `Code.ansiToHtml` turns into
-StyledText (`<font color>`, `<b>`, `<i>`, `&nbsp;`, `<br>`). Language, theme
-and line-number changes re-run the highlighter; a run that finishes while
-another is pending re-runs once more. The `omarchy` theme is bat's `ansi`
-theme mapped through `bin/snap-theme`'s palette, refreshed when
-`Color.background` changes.
-
-## Rendering model
-
-`Stage` is laid out at the output's native pixel size and displayed scaled by
-`viewport.fit`. Export is `grabToImage()` on that same item. Because
-`grabToImage` renders the item's own subtree without the item's transform,
-the on-screen scale does not matter. Two things do:
-
-- **Device pixel ratio.** `grabToImage(cb, size)` multiplies `size` by the
-  window's *effective* DPR (1.6 on a fractionally scaled monitor, while
-  `Screen.devicePixelRatio` says 2). `Model.grabSize()` divides it out;
-  `scope.dpr` in `Overlay.qml` reads `Window.window.devicePixelRatio`
-  (Qt 6.11+). The file can be one pixel off the footer number; that is
-  accepted rather than resampling.
-- **`doc.exporting`.** Raised for the grab frame; selection outlines and the
-  text placeholder bind to it so they never reach the file.
-
-- **Screen units.** `Model.frameGeometry` works in shot pixels, but `Stage`
-  lays everything out multiplied by `unit = 1 / dpr`. Effect textures
-  (`ClippingRectangle`'s clip, `MultiEffect`) are allocated at item size
-  times the window ratio, so this makes them exactly one texel per shot
-  pixel, a 1x export is pixel-exact (`tests/qml/render.sh` asserts RMSE 0 on
-  the stripe band; live, a native grim region exported at 1x matched with
-  RMSE 0), and a viewport fit of 1 is life-size. `AnnotationLayer` and
-  `CodeBlock` keep shot-pixel coordinates and are placed with
-  `scale: unit`; `Editor.toShot` divides by `fit * unit`.
-
-Both cards stay **visible** and sit *over* their `MultiEffect`, which then
-only contributes the shadow. Two reasons, both verified: inside the shell,
-descendants of a hidden effect source did not render (they did under the
-plain `qml` runtime), and `MultiEffect`'s auto padding shifts its copy of
-the source by a fraction of a device pixel, which resamples the screenshot.
-The screenshot card is a Quickshell `ClippingRectangle` (rounded clip); the
-code card is a plain rounded `Rectangle`. Do not move either back into a
-hidden source. Redaction
-samples a hidden full-size `Image` through a `ShaderEffectSource` with a tiny
-`textureSize` and `smooth: false`: each block is one sample, nothing to
-sharpen back. Annotations are stored in screenshot pixel coordinates and the
-layer sits at `cardX, cardY + chromeH`.
-
-## QML pitfalls that bit this code (all verified, do not reintroduce)
-
-- **Do not declare a signal named `<property>Changed`.** `Doc.qml` uses
-  `annotationsEdited` because `annotationsChanged` belongs to the
-  `annotations` property. The duplicate stops the component loading at all.
-- **Never use `layer` or `item` as an id.** Every `Item` has a `layer`
-  property, and `Loader` makes itself the context object of what it loads and
-  exposes `item`. Both shadow the id inside delegates and inline components.
-  The layer is `anno`, the delegate is `entry`.
+- **Never declare a signal named `<property>Changed`.** `annotationsChanged`
+  belongs to the `annotations` property; the duplicate stops the component
+  loading at all. Hence `annotationsEdited`.
+- **Never use `layer` or `item` as an id.** Every `Item` has a `layer`, and
+  `Loader` exposes `item` as the context object of what it loads. Both shadow
+  the id inside delegates.
 - **A `GradientStop`'s `parent` is not the item being painted.** Reaching a
   property of the `Rectangle` through `parent` from inside its `Gradient`
-  silently yields nothing, and every gradient swatch in the inspector came out
-  black. Address the rectangle by id.
-- **Properties on non-root items are not in scope unqualified.** Inside a
-  child of `track`, write `track.norm`, not `norm`. The Qt 6 linter reports
-  these as `[unqualified]`; the ones left are `doc` (a root property) and
-  component ids, which resolve through the scope chain.
+  silently yields nothing — every gradient swatch came out black. Use an id.
+- **A `Repeater` cannot live inside a `Gradient`.** That is why gradient stops
+  are padded to a fixed count and bound one by one.
+- **A `Text` with a proportional `lineHeight` measures taller than it looks**;
+  Qt hangs the extra spacing below every line, the last included.
+- **Typing into a `TextInput` breaks its `text` binding for good.** Anything
+  that also displays a live value has to restore it with `Qt.binding`.
+- **A `Flow` cannot be sized from its own implicit width.** Give it
+  `parent.width` or an explicit width.
+- Properties on non-root items are not in scope unqualified: write
+  `track.norm`, not `norm`. The Qt 6 linter flags these `[unqualified]`.
 - Annotations use the role `uid`, not `id`, to stay clear of the keyword.
-- `drag.target` overwrites `x`/`y` bindings; `entry.rebind()` restores them
-  after writing the move back into the model.
-- Integer properties (`font.pixelSize`) warn on doubles; wrap in `Math.round`.
+- `drag.target` overwrites `x`/`y` bindings; restore them after writing a move
+  back into the model.
+- Integer properties such as `font.pixelSize` warn on doubles; `Math.round`.
+- A tooltip left inside its own button is painted under whatever panel is a
+  later sibling. `ui/controls/Tooltip.qml` reparents to the window content item
+  for that reason, and computes its position on show, since `mapToItem` is a
+  one-off.
+- A code card's size must be **bound** to `CodeBlock`, never pushed on a change
+  signal: rendering the same snippet twice leaves the natural size unchanged,
+  so the signal never fires and the card comes up empty.
 
-## Conventions
+## Platform
 
-- Every size, gap and tint in the chrome comes from `ui/controls/Ui.qml`:
-  `control` (28) for inspector controls, `button` (32) for header, footer and
-  tool buttons, `swatch` (24), `gap` (6) between siblings, `row` (10) between
-  rows, `section` (22) between sections, `pad` (16) panel padding, `padX` (12)
-  text inset; `fill`/`fillHover`/`fillActive`, `borderActive`, `hairline`,
-  `text`/`textMuted`/`textFaint`. Do not hardcode `Style.space(n)` for chrome
-  unless it is a one-off width.
-- All editor chrome is square: no `radius` on any control, the editor window,
-  or the selection outline. Only the exported card has a radius, and that is a
-  user setting.
-- **A `Tooltip` reparents itself to the window's content item.** Left inside
-  its button it would be painted under whatever panel sits beside it: the
-  tool rail is declared before the viewport, so anything overflowing the rail
-  goes under the viewport's background. `IconButton` gives every control with
-  a `tip` one, after a 350 ms hold so a pointer crossing the rail does not
-  trail labels. Placement is computed in `place()` when the tooltip appears
-  rather than bound, because `mapToItem` is a one-off; it only flips sides or
-  clamps once the parent reports a size, since a content item mid-setup
-  reports none and would push the tooltip into a corner.
-- **`doc.bgMode` is `auto | solid | gradient | theme | desktop | none`.**
-  `desktop` draws `doc.desktopBg`, the wallpaper resolved by
-  `bin/snap-wallpaper` from omarchy's `current/background` symlink. Resolving
-  the symlink matters: the path then changes with the theme, so the image
-  cache cannot hand back the previous wallpaper. It is re-read whenever
-  `Color.background` changes, next to the theme colors.
-- **A `LabeledSlider`'s readout is also its input.** The number is a
-  `TextInput`, so typing into it breaks the `text` binding to `value`; the
-  control puts the binding back with `Qt.binding` in `rebind()` after every
-  commit, cancel or focus loss, or the slider stops driving the readout.
-  A `DoubleValidator` bounded by `from`/`to` keeps the typing sane and
-  `commit()` clamps and ignores anything unparseable. `tests/qml/HarnessControls.qml`
-  drives that round trip offscreen, along with the tooltip.
-- **Code card themes are Omarchy's own, listed at runtime.** `THEMES` in
-  `lib/Code.js` holds only `omarchy` (follow the desktop) and the bat themes
-  Omarchy ships no equivalent for; every installed Omarchy theme is added by
-  `bin/snap-themes`, which slugs `omarchy theme list` into the directory
-  names `omarchy theme dir` wants. Anything `themeByKey` does not recognise
-  is therefore treated as one of those: bat's `ansi` output mapped through
-  that theme's palette, exactly like `omarchy`, with the palette read by
-  `bin/snap-theme <slug>` into `codeThemeLines` — kept apart from
-  `themeLines`, which is the desktop's current theme and drives the chrome.
-  Do not add a bat theme whose key collides with a theme directory name.
-- **A `Text` with a proportional `lineHeight` measures taller than it looks.**
-  Qt hangs the extra spacing below every line, the last one included, so
-  `CodeBlock` subtracts that trailing leading from `naturalH`; without it the
-  card carried half a line of dead space under the code and read as
-  bottom-heavy. `render.sh` trims the exported card to its ink and compares
-  the margins, so a regression shows up as "code card is lopsided".
-- **The logo is a wordmark, and it has to be colorised.** `assets/logo` holds
-  a 1365x280 image of the word, fixed cyan with an orange shadow, so used
-  straight it would be the one thing on screen ignoring the theme.
-  `ui/Wordmark.qml` runs it through `MultiEffect` at `colorization: 1` and
-  takes the foreground to tint with, which is what both the editor header and
-  the bar menu use. It is nearly 5:1, so it cannot serve as the bar icon; that
-  stays a Nerd Font glyph in a square slot.
-- **The shadow is one number, and it is measured against the padding.**
-  `doc.shadow` runs 0 to 100 and `Stage` turns it into radius, drop and
-  opacity together, so the slider only ever makes the shadow bigger. All three
-  are fractions of `shadowRoom`, the gap between the card and the edge of the
-  frame, so the shadow always finishes inside the picture; sizing it off the
-  card instead let it reach the border and get cut square. With no padding
-  there is no room and no shadow, which is correct.
-  Do not reach for `blurMultiplier` to make it larger: it buys radius by
-  dropping sampling quality and shows as stepping down the falloff. The radius
-  comes from `blurMax` alone. And `shadowBlur` must not be driven straight off
-  the slider — that was the original fault, where 1 gave a one-percent radius,
-  meaning a hard dark outline, and 100 gave a soft one.
-- **Auto shades one sampled color; it does not pair two.** `bin/snap-palette`
-  returns the dominant colors in order, and auto used to ramp between the
-  first two. Those are often unrelated — a bright logo and a dark terminal —
-  and the ramp dragged the backdrop through muddy mid-tones, which reads as a
-  cheap gradient however cleanly it is drawn. `Model.autoGradient` takes the
-  first color alone and shades it both ways, leaning away from whichever end
-  of the tonal range it already sits near, so the hue survives and the spread
-  lands close to a preset's. It needs only one sampled color, so `gradientBg`
-  turns on at a palette of one.
-- **A background preset is either a ramp or a mesh, never both.** A ramp
-  carries `stops` and an `angle` and varies along one axis. A multipoint
-  preset carries `base` and `points` — colors at `{x, y}` fractions of the
-  frame, each fading out over `r` — and varies in two, which is what a linear
-  gradient cannot do. `Model.gradientIsMesh` picks between them and
-  `Model.meshPoints` clamps them into the frame. `ui/MeshGradient.qml` draws
-  one: Qt has no radial fill for a `Rectangle`, so each point is a `Shape`
-  covering the frame with a `RadialGradient` from its color to the same color
-  at zero alpha, and it needs `Shape.CurveRenderer` to come out smooth. A mesh
-  preset has no `angle`, so anything reading one has to fall back or it
-  assigns undefined to an int.
-- **A gradient preset is a list of stops, not a pair of colors.** `GRADIENTS`
-  entries carry `stops`, either colors spread evenly end to end or
-  `{at, color}` for one placed by hand, and `Model.gradientStops` always
-  returns exactly `GRADIENT_STOPS` of them: a shorter preset repeats its last
-  color at position 1, which renders identically. The fixed length is what
-  lets `Stage` and the inspector swatches bind the stops one by one, since a
-  `Repeater` cannot live inside a `Gradient`. Raise `GRADIENT_STOPS` and add
-  the matching `GradientStop` in both places if a preset ever needs more.
-- **Padding and inset are different spacings.** `doc.padding` grows the frame
-  around the whole card; `doc.inset` grows the card around the shot and fills
-  the new band with the shot's own edge color, so a screenshot reads as
-  having more room inside its window. Both are a percentage of the shot's
-  longest edge, and `Model.frameGeometry` returns the resolved `inset` in
-  shot pixels. Everything that positions itself against the shot has to add
-  it: the `Image`/`CodeBlock` inside the card, `AnnotationLayer`'s origin and
-  `Editor.toShot`. The color comes from `bin/snap-edge`, which samples the
-  border ring rather than the whole image, because the most common color
-  overall often belongs to a content area that never touches the edge and
-  would leave a visible seam; `doc.shotPalette[0]` is the fallback and a code
-  card carries on its own `codeBg`.
-- **`doc.frame` is `none` or `titlebar`, nothing else.** There is no
-  macOS-style button row: Omarchy windows carry no titlebar buttons, so the
-  bar is the title alone. It tints itself from the card underneath rather
-  than from the theme, so the frame stays in harmony with what it frames:
-  `bin/snap-palette` prints one `#backdrop #source` pair per line, where the
-  first is pushed into a background-friendly lightness band (`autoPalette`)
-  and the second is the color as it appears in the image (`shotPalette`);
-  `Model.chromeTint` steps that one away from the card and `Model.textOn`
-  picks readable title text. A code card tints from `doc.codeBg` instead.
-- Headings are uppercase: `Section` titles, the header wordmark and the empty
-  state title use `font.capitalization: Font.AllUppercase` with letter
-  spacing 1, at caption or bodySmall size.
-- Fonts and colors come from the shell singletons `qs.Commons.Style` and
-  `qs.Commons.Color` (`Color.menu.*` for the surface).
-- Text inside cards is `Text.StyledText`, not `RichText`: it is lighter and
-  supports everything the highlighter emits.
-- A `Flow` (Segmented, Chip rows) cannot be sized from its own implicit width;
-  give it `parent.width` or an explicit width, never `width: implicitWidth`.
-- Comments explain a non-obvious why, not what; no banner separators.
-- Helper scripts are run as `bash <path>`. Scratch files go to
-  `$XDG_RUNTIME_DIR`.
 - **This plugin targets Omarchy only, so shipped tools are assumed present.**
-  Everything it shells out to is in Omarchy's default package list
-  (`/usr/share/omarchy/install/omarchy-base.packages`): `bat`, `imagemagick`,
-  `tesseract` + `tesseract-data-eng`, `wl-clipboard`, `python-gobject`,
-  `xdg-desktop-portal-gtk` and `xdg-desktop-portal-hyprland`, plus `omarchy`
-  itself, which owns capture and the save notification. The rest (`bash`,
-  `coreutils`, `findutils`, `gawk`, `grep`, `sed`) come from the Arch `base`
-  meta package. Call these directly: no `command -v` probes, no second
-  implementation for a machine that lacks one, and no UI copy telling the
-  user to install something. Check any new dependency against that package
-  list before adding it, rather than writing a fallback for its absence.
-  Guards are for genuine runtime conditions (a cancelled picker, a missing
-  file, bat rejecting a language), never for a missing package.
-- **The file picker is the XDG portal FileChooser**, so it is whatever
-  chooser the system's portal configuration names (never assume a specific
-  one), driven by `bin/snap-portal.py` with the system Python's GObject
-  bindings. `bin/snap-pick` is only the wrapper that runs it. The portal
-  closes a request the moment the calling connection disconnects, so
-  `busctl`/`gdbus`/`dbus-send` one-shots cannot work; the
-  helper keeps the connection open until the `Response` signal. It is run as
-  `/usr/bin/python3` explicitly because a linuxbrew or mise `python3` on
-  PATH has no `gi`. The overlay hides while `picking` so the dialog (a
-  normal window) is not buried under the layer surface.
-  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick` flashes the dialog for tests.
+  Everything it shells out to is in
+  `/usr/share/omarchy/install/omarchy-base.packages`; the rest comes from the
+  Arch `base` meta package. Call them directly — no `command -v` probes, no
+  second implementation for a machine that lacks one, no UI copy telling the
+  user to install something. Check a new dependency against that list rather
+  than writing a fallback. Guards are for real runtime conditions (a cancelled
+  picker, a missing file, bat rejecting a language), never a missing package.
 - **Scripts that do not read stdin start with `exec </dev/null`.** Quickshell
-  gives every child an open stdin pipe that never reaches EOF. `slurp` reads
-  boxes from stdin whenever stdin is not a terminal, so without the redirect
-  the region picker sat blocked in `anon_pipe_read` for minutes with no
-  surface on screen, which looked like a dead bar widget. Only
-  `snap-highlight` and `snap-deliver text` read stdin on purpose.
-- OCR upscales shots under 2400px (200%) and under 3200px (150%) before
-  tesseract, then maps boxes back; 4K is read as is (~6 s, vs ~60 s doubled).
-- OCR words under 35% confidence are dropped only when shorter than eight
-  characters: tesseract is least confident about exactly the random strings
-  worth hiding, and an API key was missed before this rule.
-- Redaction guards: Luhn for cards, entropy for bare tokens, and the phone /
+  gives every child an open stdin pipe that never reaches EOF, and `slurp`
+  reads boxes from stdin whenever stdin is not a terminal — the region picker
+  sat blocked in `anon_pipe_read` for minutes with no surface on screen, which
+  looked like a dead bar widget. Only `snap-highlight` and `snap-deliver text`
+  read stdin on purpose.
+- **The file picker is whatever the XDG portal is configured to use** — never
+  assume a particular chooser. The portal closes a request the moment the
+  calling connection disconnects, so `busctl`/`gdbus`/`dbus-send` one-shots
+  cannot work; `bin/snap-portal.py` holds the connection until the `Response`
+  signal. It runs as `/usr/bin/python3` explicitly, because a linuxbrew or mise
+  `python3` on PATH has no `gi`. The overlay hides while `picking` so the
+  dialog is not buried under the layer surface.
+  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick` flashes it for a test.
+- **Qt's image cache is keyed on the URL**, so reopening a file that changed
+  under the same path hands back the old picture at the old size. Every load
+  bumps `doc.shotRevision`, which rides on the URL as a fragment.
+- OCR upscales shots under 2400px to 200% and under 3200px to 150%, then maps
+  boxes back; a 4K grab is read as is, because doubling it takes ~60s against
+  ~6s. Words under 35% confidence are dropped only when shorter than eight
+  characters — tesseract is least confident about exactly the random strings
+  worth hiding, and an API key was missed before that rule.
+- Code card theme keys are Omarchy theme *directory* names, resolved at
+  runtime from `omarchy theme list`. Never add a bat theme whose key could
+  collide with one — bat's Nord was dropped for exactly that.
+- Redaction guards: Luhn for cards, entropy for bare tokens, and the phone and
   IP guards reject dates, dotted quads, loopback and version strings. Extend
-  `PATTERNS`/`CLASSES` in `lib/Redact.js` and add a case to `tests/run.js`.
+  `PATTERNS`/`CLASSES` in `lib/Redact.js` *and* add a case to `tests/run.js`.
+- Scratch files go to `$XDG_RUNTIME_DIR`, never the plugin directory.
+
+## House style
+
+- Every size, gap and tint in the editor chrome comes from
+  `ui/controls/Ui.qml`. Do not hardcode `Style.space(n)` unless it is a
+  genuine one-off width.
+- All editor chrome is square. Only the exported card has a radius, and that
+  is a user setting.
+- Section titles and the wordmark are uppercase with letter spacing 1.
+- Fonts and colors come from `qs.Commons.Style` and `qs.Commons.Color`.
+- Text inside cards is `Text.StyledText`, not `RichText`.
+- Comments explain a non-obvious why, never a what. No banner separators.
 
 ## Testing
 
@@ -346,79 +155,59 @@ layer sits at `cardX, cardY + chromeH`.
 tests/run.sh
 ```
 
-1. `node tests/run.js`: unit tests for `lib/*.js`, evaluated in a `vm`
-   context with the `.pragma library` line stripped.
-2. `bash -n` over `bin/*` and a `snap-dir` sanity check.
-3. `/usr/lib/qt6/bin/qmllint` over every QML file with `-I <dir>` where
-   `<dir>/qs` is a symlink to `$OMARCHY_PATH/shell`, so `qs.Commons` and
-   `qs.Ui` resolve. Only hard categories fail the run. The `qmllint` on PATH
-   is the old syntax-only Qt 5 tool and proves nothing.
-4. `tests/qml/render.sh`: `tests/qml/HarnessControls.qml` checks the editable
-   slider readout and the tooltip offscreen, then `tests/qml/Harness.qml` loads `Doc` + `Stage` with
-   stub singletons (`tests/qml/stubs/qs/Commons`) and a stub
-   `Quickshell.Widgets.ClippingRectangle` (the real one needs the Quickshell
-   host), places one of every annotation, exports through `grabToImage`, and
-   ImageMagick checks pixels; `HarnessCode.qml` does the same for a code
-   card. On a Wayland session each opens a real window for about a second to
-   get the GPU; `OMASNAP_TEST_OFFSCREEN=1` uses the
-   offscreen platform, which forces the software scene graph, where
-   `MultiEffect` renders nothing, so the card checks are skipped there.
-   Both harnesses take their output directory as the last argument, which
-   keeps the suite from writing inside the plugin.
+JavaScript unit tests in a `vm` context; `bash -n` over `bin/*`;
+`/usr/lib/qt6/bin/qmllint` (the `qmllint` on PATH is the Qt 5 syntax-only tool
+and proves nothing); then `tests/qml/render.sh`, which drives the real
+components and checks exported pixels with ImageMagick.
 
-Live checks in the running shell, all over IPC (no mouse needed):
+- On a Wayland session the harnesses open a real window for about a second to
+  get the GPU. `OMASNAP_TEST_OFFSCREEN=1` forces the offscreen platform.
+- Whether the card rendered is decided by **sampling the exported picture**,
+  not by the backend name — the software scene graph's `MultiEffect` support
+  varies by Qt and Mesa build.
+- The harnesses take their output directory as the last argument, and
+  `render.sh` points it at `$XDG_RUNTIME_DIR`. See the reload note below.
+
+Live checks in the running shell, no mouse needed:
 
 ```sh
-omarchy plugin enable tahayvr.omasnap
 omarchy-shell shell summon tahayvr.omasnap '{"path":"/path/to/shot.png"}'
 omarchy-shell shell call tahayvr.omasnap capture fullscreen   # non-interactive
-printf 'fn main() {}\n' | wl-copy --primary                 # fake a selection
+printf 'fn main() {}\n' | wl-copy --primary                   # fake a selection
 omarchy-shell shell call tahayvr.omasnap code ''
-omarchy-shell shell call tahayvr.omasnap set '{"frame":"titlebar","codeNumbers":true}'
+omarchy-shell shell call tahayvr.omasnap set '{"frame":"titlebar"}'
 omarchy-shell shell call tahayvr.omasnap info ''
-omarchy-shell shell call tahayvr.omasnap redact ''
 omarchy-shell shell call tahayvr.omasnap save ''
-omarchy-shell shell hide tahayvr.omasnap
-grim /tmp/x.png                                                # see the overlay
-qs log -p "$OMARCHY_PATH/shell" --tail 300 | grep -iE "omasnap|TypeError|ReferenceError"
+qs log -p "$OMARCHY_PATH/shell" --tail 300 | grep -iE "omasnap|TypeError"
 ```
 
-Notes:
-
-- The overlay is `keepLoaded`, so **QML changes need `omarchy restart shell`**;
-  saving a file hot-reloads the widget but keeps the old overlay instance.
-  If a new root function returns `unknown` over `call`, that is why.
-- **Any file written under the plugin directory triggers a plugin reload**,
-  including images in `docs/`, and the reload resets the overlay's document
-  (`hasContent` goes false, the next `save` answers `no shot`). Generate
-  README images into a scratch directory and copy them in afterwards. This is
-  why `tests/qml/render.sh` writes to `$XDG_RUNTIME_DIR/omasnap-tests` and
-  passes that path to the harnesses as their last argument: it used to write
-  seven files into `tests/qml/out/`, so running the suite pulled the document
-  out from under whoever had the overlay open.
-- Wait a few seconds between saving plugin files and `omarchy restart shell`.
-  Each save triggers an asynchronous reload of the plugin, and exiting while
-  that incubation is still finalizing segfaulted Quickshell 0.3.1 in the host
-  (`__dynamic_cast` under `QQmlObjectCreator::finalize` during "Exiting due
-  to IPC request"). The crash reporter then sits on screen until dismissed.
-- After a restart, give the first `summon` a moment: the overlay is loaded
-  asynchronously at startup and a screenshot taken right after can miss it.
-- `qs log` needs `-p "$OMARCHY_PATH/shell"` to find the instance.
-- When killing helpers from a test script, use a pattern that cannot match
-  the script's own command line (`pkill -f 'snap-portal[.]py'`); a plain
+- The overlay is `keepLoaded`, so **QML changes need `omarchy restart shell`**.
+  A new root function answering `unknown` over `call` is why.
+- **Any file written under the plugin directory triggers a plugin reload**, and
+  the reload resets the overlay's document — `hasContent` goes false and the
+  next `save` answers `no shot`. Generate images into a scratch directory and
+  copy them in afterwards.
+- **Wait a few seconds between saving plugin files and restarting the shell.**
+  Each save starts an asynchronous reload, and exiting mid-incubation
+  segfaulted Quickshell 0.3.1 (`__dynamic_cast` under
+  `QQmlObjectCreator::finalize`). The crash reporter then sits on screen.
+- After a restart, give the first `summon` a moment: the overlay loads
+  asynchronously and a screenshot taken immediately can miss it.
+- **A locked screen wedges every screen capture.** `grim` blocks in `poll`,
+  `grabToImage` never calls back, and the plugin's export sits at `busy`
+  forever. Nothing in the symptoms points at the lock. Check it first.
+- Summoning `{}` with nothing loaded starts a `slurp` region picker and blocks
+  other calls with `busy` until it finishes or `pkill -x slurp`.
+  `/proc/<slurp>/wchan` says `anon_pipe_read` if it is stuck on stdin.
+- Qt logs to journald when stderr is not a terminal; set
+  `QT_FORCE_STDERR_LOGGING=1` when running QML by hand or you see nothing.
+  `/usr/bin/qml` is Qt 5 — use `/usr/lib/qt6/bin/qml`.
+- When killing helpers from a script, use a pattern that cannot match the
+  script's own command line (`pkill -f 'snap-portal[.]py'`); a plain
   `pkill -f name` kills the calling shell too.
-- Qt sends messages to journald when stderr is not a terminal. Set
-  `QT_FORCE_STDERR_LOGGING=1` when running QML by hand or you will see nothing.
-- `/usr/bin/qml` is Qt 5; use `/usr/lib/qt6/bin/qml`.
-- Summoning with `{}` and nothing loaded starts a `slurp` region picker and
-  blocks other calls with `busy` until it is finished or `pkill -x slurp`.
-  `info` reports `capturing` and `busy`; `hyprctl layers -j` lists a
-  `selection` namespace while the picker is up, and `/proc/<slurp>/wchan`
-  says `anon_pipe_read` if it is stuck on stdin.
-- Hyprland's close-window bind (`hl.dsp.window.close()`) closes the window
-  *behind* any layer-shell overlay and leaves the overlay up. Verified against
-  the stock Emojis overlay too, so it is not fixable in the plugin; Escape,
-  the close button and a click on the scrim are the ways out.
-- The shell's own linter false positives: `Style.font.*` / `Color.menu.*`
-  "not found on QObject" (inline QtObject members), `PanelWindow` "not
-  creatable", `bar.shell` on `QObject`. Ignore those.
+- Hyprland's close-window bind closes the window *behind* a layer-shell
+  overlay and leaves the overlay up. Verified against the stock Emojis overlay,
+  so it is not fixable here; Escape, the close button and the scrim are the
+  ways out.
+- Shell linter false positives to ignore: `Style.font.*` / `Color.menu.*` "not
+  found on QObject", `PanelWindow` "not creatable", `bar.shell` on `QObject`.
