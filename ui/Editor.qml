@@ -21,6 +21,7 @@ Rectangle {
     signal copyTextRequested()
 
     readonly property Item exportTarget: grabRoot
+    readonly property string repoUrl: "https://github.com/tahayvr/omasnap"
 
     color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
     border.width: 1
@@ -73,14 +74,29 @@ Rectangle {
             IconButton { glyph: "\uf1c5"; label: "File"; tip: "Open a file"; onClicked: editor.openRequested() }
         }
 
-        IconButton {
+        Row {
             anchors.right: parent.right
             anchors.rightMargin: Ui.pad / 2
             anchors.verticalCenter: parent.verticalCenter
-            glyph: "\u2715"
-            flat: true
-            tip: "Close (Esc)"
-            onClicked: editor.closeRequested()
+            spacing: Ui.gap
+
+            // The overlay covers the screen, so the browser it opens would
+            // sit behind it; close on the way out.
+            IconButton {
+                glyph: "\uf09b"
+                flat: true
+                tip: "OmaSnap on GitHub"
+                onClicked: {
+                    Qt.openUrlExternally(editor.repoUrl);
+                    editor.closeRequested();
+                }
+            }
+            IconButton {
+                glyph: "\u2715"
+                flat: true
+                tip: "Close (Esc)"
+                onClicked: editor.closeRequested()
+            }
         }
 
         Rectangle {
