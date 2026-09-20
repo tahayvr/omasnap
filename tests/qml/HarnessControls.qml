@@ -19,8 +19,16 @@ Window {
 
     Doc { id: doc }
 
-    // Off to the side; only its gradient swatches are under test.
+    // Off to the side; only its gradient swatches and toggles are under test.
     Inspector { id: inspector; doc: doc; x: 1000; width: 300; height: 800 }
+
+    Toggle {
+        id: toggle
+        x: 1400
+        width: 200
+        label: "Optical balance"
+        hint: "Lifts the shot slightly"
+    }
 
     function meshLayer(item) {
         for (var i = 0; i < item.children.length; i++) {
@@ -146,6 +154,26 @@ Window {
                   String(doc.shotUrl) !== first, true);
         win.check("and still points at the file",
                   String(doc.shotUrl).indexOf("/tmp/omasnap-example.png") > 0, true);
+
+        // A toggle explains itself in a tooltip rather than a second line, so
+        // it has to carry one wired to its hint, and must not draw the hint
+        // as text: a paragraph under every switch is what this replaced.
+        var tip = null, extra = 0;
+        for (var t = 0; t < win.contentItem.children.length; t++) {
+            var c = win.contentItem.children[t];
+            if (c.hasOwnProperty("target") && c.target === toggle) tip = c;
+        }
+        win.check("a toggle carries a tooltip", tip !== null, true);
+        if (tip) win.check("wired to its hint", tip.text, toggle.hint);
+        function texts(item, out) {
+            for (var i = 0; i < item.children.length; i++) {
+                var k = item.children[i];
+                if (k.hasOwnProperty("text") && !k.hasOwnProperty("target")) out.push(String(k.text));
+                texts(k, out);
+            }
+            return out;
+        }
+        win.check("and does not also print it", texts(toggle, []).indexOf(toggle.hint), -1);
 
         // The inspector previews each preset with the same stop list the stage
         // uses. A GradientStop's `parent` is not the swatch, and writing it

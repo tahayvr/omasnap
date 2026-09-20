@@ -9,31 +9,33 @@ Item {
     signal toggled(bool value)
 
     width: parent ? parent.width : 0
-    implicitHeight: Math.max(sw.height, col.implicitHeight)
+    implicitHeight: Math.max(sw.height, caption.implicitHeight)
 
-    Column {
-        id: col
+    // The hint is a tooltip rather than a second line: it explains a setting
+    // that is already named, and a paragraph under every switch is the kind
+    // of thing that makes a panel feel heavy.
+    Text {
+        id: caption
         anchors.left: parent.left
         anchors.right: sw.left
         anchors.rightMargin: Ui.row
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 2
+        text: root.label
+        elide: Text.ElideRight
+        color: Ui.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.bodySmall
+    }
 
-        Text {
-            text: root.label
-            color: Ui.text
-            font.family: Style.font.family
-            font.pixelSize: Style.font.bodySmall
-        }
-        Text {
-            text: root.hint
-            visible: root.hint !== ""
-            width: parent.width
-            wrapMode: Text.WordWrap
-            color: Ui.textMuted
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-        }
+    Tooltip {
+        target: root
+        text: root.hint
+        show: !hold.running && ma.containsMouse
+    }
+
+    Timer {
+        id: hold
+        interval: 350
     }
 
     Rectangle {
@@ -56,8 +58,12 @@ Item {
     }
 
     MouseArea {
+        id: ma
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onEntered: hold.restart()
+        onExited: hold.stop()
         onClicked: root.toggled(!root.checked)
     }
 }
