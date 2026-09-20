@@ -84,6 +84,7 @@ Flickable {
 
             Segmented {
                 current: doc.bgMode
+                minWidth: Math.floor((width - Ui.gap * 2) / 3)   // two even rows of three
                 options: [
                     { key: "auto",     label: "Auto" },
                     { key: "gradient", label: "Gradient" },
@@ -216,7 +217,7 @@ Flickable {
         }
 
         Section {
-            title: "Screenshot"
+            title: doc.kind === "code" ? "Card" : "Screenshot"
 
             LabeledSlider {
                 label: "Corner radius"
