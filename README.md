@@ -23,8 +23,10 @@ the picture that should not be public.
 ![Framing](assets/showcase/framing.png)
 
 **Backgrounds**
-- Auto from the screenshot, gradients, flat colors, your Omarchy theme, your
-  wallpaper, or none for a transparent PNG
+- Auto from the screenshot, flat colors, your Omarchy theme, your wallpaper,
+  or none for a transparent PNG
+- Twenty-five gradient presets, ten of them multipoint: colors placed around
+  the frame rather than run along a single axis
 
 ![Backgrounds](assets/showcase/backgrounds.png)
 
