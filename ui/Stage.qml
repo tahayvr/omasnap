@@ -111,16 +111,16 @@ Item {
     }
 
     // The desktop wallpaper, cropped to the frame the way a compositor would.
+    // Decoded once at its own size: tying sourceSize to the frame made every
+    // padding step decode the file again, and the slider stuttered.
     Image {
         anchors.fill: parent
         visible: stage.doc.bgMode === "desktop" && status === Image.Ready
         source: stage.doc.bgMode === "desktop" && stage.doc.desktopBg.length
                 ? "file://" + stage.doc.desktopBg : ""
         fillMode: Image.PreserveAspectCrop
-        asynchronous: false
+        asynchronous: true
         cache: true
-        sourceSize.width: Math.max(1, Math.round(stage.width * stage.dpr))
-        sourceSize.height: Math.max(1, Math.round(stage.height * stage.dpr))
     }
 
     Item {
