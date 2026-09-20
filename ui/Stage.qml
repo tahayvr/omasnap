@@ -32,7 +32,7 @@ Item {
     readonly property bool meshBg: Model.gradientIsMesh(bgPreset)
     readonly property bool gradientBg: !meshBg
                                        && (doc.bgMode === "gradient"
-                                           || (doc.bgMode === "auto" && doc.autoPalette.length > 1))
+                                           || (doc.bgMode === "auto" && doc.autoPalette.length > 0))
     readonly property bool desktopBg: doc.bgMode === "desktop"
 
     readonly property color bgA: {
@@ -47,8 +47,8 @@ Item {
     readonly property var bgStops: {
         if (doc.bgMode === "gradient")
             return Model.gradientStops(Model.gradientByKey(doc.bgGradient).stops);
-        if (doc.bgMode === "auto" && doc.autoPalette.length > 1)
-            return Model.gradientStops([String(doc.autoPalette[0]), String(doc.autoPalette[1])]);
+        if (doc.bgMode === "auto" && doc.autoPalette.length > 0)
+            return Model.gradientStops(Model.autoGradient(String(doc.autoPalette[0])));
         return Model.gradientStops([String(stage.bgA)]);
     }
     // A multipoint preset has no angle to read, so fall back rather than

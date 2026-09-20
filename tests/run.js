@@ -395,6 +395,40 @@ test("a gradient always yields the same number of stops", () => {
     eq(Model.gradientStopCount("dusk"), 2);
 });
 
+test("auto shades one color instead of pairing two dominants", () => {
+    const lum = h => Model.luminance(Model.parseHex(h));
+    const spread = (a, b) => {
+        const p = Model.parseHex(a), q = Model.parseHex(b);
+        return Math.round(Math.hypot(p.r - q.r, p.g - q.g, p.b - q.b));
+    };
+
+    const dark = Model.autoGradient("#1e1e24");
+    eq(dark.length, 2, "two stops");
+    ok(lum(dark[0]) < lum(dark[1]), "a dark source lifts rather than darkens");
+    ok(lum(dark[1]) < 140, "and stays on the dark side of the range");
+
+    const light = Model.autoGradient("#eceef0");
+    ok(lum(light[0]) > lum(light[1]), "a light source darkens rather than lifts");
+    ok(lum(light[1]) > 120, "and stays on the light side");
+
+    // The whole point: the hue survives, because both stops come from the
+    // same color. Pairing two dominants used to drag a blue backdrop through
+    // olive on its way to a green one.
+    const blue = Model.autoGradient("#203141").map(Model.parseHex);
+    ok(blue.every(c => c.b > c.g && c.g > c.r), "a blue source stays blue");
+
+    // And the ramp is about as long as a preset's, so it bands no worse.
+    const preset = Model.gradientByKey("dusk").stops;
+    const near = spread(preset[0], preset[1]);
+    for (const src of ["#1e1e24", "#203141", "#eceef0", "#8a6d3b"]) {
+        const g = Model.autoGradient(src);
+        ok(Math.abs(spread(g[0], g[1]) - near) < 45,
+           src + " spreads like a preset (" + spread(g[0], g[1]) + " vs " + near + ")");
+    }
+
+    eq(Model.autoGradient("not a color").length, 0, "garbage yields nothing");
+});
+
 test("a multipoint preset places its colors around the frame", () => {
     const mesh = Model.GRADIENTS.filter(Model.gradientIsMesh);
     ok(mesh.length >= 10, "there are multipoint presets");

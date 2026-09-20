@@ -224,6 +224,15 @@ layer sits at `cardX, cardY + chromeH`.
   comes from `blurMax` alone. And `shadowBlur` must not be driven straight off
   the slider — that was the original fault, where 1 gave a one-percent radius,
   meaning a hard dark outline, and 100 gave a soft one.
+- **Auto shades one sampled color; it does not pair two.** `bin/snap-palette`
+  returns the dominant colors in order, and auto used to ramp between the
+  first two. Those are often unrelated — a bright logo and a dark terminal —
+  and the ramp dragged the backdrop through muddy mid-tones, which reads as a
+  cheap gradient however cleanly it is drawn. `Model.autoGradient` takes the
+  first color alone and shades it both ways, leaning away from whichever end
+  of the tonal range it already sits near, so the hue survives and the spread
+  lands close to a preset's. It needs only one sampled color, so `gradientBg`
+  turns on at a palette of one.
 - **A background preset is either a ramp or a mesh, never both.** A ramp
   carries `stops` and an `angle` and varies along one axis. A multipoint
   preset carries `base` and `points` — colors at `{x, y}` fractions of the
