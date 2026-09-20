@@ -162,11 +162,15 @@ QtObject {
         shotEdge = "";
     }
 
+    // Every styling setting back to its default; content and title stay.
     function reset() {
         clearAnnotations();
         padding = 5; inset = 0; ratio = "auto"; balance = false;
         radius = 3; shadow = 45;
-        frame = "none"; bgMode = "auto"; tool = "select";
-        codeFont = 16; codeNumbers = false;
+        frame = "none"; tool = "select";
+        bgMode = "auto"; bgSolid = "#1e222a"; bgGradient = "dusk";
+        inkColor = "#ff5f56"; inkWidth = 4;
+        exportScale = 1; format = "png"; quality = 92;
+        codeTheme = "omarchy"; codeFont = 16; codeNumbers = false;
     }
 }
