@@ -520,6 +520,9 @@ Item {
     function exportTo(path, andThen) {
         if (!doc.hasContent) return "no shot";
         if (editor.busy) return "busy";
+        // grabToImage needs the item on a mapped window; while the overlay is
+        // hidden it fails after answering ok, with a status nobody can see.
+        if (!window.visible) return "closed";
         if (doc.outputTooLarge) {
             editor.statusText = "Too large to render — pick a smaller export scale";
             return "too large";
