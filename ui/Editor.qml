@@ -267,7 +267,7 @@ Rectangle {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: "Grab a region, a window or the whole screen, or turn selected text into a code card. OmaSnap adds the padding, background and shadow, and hides anything that should not be public."
+                text: "Grab a region, a window or the screen, or turn selected text into a code card."
                 color: Ui.textMuted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
