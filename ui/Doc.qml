@@ -41,7 +41,7 @@ QtObject {
 
     property real padding: 5                // percent of the shot's longest edge
     property real inset: 0                  // same units, inside the card
-    property bool balance: true
+    property bool balance: false            // off unless asked for
     property string ratio: "auto"
 
     property real radius: 3                 // percent of the card's shorter edge
@@ -164,7 +164,7 @@ QtObject {
 
     function reset() {
         clearAnnotations();
-        padding = 5; inset = 0; ratio = "auto"; balance = true;
+        padding = 5; inset = 0; ratio = "auto"; balance = false;
         radius = 3; shadow = 45;
         frame = "none"; bgMode = kind === "code" ? "gradient" : "auto"; tool = "select";
         codeFont = 16; codeNumbers = false;

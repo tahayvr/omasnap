@@ -198,13 +198,6 @@ Flickable {
                 options: Model.RATIOS.map(function (r) { return { key: r.key, label: r.label }; })
                 onPicked: function (k) { doc.ratio = k; }
             }
-
-            Toggle {
-                label: "Optical balance"
-                hint: "Lifts the shot slightly so it does not read as sitting low"
-                checked: doc.balance
-                onToggled: function (v) { doc.balance = v; }
-            }
         }
 
         Section {
@@ -320,6 +313,15 @@ Flickable {
             }
         }
 
+        // Below the framing controls it belongs with, but out of the way:
+        // off by default and rarely reached for.
+        Toggle {
+            label: "Optical balance"
+            hint: "Lifts the shot slightly so it does not read as sitting low"
+            checked: doc.balance
+            onToggled: function (v) { doc.balance = v; }
+        }
+
         Section {
             title: "Export"
 
@@ -356,5 +358,6 @@ Flickable {
                 font.pixelSize: Style.font.caption
             }
         }
+
     }
 }
