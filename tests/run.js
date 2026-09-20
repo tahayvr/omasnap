@@ -328,6 +328,17 @@ test("truecolor runs become font tags, spaces and newlines survive", () => {
     eq(html, '<font color="#ff0000">fn</font>&nbsp;main()<br>&nbsp;&nbsp;x');
 });
 
+test("line numbers are tinted half way to the background, code is not", () => {
+    eq(Code.gutterColor("#ffffff", "#000000"), "#737373");
+    eq(Code.gutterColor("#e6e6e6", "#1e222a"), "#787a7f");
+    eq(Code.gutterColor("nope", "#000000"), "", "bad input tints nothing");
+    const html = Code.ansiToHtml("   1 fn main()\n   2     x\n     y", pal, "#737373");
+    eq(html, '<font color="#737373">&nbsp;&nbsp;&nbsp;1&nbsp;</font>fn&nbsp;main()<br>'
+           + '<font color="#737373">&nbsp;&nbsp;&nbsp;2&nbsp;</font>&nbsp;&nbsp;&nbsp;&nbsp;x<br>'
+           + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;y', "a wrapped continuation keeps its plain gutter");
+    eq(Code.ansiToHtml("   1 fn", pal, ""), "&nbsp;&nbsp;&nbsp;1&nbsp;fn", "no color, no tint");
+});
+
 test("16-color codes go through the palette, 256-color through the cube", () => {
     const html = Code.ansiToHtml(ESC + "35mkw" + ESC + "0m " + ESC + "38;5;238mnum" + ESC + "0m " + ESC + "38;5;196mr", pal);
     eq(html, '<font color="' + pal.colors[5] + '">kw</font>&nbsp;<font color="#444444">num</font>&nbsp;<font color="#ff0000">r</font>');

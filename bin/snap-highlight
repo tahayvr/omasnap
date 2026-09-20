@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# snap-highlight [lang] [bat-theme] [numbers 0|1]  (code on stdin)
-# Prints ANSI-colored code.
+# snap-highlight [lang] [bat-theme] [numbers 0|1] [columns]  (code on stdin)
+# Prints ANSI-colored code, wrapped at `columns` the way bat wraps it: a
+# continuation line keeps the gutter, so a long URL folds under its line
+# number rather than running the card off the edge.
 set -u
 lang="${1:-}"
 theme="${2:-ansi}"
 numbers="${3:-0}"
+columns="${4:-100}"
 [ "$lang" = "auto" ] || [ "$lang" = "txt" ] && lang=""
 style=plain; [ "$numbers" = "1" ] && style=numbers
 
@@ -13,8 +16,8 @@ trap 'rm -f "$tmp"' EXIT
 cat > "$tmp"
 
 run() { # run [-l lang]
-  COLORTERM=truecolor bat --color=always --paging=never --wrap=never \
-    --italic-text=always --terminal-width=4000 --style="$style" \
+  COLORTERM=truecolor bat --color=always --paging=never --wrap=character \
+    --italic-text=always --terminal-width="$columns" --style="$style" \
     "$@" --theme="$theme" "$tmp" 2>/dev/null
 }
 

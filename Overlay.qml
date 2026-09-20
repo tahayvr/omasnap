@@ -286,7 +286,8 @@ Item {
         property string input: ""
         property bool pending: false
         command: ["bash", root.pluginDir + "bin/snap-highlight", doc.codeEffectiveLang,
-                  Code.themeByKey(doc.codeTheme).bat, doc.codeNumbers ? "1" : "0"]
+                  Code.themeByKey(doc.codeTheme).bat, doc.codeNumbers ? "1" : "0",
+                  String(Code.WRAP_COLUMNS)]
         stdinEnabled: true
         onRunningChanged: {
             if (running) { write(input); stdinEnabled = false; }
@@ -294,7 +295,8 @@ Item {
         }
         stdout: StdioCollector {
             onStreamFinished: {
-                doc.codeHtml = Code.ansiToHtml(text, root.codePalette());
+                doc.codeHtml = Code.ansiToHtml(text, root.codePalette(),
+                    doc.codeNumbers ? Code.gutterColor(String(doc.codeFg), String(doc.codeBg)) : "");
                 if (highlightProc.pending) root.highlight();
             }
         }
