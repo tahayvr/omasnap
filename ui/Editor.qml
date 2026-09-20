@@ -20,7 +20,7 @@ Rectangle {
     signal autoRedactRequested()
     signal copyTextRequested()
 
-    readonly property Item exportTarget: stage
+    readonly property Item exportTarget: grabRoot
 
     color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
     border.width: 1
@@ -151,12 +151,22 @@ Rectangle {
                 onClicked: doc.selectedId = ""
             }
 
-            Stage {
-                id: stage
-                doc: editor.doc
-                interactive: true
+            // What the export grabs, rather than the stage itself: padded up
+            // to a whole number of device pixels so grabToImage renders at
+            // exactly 1:1 (see Model.grabSize), then cropped by snap-deliver.
+            Item {
+                id: grabRoot
+                readonly property var fit: Model.grabSize(stage.width, stage.height, stage.dpr)
+                width: grabRoot.fit.w
+                height: grabRoot.fit.h
                 transformOrigin: Item.TopLeft
                 scale: viewport.fit
+
+                Stage {
+                    id: stage
+                    doc: editor.doc
+                    interactive: true
+                }
             }
 
             // Drawing surface; off in select mode so presses reach the annotations.

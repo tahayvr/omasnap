@@ -42,14 +42,24 @@ Imposed by the host, so none of it is negotiable from in here.
 
 - **`grabToImage(cb, size)` multiplies `size` by the window's *effective*
   DPR** — 1.6 on a fractionally scaled monitor, while `Screen.devicePixelRatio`
-  claims 2. `Model.grabSize()` divides it out and `scope.dpr` reads
-  `Window.window.devicePixelRatio`. The file can land a pixel off the footer
-  number; that is preferred to resampling.
-- **The `unit` scaling is load-bearing.** Effect textures (`ClippingRectangle`
-  clip, `MultiEffect`) are allocated at item size times the window ratio, so
-  laying out in screen units makes them exactly one texel per shot pixel and a
-  1x export pixel-exact. `AnnotationLayer` and `CodeBlock` keep shot-pixel
-  coordinates and are placed with `scale: unit`; `Editor.toShot` inverts it.
+  claims 2 — and the stage is then not a whole number of logical pixels
+  (1210 shot pixels are 756.25). Grabbing it at 757 renders at 757/756.25 and
+  resamples everything, and a padding-0 export came out 1101 wide. So the
+  export grabs `grabRoot`, a wrapper padded up to whole device pixels
+  (`Model.grabSize`), and `snap-deliver` crops the surplus. `Stage.dpr` reads
+  `Window.window.devicePixelRatio`.
+- **Never draw the shot through a texture round trip.** `ClippingRectangle`,
+  `layer.enabled`, `layer.textureSize` and a `MultiEffect` mask all resample
+  it on a fractional scale — measured under Quickshell: 8% of the card's
+  pixels changed, some by the full 255, while the plain `qml` runtime and the
+  test stub came out exact, which is why the harness never saw it. The shot
+  is a `Shape` whose `ShapePath.fillItem` is the hidden `Image`: that samples
+  the image's own texture one texel per shot pixel, rounded corners included.
+- **The `unit` scaling is load-bearing.** The `MultiEffect` shadow texture is
+  allocated at item size times the window ratio, so laying out in screen
+  units keeps it one texel per shot pixel. `AnnotationLayer` and `CodeBlock`
+  keep shot-pixel coordinates and are placed with `scale: unit`;
+  `Editor.toShot` inverts it.
 - **Both cards stay visible and sit *over* their `MultiEffect`**, which then
   only contributes the shadow. Two verified reasons: inside the shell,
   descendants of a hidden effect source did not render at all (they did under

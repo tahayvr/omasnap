@@ -22,17 +22,20 @@ Window {
 
     Doc { id: doc }
 
-    Stage {
-        id: stage
-        doc: doc
-        interactive: true
+    // Grabbed the way Editor.qml does it: a wrapper padded up to whole device
+    // pixels, cropped afterwards by render.sh as snap-deliver would.
+    Item {
+        id: grabRoot
+        readonly property var fit: Model.grabSize(stage.width, stage.height, stage.dpr)
+        width: grabRoot.fit.w
+        height: grabRoot.fit.h
         scale: 0.5                       // displayed smaller, like the editor
         transformOrigin: Item.TopLeft
-        // Same lookup as Overlay.qml: the window's effective ratio, not the screen's.
-        readonly property real dpr: {
-            var w = stage.Window.window;
-            if (w && w.devicePixelRatio > 0) return w.devicePixelRatio;
-            return Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1;
+
+        Stage {
+            id: stage
+            doc: doc
+            interactive: true
         }
     }
 
@@ -81,14 +84,14 @@ Window {
     function grab(name, done) {
         doc.exporting = true;
         Qt.callLater(function () {
-            var size = Model.grabSize(doc.outWidth, doc.outHeight, stage.dpr);
-            var ok = stage.grabToImage(function (r) {
+            var size = Qt.size(grabRoot.width * doc.exportScale, grabRoot.height * doc.exportScale);
+            var ok = grabRoot.grabToImage(function (r) {
                 var wrote = r.saveToFile(win.outDir + name + ".png");
                 console.warn("HARNESS " + name + " " + (wrote ? "ok" : "write-failed")
                              + " expected " + doc.outWidth + "x" + doc.outHeight
                              + " dpr " + stage.dpr);
                 done();
-            }, Qt.size(size.w, size.h));
+            }, size);
             if (!ok) { console.warn("HARNESS grab-failed"); Qt.quit(); }
         });
     }
@@ -134,6 +137,19 @@ Window {
     Timer {
         id: meshTimer
         interval: 350
-        onTriggered: win.grab("export-mesh", function () { Qt.quit(); })
+        onTriggered: win.grab("export-mesh", function () {
+            // A frame that is not a whole number of logical pixels at any
+            // fractional scale: 5.5% of 400 is 22, so 444x244, which no
+            // 1.25, 1.5 or 1.6 divides. The sizes above all happened to.
+            doc.bgMode = "solid";
+            doc.padding = 5.5;
+            oddTimer.start();
+        })
+    }
+
+    Timer {
+        id: oddTimer
+        interval: 250
+        onTriggered: win.grab("export-odd", function () { Qt.quit(); })
     }
 }

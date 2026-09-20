@@ -134,12 +134,16 @@ test("annotations carry every role the delegates read", () => {
     ok(a.uid.length >= 6 && a.uid !== Model.newAnnotation("box", 0, 0).uid, "unique ids");
 });
 
-test("grab size undoes the device pixel ratio", () => {
-    eq(Model.grabSize(480, 280, 1.6), { w: 300, h: 175 });
-    eq(Model.grabSize(3840, 2160, 2), { w: 1920, h: 1080 });
-    eq(Model.grabSize(1000, 500, 1), { w: 1000, h: 500 });
-    eq(Model.grabSize(1000, 500, 0), { w: 1000, h: 500 }, "bad dpr falls back to 1");
-    eq(Model.grabSize(1, 1, 3), { w: 1, h: 1 }, "never zero");
+test("grab size pads the stage to whole device pixels", () => {
+    eq(Model.grabStep(1.6), 5);
+    eq(Model.grabStep(1.25), 4);
+    eq(Model.grabStep(1.5), 2);
+    eq(Model.grabStep(2), 1);
+    eq(Model.grabStep(0), 1, "bad dpr falls back to 1");
+    eq(Model.grabSize(756.25, 393.75, 1.6), { w: 760, h: 395 }, "padded up to whole device pixels");
+    eq(Model.grabSize(300, 175, 1.6), { w: 300, h: 175 }, "already whole");
+    eq(Model.grabSize(1920, 1080, 2), { w: 1920, h: 1080 });
+    eq(Model.grabSize(0.5, 0.5, 1.6), { w: 5, h: 5 }, "never zero");
 });
 
 test("clamp and stamp", () => {

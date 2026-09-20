@@ -531,7 +531,7 @@ Item {
 
         Qt.callLater(function () {
             var target = editor.exportTarget;
-            var size = Model.grabSize(doc.outWidth, doc.outHeight, scope.dpr);
+            var size = Qt.size(target.width * doc.exportScale, target.height * doc.exportScale);
             var ok = target.grabToImage(function (result) {
                 var wrote = result.saveToFile(path);
                 doc.exporting = false;
@@ -541,7 +541,7 @@ Item {
                     return;
                 }
                 if (andThen) andThen(path);
-            }, Qt.size(size.w, size.h));
+            }, size);
 
             if (!ok) {
                 doc.exporting = false;
@@ -559,14 +559,16 @@ Item {
 
     function save() {
         return exportTo(root.scratchDir + "/omasnap-out.png", function (p) {
-            deliver.args = ["save", p, outputPath(), doc.format, String(doc.quality)];
+            deliver.args = ["save", p, outputPath(), doc.format, String(doc.quality),
+                            String(doc.outWidth), String(doc.outHeight)];
             deliver.running = true;
         });
     }
 
     function copy() {
         return exportTo(root.scratchDir + "/omasnap-copy.png", function (p) {
-            deliver.args = ["copy", p, "", doc.format, String(doc.quality)];
+            deliver.args = ["copy", p, "", doc.format, String(doc.quality),
+                            String(doc.outWidth), String(doc.outHeight)];
             deliver.running = true;
         });
     }
@@ -677,14 +679,6 @@ Item {
             width: Math.min(Style.space(1320), parent.width - Style.gapsOut * 4)
             height: Math.min(Style.space(860), parent.height - Style.gapsOut * 4)
             focus: true
-
-            // The window's effective ratio (1.6 on a fractional scale), not the
-            // integer one Screen reports. See Model.grabSize.
-            readonly property real dpr: {
-                var w = scope.Window.window;
-                if (w && w.devicePixelRatio > 0) return w.devicePixelRatio;
-                return Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1;
-            }
 
             Editor {
                 id: editor

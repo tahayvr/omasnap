@@ -8,7 +8,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 # seven, which knocked the live overlay out from under whoever was using it.
 out="${XDG_RUNTIME_DIR:-/tmp}/omasnap-tests"
 mkdir -p "$out"
-rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png"
+rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png" "$out/export-odd.png"
 
 # Synthetic screenshot: white left half, black right half, and a band of
 # 1px red/blue stripes through the middle that redaction has to destroy.
@@ -32,6 +32,14 @@ echo "$log" | grep -E "file://|Error|error|Unable to assign|Warning" | head -20
 echo "$log" | grep -q "HARNESS export ok" || { echo "FAIL harness did not report a successful grab"; echo "$log" | tail -5; exit 1; }
 if echo "$log" | grep -qE "Error|error|Unable to assign"; then echo "FAIL runtime errors above"; fail_log=1; else fail_log=0; fi
 [ -f "$out/export.png" ] || { echo "no export written"; exit 1; }
+
+# The harness grabs a wrapper padded up to whole device pixels, as the overlay
+# does; crop each file to the size the document reported, as snap-deliver does.
+crop_to() { # crop_to <file> <WxH>
+  [ -f "$1" ] && magick "$1" -crop "$2+0+0" +repage "$1"
+}
+while read -r name size; do crop_to "$out/$name.png" "$size"; done \
+  < <(echo "$log" | sed -nE 's/.*HARNESS ([a-z-]+) ok expected ([0-9]+x[0-9]+).*/\1 \2/p')
 
 fail=$fail_log
 # px X Y -> "r g b" (0-255) of the exported image
@@ -133,6 +141,24 @@ if [ $gpu = 1 ]; then
   fi
 fi
 
+# ---- odd size --------------------------------------------------------------
+# 444x244 is not a whole number of logical pixels at 1.25, 1.5 or 1.6, unlike
+# every size above. The file still has to come out that size, and the shot
+# inside it (at 22,22) still pixel for pixel.
+if [ $gpu = 1 ]; then
+  if [ -f "$out/export-odd.png" ]; then
+    osize="$(magick "$out/export-odd.png" -format "%wx%h" info:)"
+    [ "$osize" = "444x244" ] && echo "ok   odd export size $osize" \
+      || { echo "FAIL odd export size: $osize (want 444x244)"; fail=1; }
+    magick "$out/export-odd.png" -crop 50x100+122+72 +repage "$out/band-odd.png"
+    rmse="$(magick compare -metric RMSE "$out/band-source.png" "$out/band-odd.png" null: 2>&1 | awk '{print $1}')"
+    [ "${rmse%%.*}" = "0" ] && echo "ok   odd export is pixel-exact (band RMSE $rmse)" \
+      || { echo "FAIL odd export resamples the shot (band RMSE $rmse)"; fail=1; }
+  else
+    echo "FAIL odd export missing"; fail=1
+  fi
+fi
+
 # ---- multipoint gradient ---------------------------------------------------
 # aurora runs #08203e -> #15756b -> #9fe0a8 at 150 degrees, so the background
 # runs light mint at the top left to dark navy at the bottom right, turning
@@ -190,6 +216,7 @@ if [ $gpu = 1 ]; then
   rm -f "$out/export-code.png"
   clog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessCode.qml -- "$out" 2>&1)"
   echo "$clog" | grep -E "file://|Error|error|Unable to assign|Warning" | head -10
+  crop_to "$out/export-code.png" "$(echo "$clog" | sed -nE 's/.*HARNESS ok expected ([0-9]+x[0-9]+).*/\1/p')"
   if echo "$clog" | grep -q "HARNESS resize ok"; then
     echo "ok   code card keeps its size on a re-render ($(echo "$clog" | grep -o 'measures [0-9]*' | head -1))"
   else

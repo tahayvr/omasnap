@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Quickshell.Widgets
+import QtQuick.Shapes
 import qs.Commons
 import "../lib/Model.js" as Model
 
@@ -162,11 +162,14 @@ Item {
         shadowHorizontalOffset: 0
     }
 
-    // Screenshot card: the image needs clipping to the rounded corners. Like
-    // the code card it stays visible over its effect, which then only adds
-    // the shadow: MultiEffect's auto padding shifts its copy of the source by
-    // a fraction of a pixel, which would resample the screenshot.
-    ClippingRectangle {
+    // Screenshot card. The shot is not drawn as an Image inside a clip: every
+    // texture round trip — ClippingRectangle, a layer, a MultiEffect mask —
+    // resamples it on a fractional scale, where the card is not a whole
+    // number of logical pixels. The Shape fills a rounded rectangle straight
+    // from the image's own texture, one texel per shot pixel, so a 1x export
+    // is the file. Like the code card it stays visible over its effect, which
+    // then only adds the shadow.
+    Rectangle {
         id: shotCard
         x: stage.geo.cardX * stage.unit
         y: stage.geo.cardY * stage.unit
@@ -182,18 +185,41 @@ Item {
             height: stage.geo.chromeH * stage.unit
             color: stage.chromeColor
             textColor: stage.chromeTextColor
+            topRadius: stage.cardRadius
         }
 
         Image {
-            visible: !stage.codeKind
+            id: shotTexture
+            visible: false
+            source: stage.codeKind ? "" : stage.doc.shotUrl
+            cache: true           // shared with the probe and the redaction source
+            asynchronous: false
+        }
+
+        Shape {
+            id: shot
             x: stage.geo.inset * stage.unit
             y: (stage.geo.chromeH + stage.geo.inset) * stage.unit
             width: Math.max(1, stage.geo.shotW * stage.unit)
             height: Math.max(1, stage.geo.shotH * stage.unit)
-            source: stage.codeKind ? "" : stage.doc.shotUrl
-            cache: true           // shared with the probe and the redaction source
-            asynchronous: false
-            fillMode: Image.PreserveAspectFit
+            preferredRendererType: Shape.CurveRenderer
+            // Inside an inset the shot sits square within the rounded card;
+            // under a title bar only its bottom corners are the card's.
+            readonly property real corner: stage.geo.inset > 0 ? 0 : stage.cardRadius
+            readonly property real topCorner: stage.geo.chromeH > 0 ? 0 : shot.corner
+
+            ShapePath {
+                strokeWidth: -1
+                fillItem: shotTexture
+                PathRectangle {
+                    width: shot.width
+                    height: shot.height
+                    topLeftRadius: shot.topCorner
+                    topRightRadius: shot.topCorner
+                    bottomLeftRadius: shot.corner
+                    bottomRightRadius: shot.corner
+                }
+            }
         }
     }
 

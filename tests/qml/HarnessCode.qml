@@ -1,6 +1,7 @@
 import QtQuick
 import "../../ui"
 import "../../lib/Code.js" as Code
+import "../../lib/Model.js" as Model
 
 // GPU render of a code document through the same Stage the overlay uses.
 Window {
@@ -21,15 +22,17 @@ Window {
 
     Doc { id: doc }
 
-    Stage {
-        id: stage
-        doc: doc
+    Item {
+        id: grabRoot
+        readonly property var fit: Model.grabSize(stage.width, stage.height, stage.dpr)
+        width: grabRoot.fit.w
+        height: grabRoot.fit.h
         scale: 0.5
         transformOrigin: Item.TopLeft
-        readonly property real dpr: {
-            var w = stage.Window.window;
-            if (w && w.devicePixelRatio > 0) return w.devicePixelRatio;
-            return Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1;
+
+        Stage {
+            id: stage
+            doc: doc
         }
     }
 
@@ -63,17 +66,12 @@ Window {
             console.warn("HARNESS shot " + doc.shotWidth + "x" + doc.shotHeight + " frame " + doc.outWidth + "x" + doc.outHeight);
             doc.exporting = true;
             Qt.callLater(function () {
-                var s = grabSize();
-                stage.grabToImage(function (r) {
+                grabRoot.grabToImage(function (r) {
                     r.saveToFile(win.outDir + "export-code.png");
-                    console.warn("HARNESS ok");
+                    console.warn("HARNESS ok expected " + doc.outWidth + "x" + doc.outHeight);
                     Qt.quit();
-                }, Qt.size(s.w, s.h));
+                }, Qt.size(grabRoot.width, grabRoot.height));
             });
         }
-    }
-    function grabSize() {
-        var d = stage.dpr;
-        return { w: Math.max(1, Math.round(doc.outWidth / d)), h: Math.max(1, Math.round(doc.outHeight / d)) };
     }
 }

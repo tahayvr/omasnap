@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# snap-deliver copy <png> ""     <format> <quality>  -> image onto the clipboard
-# snap-deliver save <png> <dest> <format> <quality>  -> final file on disk (+ clipboard)
-# snap-deliver text                                  -> stdin onto the clipboard
+# snap-deliver copy <png> ""     <format> <quality> [w h] -> image onto the clipboard
+# snap-deliver save <png> <dest> <format> <quality> [w h] -> final file on disk (+ clipboard)
+# snap-deliver text                                        -> stdin onto the clipboard
+# The grab is padded up to whole device pixels so nothing gets resampled;
+# w h is the size of the picture inside it, and the surplus is cropped off.
 set -uo pipefail
 
 action="${1:-copy}"
@@ -15,16 +17,21 @@ src="${2:-}"
 dest="${3:-}"
 format="${4:-png}"
 quality="${5:-92}"
+width="${6:-}"
+height="${7:-}"
 [ -f "$src" ] || { echo "Nothing to write"; exit 1; }
 
 mime="image/png"
 [ "$format" = "jpg" ] && mime="image/jpeg"
 
+crop=()
+[ -n "$width" ] && [ -n "$height" ] && crop=(-crop "${width}x${height}+0+0" +repage)
+
 encode() { # encode <in> <out>
   if [ "$format" = "jpg" ]; then
-    magick "$1" -background white -flatten -quality "$quality" "$2"
+    magick "$1" "${crop[@]}" -background white -flatten -quality "$quality" "$2"
   else
-    cp -f "$1" "$2"
+    magick "$1" "${crop[@]}" "$2"
   fi
 }
 
