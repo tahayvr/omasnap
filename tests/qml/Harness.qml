@@ -63,6 +63,11 @@ Window {
         step.w = 36; step.h = 36; step.index = 7; step.color = "#ff0000";
         doc.annotations.append(step);
 
+        // A white badge, whose number has to be dark to be seen at all.
+        var pale = Model.newAnnotation("step", 120, 10);
+        pale.w = 36; pale.h = 36; pale.index = 3; pale.color = "#ffffff";
+        doc.annotations.append(pale);
+
         var arrow = Model.newAnnotation("arrow", 320, 20);
         arrow.w = 60; arrow.h = 60; arrow.color = "#ff00ff"; arrow.width = 4;
         doc.annotations.append(arrow);

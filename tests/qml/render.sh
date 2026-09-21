@@ -76,6 +76,10 @@ else
 fi
 expect "box border is blue"                52  75     0   0 255
 expect "step badge is red"                352 140   255   0   0
+# The white badge at shot (120,10): its number is the only dark thing in it.
+badge="$(magick "$out/export.png" -crop 36x36+160+50 +repage -colorspace gray -format "%[fx:int(255*minima)]" info:)"
+[ "$badge" -lt 90 ] && echo "ok   a pale badge takes a dark number (min $badge)" \
+  || { echo "FAIL the number on a pale badge is invisible (min $badge)"; fail=1; }
 expect "arrow shaft is magenta"           390  90   255   0 255
 
 # The curved arrow runs flat from shot (250,175) to (330,175), so a straight

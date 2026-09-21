@@ -509,6 +509,16 @@ test("a multipoint preset places its colors around the frame", () => {
     ok(odd[1].r > 0, "a missing radius still gets one");
 });
 
+test("a number reads against the badge it sits on", () => {
+    eq(Model.textOn("#ffffff"), "#1b1b1b", "dark on white");
+    eq(Model.textOn("#ffbd2e"), "#1b1b1b", "and on a light amber");
+    eq(Model.textOn("#111111"), "#f0f0f0", "light on black");
+    eq(Model.textOn("#b0577f"), "#f0f0f0", "and on a mid plum");
+    // A QML colour arrives with its alpha in front when it is not opaque.
+    eq(Model.textOn("#ccffffff"), "#1b1b1b", "the alpha is not part of the colour");
+    eq(Model.textOn(""), "#e8e8e8", "and nothing readable falls back");
+});
+
 test("a press picks the mark it lands on, not the box around it", () => {
     const box = { kind: "box", x: 10, y: 10, w: 100, h: 50, width: 4 };
     ok(Model.hitAnnotation(box, 10, 35, 6), "on the left edge");

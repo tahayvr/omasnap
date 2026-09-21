@@ -244,7 +244,8 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: entry.a.index
-                        color: "#ffffff"
+                        // A white badge had a white number on it.
+                        color: Model.textOn(String(entry.ink))
                         font.family: Style.font.family
                         font.bold: true
                         font.pixelSize: Math.round(parent.width * 0.56)

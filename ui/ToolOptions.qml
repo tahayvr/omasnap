@@ -121,6 +121,9 @@ Loader {
             }
 
             InlineSlider {
+                // A step badge has no stroke: it is a filled disc, sized by
+                // the handles on it.
+                visible: opts.subject !== "step"
                 label: opts.subject === "text" ? "Size" : "Stroke"
                 value: opts.stroke
                 from: 1; to: 16
