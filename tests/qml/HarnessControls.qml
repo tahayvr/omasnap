@@ -48,6 +48,10 @@ Window {
         return out;
     }
 
+    // The editor itself, for the drawing surface alone: its move handler is
+    // called by hand below, since a harness has no pointer to push around.
+    Editor { id: editor; doc: doc; x: 3000; width: 900; height: 600 }
+
     // Off to the side as well: its handles are driven by hand below, since a
     // harness has no pointer to push around.
     CropOverlay {
@@ -263,6 +267,24 @@ Window {
         win.check("and stops at the edge of the picture", win.rectText(doc.cropRect), "200,100 200x100");
         cropper.finish();
         win.check("a move that size is still a crop", doc.cropUsable, true);
+
+        // ---- the drawing surface hovers as well as drags ------------------
+        // The crop selection used to follow the pointer with no button down,
+        // and picking the tool was enough to start one.
+        doc.cropRect = Qt.rect(0, 0, 0, 0);
+        editor.drawMove(300, 150, false);
+        win.check("a move with no button down draws nothing",
+                  win.rectText(doc.cropRect), "0,0 0x0");
+        editor.drawMove(300, 150, true);
+        win.check("and with one down it draws", win.rectText(doc.cropRect), "0,0 300x150");
+
+        doc.tool = "box";
+        doc.clearAnnotations();
+        var box = Model.newAnnotation("box", 10, 10);
+        doc.addAnnotation(box);
+        editor.drawMove(100, 80, false);
+        win.check("an annotation is not resized by a hover",
+                  doc.annotations.get(0).w, 0);
 
         Qt.quit();
     })

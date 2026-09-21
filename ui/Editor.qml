@@ -24,6 +24,32 @@ Rectangle {
     signal cropRequested()
     signal uncropRequested()
 
+    // The drawing surface hovers as well as drags, so `held` says whether the
+    // button is actually down. Every tool but crop had an annotation started
+    // on press to check instead; crop had nothing, and its selection followed
+    // the bare pointer around the picture. Callable, so the harness can hold
+    // that behaviour down without a mouse.
+    function drawMove(px, py, held) {
+        if (!held) return;
+
+        if (doc.tool === "crop") {
+            var r = Model.cropRect(draw.ox, draw.oy, px - draw.ox, py - draw.oy,
+                                   doc.shotWidth, doc.shotHeight);
+            doc.cropRect = Qt.rect(r.x, r.y, r.w, r.h);
+            return;
+        }
+
+        if (draw.activeId === "") return;
+        var i = doc.indexOfId(draw.activeId);
+        if (i < 0) return;
+        doc.annotations.setProperty(i, "w", px - draw.ox);
+        doc.annotations.setProperty(i, "h", py - draw.oy);
+        // Every other tool draws itself from the delegate, which follows the
+        // model on its own. The dim is one layer over the picture, so it only
+        // redraws when the document says something changed.
+        if (doc.tool === "spotlight") doc.annotationsEdited();
+    }
+
     readonly property Item exportTarget: grabRoot
     readonly property string repoUrl: "https://github.com/tahayvr/omasnap"
 
@@ -255,24 +281,8 @@ Rectangle {
                 }
 
                 onPositionChanged: function (e) {
-                    if (doc.tool === "crop") {
-                        var c = toShot(e.x, e.y);
-                        var r = Model.cropRect(draw.ox, draw.oy, c.x - draw.ox, c.y - draw.oy,
-                                               doc.shotWidth, doc.shotHeight);
-                        doc.cropRect = Qt.rect(r.x, r.y, r.w, r.h);
-                        return;
-                    }
-                    if (activeId === "") return;
                     var p = toShot(e.x, e.y);
-                    var i = doc.indexOfId(activeId);
-                    if (i < 0) return;
-                    doc.annotations.setProperty(i, "w", p.x - ox);
-                    doc.annotations.setProperty(i, "h", p.y - oy);
-                    // Every other tool draws itself from the delegate, which
-                    // follows the model on its own. The dim is one layer over
-                    // the picture, so it only redraws when the document says
-                    // something changed.
-                    if (doc.tool === "spotlight") doc.annotationsEdited();
+                    editor.drawMove(p.x, p.y, draw.pressed);
                 }
 
                 onReleased: function () {
