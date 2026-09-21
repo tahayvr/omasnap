@@ -147,7 +147,7 @@ Item {
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
     readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
-        "quality", "tool", "inkColor", "inkWidth", "spotShape", "spotDim",
+        "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "spotShape", "spotDim",
         "codeLang", "codeTheme", "codeFont", "codeNumbers"]
     function set(json) {
         var o;
@@ -174,6 +174,8 @@ Item {
             a.h = Number(o.h) || 0;
             a.color = o.color ? String(o.color) : String(doc.inkColor);
             a.width = Number(o.width) || doc.inkWidth;
+            a.style = o.style ? String(o.style)
+                    : (a.kind === "arrow" ? String(doc.arrowStyle) : "");
             a.text = o.text ? String(o.text) : "";
             a.strength = Number(o.strength) || Math.max(6, Math.round(doc.geo.shotW / 90));
             if (a.kind === "step") {

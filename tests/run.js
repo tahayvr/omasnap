@@ -509,6 +509,49 @@ test("a multipoint preset places its colors around the frame", () => {
     ok(odd[1].r > 0, "a missing radius still gets one");
 });
 
+test("an arrow is drawn from its style", () => {
+    const head = 10;
+    // Flat run to the right: the straight shaft sits on the line, stops short
+    // of the head, and the head points the way it was drawn.
+    const s = Model.arrowShape(100, 0, "straight", head);
+    eq(s.tailY, 0); eq(s.tipX, 100);
+    eq(s.cy, 0, "no bow");
+    eq(Math.round(s.angEnd * 100) / 100, 0, "the head points along the run");
+    eq(s.sx, 0, "the tail is where it was drawn");
+    ok(s.ex < 100 && s.ex > 90, "the shaft stops short of the head");
+    ok(s.headEnd && !s.headStart);
+
+    // Drawn up and to the left, the tip is the far corner, not the origin.
+    const back = Model.arrowShape(-100, -40, "straight", head);
+    eq(back.tailX, 100); eq(back.tailY, 40);
+    eq(back.tipX, 0); eq(back.tipY, 0);
+
+    // A curve leaves the chord: its control point is off to one side, and
+    // both ends aim at it rather than at each other.
+    const c = Model.arrowShape(100, 0, "curved", head);
+    eq(c.cx, 50, "still half way along");
+    eq(c.cy, -22, "and a fifth of the run to one side");
+    ok(c.angEnd > 0.3, "so the head turns with the curve");
+    ok(c.ey < 0, "and the shaft ends above the chord");
+
+    // A line has no head at all, so nothing is trimmed off it.
+    const line = Model.arrowShape(100, 0, "line", head);
+    ok(!line.headEnd && !line.headStart);
+    eq(line.sx, 0); eq(line.ex, 100, "the shaft runs the whole way");
+
+    // Two heads, and the shaft short at both ends.
+    const two = Model.arrowShape(100, 0, "double", head);
+    ok(two.headEnd && two.headStart);
+    ok(two.sx > 0 && two.ex < 100, "trimmed at both ends");
+    eq(Math.round(Math.abs(two.angStart) * 100) / 100, 3.14, "the tail head points back");
+
+    // An unknown style, and an annotation made before styles existed, are
+    // both the plain arrow.
+    eq(Model.arrowShape(100, 0, "", head).headEnd, true);
+    eq(Model.arrowShape(100, 0, undefined, head).cy, 0);
+    eq(Model.newAnnotation("arrow", 0, 0).style, "", "an arrow starts without one");
+});
+
 test("the spotlight dim is one path with a hole per spotlight", () => {
     const holes = Model.spotlightHoles([
         { kind: "box", x: 0, y: 0, w: 10, h: 10 },

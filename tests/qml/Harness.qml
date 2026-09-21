@@ -67,6 +67,12 @@ Window {
         arrow.w = 60; arrow.h = 60; arrow.color = "#ff00ff"; arrow.width = 4;
         doc.annotations.append(arrow);
 
+        // Bowing up from a flat run: its apex has to be off the chord.
+        var curve = Model.newAnnotation("arrow", 250, 175);
+        curve.w = 80; curve.h = 0; curve.color = "#00ffff"; curve.width = 4;
+        curve.style = "curved";
+        doc.annotations.append(curve);
+
         var label = Model.newAnnotation("text", 20, 150);
         label.text = "Hello"; label.color = "#000000"; label.width = 4;
         doc.annotations.append(label);

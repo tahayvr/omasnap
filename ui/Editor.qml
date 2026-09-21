@@ -212,6 +212,7 @@ Rectangle {
                     var a = Model.newAnnotation(doc.tool, p.x, p.y);
                     a.color = String(doc.inkColor);
                     a.width = doc.inkWidth;
+                    if (doc.tool === "arrow") a.style = String(doc.arrowStyle);
 
                     if (doc.tool === "step") {
                         var size = Math.max(22, Math.round(doc.inkWidth * 9));

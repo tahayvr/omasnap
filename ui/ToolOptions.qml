@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import "controls"
+import "../lib/Model.js" as Model
 import "../lib/Redact.js" as Redact
 
 // The middle of the header: what the current tool is for, rather than a fixed
@@ -54,6 +55,23 @@ Loader {
         id: inkComp
         Row {
             spacing: Ui.row
+
+            // Only arrows have more than one shape to draw.
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Ui.gap
+                visible: opts.doc.tool === "arrow"
+                Repeater {
+                    model: Model.ARROW_STYLES
+                    IconButton {
+                        required property var modelData
+                        glyph: modelData.glyph
+                        tip: modelData.label
+                        active: opts.doc.arrowStyle === modelData.key
+                        onClicked: opts.doc.setArrowStyle(modelData.key)
+                    }
+                }
+            }
 
             Row {
                 anchors.verticalCenter: parent.verticalCenter

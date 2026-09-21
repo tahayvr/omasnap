@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 import qs.Commons
+import "../lib/Model.js" as Model
 
 // Annotations live in screenshot pixel coordinates. Ids avoid `layer` and
 // `item`: every Item has a `layer` property and Loader exposes `item`, and
@@ -119,38 +120,59 @@ Item {
                     anchors.fill: parent
                     preferredRendererType: Shape.CurveRenderer
 
-                    readonly property real x1: entry.a.w >= 0 ? 0 : width
-                    readonly property real y1: entry.a.h >= 0 ? 0 : height
-                    readonly property real x2: entry.a.w >= 0 ? width : 0
-                    readonly property real y2: entry.a.h >= 0 ? height : 0
-                    readonly property real ang: Math.atan2(y2 - y1, x2 - x1)
                     readonly property real head: Math.max(entry.stroke * 3.2, 10)
-                    readonly property real bx: x2 - Math.cos(ang) * head * 0.82
-                    readonly property real by: y2 - Math.sin(ang) * head * 0.82
+                    readonly property var g: Model.arrowShape(entry.a.w, entry.a.h,
+                                                              entry.a.style, arw.head)
 
                     ShapePath {
                         strokeColor: entry.ink
                         strokeWidth: entry.stroke
                         capStyle: ShapePath.RoundCap
                         fillColor: "transparent"
-                        startX: arw.x1
-                        startY: arw.y1
-                        PathLine { x: arw.bx; y: arw.by }
+                        startX: arw.g.sx
+                        startY: arw.g.sy
+                        // Straight is the same curve with its control point on
+                        // the midpoint, so there is only ever one shaft.
+                        PathQuad {
+                            x: arw.g.ex
+                            y: arw.g.ey
+                            controlX: arw.g.cx
+                            controlY: arw.g.cy
+                        }
                     }
+
+                    // A ShapePath cannot be hidden, so a head that is not
+                    // wanted is filled with nothing.
                     ShapePath {
                         strokeColor: "transparent"
-                        fillColor: entry.ink
-                        startX: arw.x2
-                        startY: arw.y2
+                        fillColor: arw.g.headEnd ? entry.ink : "transparent"
+                        startX: arw.g.tipX
+                        startY: arw.g.tipY
                         PathLine {
-                            x: arw.x2 - Math.cos(arw.ang - 0.42) * arw.head
-                            y: arw.y2 - Math.sin(arw.ang - 0.42) * arw.head
+                            x: arw.g.tipX - Math.cos(arw.g.angEnd - 0.42) * arw.head
+                            y: arw.g.tipY - Math.sin(arw.g.angEnd - 0.42) * arw.head
                         }
                         PathLine {
-                            x: arw.x2 - Math.cos(arw.ang + 0.42) * arw.head
-                            y: arw.y2 - Math.sin(arw.ang + 0.42) * arw.head
+                            x: arw.g.tipX - Math.cos(arw.g.angEnd + 0.42) * arw.head
+                            y: arw.g.tipY - Math.sin(arw.g.angEnd + 0.42) * arw.head
                         }
-                        PathLine { x: arw.x2; y: arw.y2 }
+                        PathLine { x: arw.g.tipX; y: arw.g.tipY }
+                    }
+
+                    ShapePath {
+                        strokeColor: "transparent"
+                        fillColor: arw.g.headStart ? entry.ink : "transparent"
+                        startX: arw.g.tailX
+                        startY: arw.g.tailY
+                        PathLine {
+                            x: arw.g.tailX - Math.cos(arw.g.angStart - 0.42) * arw.head
+                            y: arw.g.tailY - Math.sin(arw.g.angStart - 0.42) * arw.head
+                        }
+                        PathLine {
+                            x: arw.g.tailX - Math.cos(arw.g.angStart + 0.42) * arw.head
+                            y: arw.g.tailY - Math.sin(arw.g.angStart + 0.42) * arw.head
+                        }
+                        PathLine { x: arw.g.tailX; y: arw.g.tailY }
                     }
                 }
             }

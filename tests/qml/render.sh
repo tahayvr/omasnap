@@ -78,6 +78,12 @@ expect "box border is blue"                52  75     0   0 255
 expect "step badge is red"                352 140   255   0   0
 expect "arrow shaft is magenta"           390  90   255   0 255
 
+# The curved arrow runs flat from shot (250,175) to (330,175), so a straight
+# one would be at export y 215 all the way. Bowed, it passes through 206 and
+# leaves the chord bare.
+expect "curved arrow bows off the chord"  330 206     0 255 255
+expect "and the chord is left bare"       330 215     0   0   0
+
 # The unredacted part of the stripe band must come out pixel for pixel: the
 # export path is expected to be exact, not merely close.
 if [ $gpu = 1 ]; then

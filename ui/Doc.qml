@@ -56,6 +56,7 @@ QtObject {
     property string tool: "select"
     property color inkColor: "#ff5f56"
     property real inkWidth: 4
+    property string arrowStyle: "straight"
     property int stepCounter: 0
     property string selectedId: ""
 
@@ -118,6 +119,14 @@ QtObject {
         annotations.append(obj);
         selectedId = obj.uid;
         annotationsEdited();
+    }
+
+    // What the next arrow will be, and the one just drawn: an arrow is
+    // selected the moment it is finished, so the choice reads as live.
+    function setArrowStyle(key) {
+        arrowStyle = key;
+        var a = selectedAnnotation();
+        if (a && a.kind === "arrow") updateAnnotation(a.uid, { style: key });
     }
 
     function indexOfId(uid) {
@@ -185,7 +194,7 @@ QtObject {
         frame = "none"; tool = "select";
         bgMode = "auto"; bgSolid = "#1e222a"; bgGradient = "dusk";
         spotShape = "rect"; spotDim = 55;
-        inkColor = "#ff5f56"; inkWidth = 4;
+        inkColor = "#ff5f56"; inkWidth = 4; arrowStyle = "straight";
         exportScale = 1; format = "png"; quality = 92;
         codeTheme = "omarchy"; codeFont = 16; codeNumbers = false;
     }
