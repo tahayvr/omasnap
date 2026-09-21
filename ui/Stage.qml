@@ -296,7 +296,7 @@ Item {
     AnnotationLayer {
         doc: stage.doc
         pixelSource: stage.codeKind ? codeSource : pixelSource
-        interactive: stage.interactive && stage.doc.tool === "select" && !stage.doc.exporting
+        interactive: stage.interactive && !stage.doc.exporting
         viewScale: stage.viewScale * stage.unit
         x: (stage.geo.cardX + stage.geo.inset) * stage.unit
         y: (stage.geo.cardY + stage.geo.chromeH + stage.geo.inset) * stage.unit

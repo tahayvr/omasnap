@@ -11,7 +11,16 @@ Item {
 
     property var doc: null
     property Item pixelSource: null
+    // The live editor, as against the export or the bar widget's preview.
     property bool interactive: false
+    // With the move tool every mark is there to be taken. With a tool that
+    // draws, only the one just drawn is, so a press anywhere else still
+    // starts a new mark.
+    readonly property bool moving: anno.doc !== null && anno.doc.tool === "select"
+    // Cropping is about the picture, not the marks on it: the whole surface
+    // belongs to the selection being drawn.
+    readonly property bool editable: anno.interactive && anno.doc !== null
+                                     && anno.doc.tool !== "crop"
 
     property real viewScale: 1
 
@@ -34,6 +43,7 @@ Item {
 
             readonly property var a: model
             readonly property bool selected: anno.doc.selectedId === a.uid
+            readonly property bool grabbable: anno.editable && (anno.moving || entry.selected)
             readonly property color ink: (a.color && a.color !== "")
                                          ? a.color : anno.doc.inkColor
             readonly property real stroke: Math.max(1, a.width)
@@ -256,7 +266,7 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: -4 / anno.viewScale
-                visible: anno.interactive && entry.selected && !anno.doc.exporting
+                visible: anno.editable && entry.selected && !anno.doc.exporting
                 color: "transparent"
                 border.color: Color.accent
                 border.width: anno.hairline
@@ -269,14 +279,20 @@ Item {
                 anchors.margins: -anno.slop
                 enabled: anno.interactive
                 hoverEnabled: anno.interactive
-                // Says which presses this mark will take: over its hollow
-                // middle the press goes to whatever is underneath, so the
-                // cursor must not promise a move there.
-                cursorShape: Model.hitAnnotation(entry.a,
-                                                 entry.originX - anno.slop + hold.mouseX,
-                                                 entry.originY - anno.slop + hold.mouseY,
-                                                 anno.slop, entry.width, entry.height)
-                             ? Qt.SizeAllCursor : Qt.ArrowCursor
+
+                // Whether a press here lands on the mark rather than in the
+                // hollow middle of it or off the line of an arrow.
+                readonly property bool onMark: Model.hitAnnotation(
+                    entry.a,
+                    entry.originX - anno.slop + hold.mouseX,
+                    entry.originY - anno.slop + hold.mouseY,
+                    anno.slop, entry.width, entry.height)
+
+                // The cursor promises only what a press will do: a move where
+                // one is on offer, and otherwise whatever the surface
+                // underneath would have shown.
+                cursorShape: (hold.onMark && entry.grabbable) ? Qt.SizeAllCursor
+                           : anno.moving ? Qt.ArrowCursor : Qt.CrossCursor
                 drag.target: entry
                 drag.threshold: 2
 
@@ -287,8 +303,9 @@ Item {
                 // underneath.
                 onPressed: function (e) {
                     var p = mapToItem(anno, e.x, e.y);
-                    if (!Model.hitAnnotation(entry.a, p.x, p.y, anno.slop,
-                                             entry.width, entry.height)) {
+                    if (!entry.grabbable
+                            || !Model.hitAnnotation(entry.a, p.x, p.y, anno.slop,
+                                                    entry.width, entry.height)) {
                         e.accepted = false;
                         return;
                     }
@@ -313,7 +330,7 @@ Item {
                     required property int index
                     readonly property var spot: Model.resizeHandles(entry.a)[knob.index] || null
 
-                    visible: knob.spot !== null && anno.interactive && entry.selected
+                    visible: knob.spot !== null && anno.editable && entry.selected
                              && !anno.doc.exporting
                     x: (knob.spot ? knob.spot.x - entry.originX : 0) - width / 2
                     y: (knob.spot ? knob.spot.y - entry.originY : 0) - height / 2

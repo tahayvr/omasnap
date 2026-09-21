@@ -420,6 +420,24 @@ Window {
         win.check("and so did the third",
                   doc.annotations.get(2).x + "," + doc.annotations.get(2).y, "200,40");
 
+        // What a press on a mark does depends on the tool: with the move tool
+        // every mark is there to be taken, with a tool that draws only the
+        // one just drawn, and while cropping none of them are.
+        function grabs() {
+            return win.entries(marks, []).map(function (e) { return e.grabbable ? "1" : "0"; }).join("");
+        }
+        doc.selectedId = doc.annotations.get(1).uid;
+        doc.tool = "select";
+        win.check("with the move tool, any of them", grabs(), "111");
+        doc.tool = "box";
+        win.check("with a drawing tool, the one in hand", grabs(), "010");
+        doc.selectedId = "";
+        win.check("and none when nothing is selected", grabs(), "000");
+        doc.selectedId = doc.annotations.get(1).uid;
+        doc.tool = "crop";
+        win.check("none while cropping", grabs(), "000");
+        doc.tool = "select";
+
         // A resize goes through the document the same way, and a patch of a
         // few properties must leave the rest of the mark alone.
         doc.annotations.setProperty(1, "color", "#123456");
