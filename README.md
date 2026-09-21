@@ -74,7 +74,7 @@ before you enable it.
 ## Usage
 
 Enabling the plugin puts an OmaSnap button 󰆟  in the bar. Left-click it to grab a
-region, middle-click to make a code card from the selected text, right-click
+region or window, middle-click to make a code card from the selected text, right-click
 for a menu: region, window, code card, or the editor. Move it with:
 
 ```sh
