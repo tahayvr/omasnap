@@ -46,7 +46,7 @@ BarWidget {
         onPressed: function (mouseButton) {
             if (mouseButton === Qt.RightButton) menu.open = !menu.open;
             else if (mouseButton === Qt.MiddleButton) root.summon('{"code":true}');
-            else root.summon('{"capture":"region"}');
+            else root.summon('{"capture":"smart"}');
         }
     }
 
