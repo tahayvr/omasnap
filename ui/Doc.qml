@@ -171,7 +171,10 @@ QtObject {
             annotations.remove(i);
             gone++;
         }
-        if (gone > 0) annotationsEdited();
+        if (gone > 0) {
+            renumberSteps();
+            annotationsEdited();
+        }
         return gone;
     }
 
@@ -198,7 +201,22 @@ QtObject {
         if (i < 0) return;
         if (selectedId === uid) selectedId = "";
         annotations.remove(i);
+        renumberSteps();
         annotationsEdited();
+    }
+
+    // Steps are read as a sequence, so losing one in the middle must not
+    // leave a hole in it: the rest close up, in the order they were made,
+    // and the next one carries on from the end.
+    function renumberSteps() {
+        var n = 0;
+        for (var i = 0; i < annotations.count; i++) {
+            if (annotations.get(i).kind !== "step") continue;
+            n++;
+            if (annotations.get(i).index !== n) annotations.setProperty(i, "index", n);
+        }
+        stepCounter = n;
+        return n;
     }
 
     function clearAnnotations() {
@@ -211,9 +229,8 @@ QtObject {
     function undo() {
         if (annotations.count === 0) return;
         selectedId = "";
-        var last = annotations.get(annotations.count - 1);
-        if (last.kind === "step") stepCounter = Math.max(0, stepCounter - 1);
         annotations.remove(annotations.count - 1);
+        renumberSteps();
         annotationsEdited();
     }
 

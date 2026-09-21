@@ -343,6 +343,60 @@ Window {
         win.check("with nothing selected there is nothing to restyle",
                   doc.styleSelection("color", "#ff0000"), false);
 
+        // ---- a step sequence closes up -------------------------------------
+        doc.clearAnnotations();
+        var steps = [];
+        for (var n = 0; n < 5; n++) {
+            var st = Model.newAnnotation("step", n * 40, 10);
+            st.w = 30; st.h = 30;
+            doc.stepCounter += 1;
+            st.index = doc.stepCounter;
+            doc.annotations.append(st);
+            steps.push(st);
+        }
+        // A mark of another kind in among them must not take a number.
+        var line = Model.newAnnotation("box", 0, 200); line.w = 40; line.h = 40;
+        doc.annotations.append(line);
+        doc.annotationsEdited();
+
+        function sequence() {
+            var out = [];
+            for (var i = 0; i < doc.annotations.count; i++) {
+                var a = doc.annotations.get(i);
+                if (a.kind === "step") out.push(a.index);
+            }
+            return out.join(",");
+        }
+        win.check("five steps in order", sequence(), "1,2,3,4,5");
+
+        doc.removeAnnotation(steps[2].uid);
+        win.check("the third goes and the rest close up", sequence(), "1,2,3,4");
+        win.check("so the next one carries on from the end", doc.stepCounter, 4);
+        win.check("and the box is still there", doc.annotations.count, 5);
+
+        doc.removeAnnotation(steps[0].uid);
+        win.check("and again from the front", sequence(), "1,2,3");
+
+        doc.undo();
+        win.check("undo takes the box, which was last", sequence(), "1,2,3");
+        doc.undo();
+        win.check("and again once a step goes", sequence(), "1,2");
+        win.check("with the counter following", doc.stepCounter, 2);
+
+        // What a crop cuts away leaves the same tidy sequence behind.
+        doc.clearAnnotations();
+        for (var j = 0; j < 4; j++) {
+            var sp = Model.newAnnotation("step", j * 300, 10);
+            sp.w = 30; sp.h = 30;
+            doc.stepCounter += 1;
+            sp.index = doc.stepCounter;
+            doc.annotations.append(sp);
+        }
+        doc.annotationsEdited();
+        win.check("four steps across the picture", sequence(), "1,2,3,4");
+        doc.dropOutside(320, 200);
+        win.check("two are cut away and the rest close up", sequence(), "1,2");
+
         // ---- handles on the selected mark ----------------------------------
         doc.clearAnnotations();
         doc.tool = "select";
