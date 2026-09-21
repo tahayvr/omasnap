@@ -17,7 +17,8 @@ Item {
         { key: "text",      glyph: "T",      name: "Text",      hint: "T" },
         { key: "step",      glyph: "①", name: "Step",      hint: "S" },
         { key: "highlight", glyph: "▤", name: "Highlight", hint: "H" },
-        { key: "redact",    glyph: "░", name: "Hide",      hint: "B" }
+        { key: "redact",    glyph: "░", name: "Hide",      hint: "B" },
+        { key: "spotlight", glyph: "◎", name: "Spotlight", hint: "L" }
     ]
 
     implicitWidth: Ui.button + Ui.row * 2

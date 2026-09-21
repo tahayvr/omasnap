@@ -150,6 +150,35 @@ Window {
     Timer {
         id: oddTimer
         interval: 250
-        onTriggered: win.grab("export-odd", function () { Qt.quit(); })
+        onTriggered: win.grab("export-odd", function () {
+            // Back to the first frame, with everything but a spotlight
+            // cleared: the dim has to land on the picture and nowhere else.
+            doc.padding = 10;
+            doc.clearAnnotations();
+            // Clear of the stripe band, so the hole is plain white and a
+            // dimmed reading cannot be confused with the stripes.
+            var spot = Model.newAnnotation("spotlight", 10, 10);
+            spot.w = 80; spot.h = 180;
+            doc.addAnnotation(spot);
+            doc.selectedId = "";
+            doc.spotShape = "rect";
+            doc.spotDim = 60;
+            spotTimer.start();
+        })
+    }
+
+    Timer {
+        id: spotTimer
+        interval: 250
+        onTriggered: win.grab("export-spot", function () {
+            doc.spotShape = "ellipse";
+            ovalTimer.start();
+        })
+    }
+
+    Timer {
+        id: ovalTimer
+        interval: 250
+        onTriggered: win.grab("export-spot-oval", function () { Qt.quit(); })
     }
 }

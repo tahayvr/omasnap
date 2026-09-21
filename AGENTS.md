@@ -76,6 +76,15 @@ Imposed by the host, so none of it is negotiable from in here.
   the `.qsb` with the command in the shader's header after editing it, and
   commit both. Meshes still go through `QtQuick.Shapes`. `half` is a
   reserved word in the shader language qsb compiles.
+- **The spotlight dim is one filled path for every spotlight**
+  (`ui/Spotlight.qml`, `Model.spotlightPath`): drawn one per annotation they
+  would darken twice where two overlap. It is the picture's outline plus a
+  subpath per spotlight, filled odd-even, and a hole is clamped to the
+  outline — past it the odd-even rule fills the hole in instead of punching
+  it out, which showed as a dark wedge outside the card. A `ListModel` emits
+  nothing a binding can follow, so the path rides on `doc.annotationRevision`,
+  and anything that moves a spotlight without going through `addAnnotation`
+  has to call `annotationsEdited()` for the dim to keep up.
 - Redaction samples a hidden full-size `Image` through a `ShaderEffectSource`
   with a tiny `textureSize` and `smooth: false`, so each block is one sample
   with nothing to sharpen back out.

@@ -246,6 +246,11 @@ Rectangle {
                     if (i < 0) return;
                     doc.annotations.setProperty(i, "w", p.x - ox);
                     doc.annotations.setProperty(i, "h", p.y - oy);
+                    // Every other tool draws itself from the delegate, which
+                    // follows the model on its own. The dim is one layer over
+                    // the picture, so it only redraws when the document says
+                    // something changed.
+                    if (doc.tool === "spotlight") doc.annotationsEdited();
                 }
 
                 onReleased: function () {

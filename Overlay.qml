@@ -147,7 +147,8 @@ Item {
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
     readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
-        "quality", "tool", "inkColor", "inkWidth", "codeLang", "codeTheme", "codeFont", "codeNumbers"]
+        "quality", "tool", "inkColor", "inkWidth", "spotShape", "spotDim",
+        "codeLang", "codeTheme", "codeFont", "codeNumbers"]
     function set(json) {
         var o;
         try { o = JSON.parse(json); } catch (e) { return "bad json"; }
@@ -664,6 +665,7 @@ Item {
         map[Qt.Key_R] = "box";     map[Qt.Key_O] = "ellipse";
         map[Qt.Key_T] = "text";    map[Qt.Key_S] = "step";
         map[Qt.Key_H] = "highlight"; map[Qt.Key_B] = "redact";
+        map[Qt.Key_L] = "spotlight";
         if (map[event.key] !== undefined) {
             doc.tool = map[event.key];
             doc.selectedId = "";

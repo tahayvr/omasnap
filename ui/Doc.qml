@@ -61,6 +61,13 @@ QtObject {
 
     property var redactClasses: ["email", "secret", "card", "net", "phone"]
 
+    property string spotShape: "rect"       // rect | ellipse, for every spotlight
+    property real spotDim: 55               // how dark the rest of the picture goes
+    property int spotlightCount: 0
+    // A ListModel emits nothing a binding can follow, so the dim layer and the
+    // count above ride on this instead.
+    property int annotationRevision: 0
+
     // True for the grab frame; editing affordances bind to it.
     property bool exporting: false
 
@@ -83,6 +90,14 @@ QtObject {
 
     // Not `annotationsChanged`: that name belongs to the property.
     signal annotationsEdited()
+
+    onAnnotationsEdited: {
+        var n = 0;
+        for (var i = 0; i < annotations.count; i++)
+            if (annotations.get(i).kind === "spotlight") n++;
+        spotlightCount = n;
+        annotationRevision++;
+    }
 
     property string _previousSelectedId: ""
 
@@ -169,6 +184,7 @@ QtObject {
         radius = 3; shadow = 45;
         frame = "none"; tool = "select";
         bgMode = "auto"; bgSolid = "#1e222a"; bgGradient = "dusk";
+        spotShape = "rect"; spotDim = 55;
         inkColor = "#ff5f56"; inkWidth = 4;
         exportScale = 1; format = "png"; quality = 92;
         codeTheme = "omarchy"; codeFont = 16; codeNumbers = false;

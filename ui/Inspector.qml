@@ -289,6 +289,39 @@ Flickable {
         }
 
         Section {
+            title: "Spotlight"
+            // Only once it is in play: it is the one tool with settings, and
+            // an empty section would sit on every other screenshot.
+            visible: doc.spotlightCount > 0 || doc.tool === "spotlight"
+
+            Text {
+                width: parent.width
+                visible: doc.spotlightCount === 0
+                wrapMode: Text.WordWrap
+                text: "Drag over the part worth looking at; the rest of the picture dims."
+                color: Ui.textMuted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            Segmented {
+                current: doc.spotShape
+                options: [
+                    { key: "rect",    label: "Rectangle" },
+                    { key: "ellipse", label: "Ellipse" }
+                ]
+                onPicked: function (k) { doc.spotShape = k; }
+            }
+
+            LabeledSlider {
+                label: "Dim"
+                value: doc.spotDim
+                from: 0; to: 90; decimals: 0; suffix: "%"
+                onMoved: function (v) { doc.spotDim = Math.round(v); }
+            }
+        }
+
+        Section {
             title: "Hide sensitive data"
             visible: doc.kind === "shot"
 

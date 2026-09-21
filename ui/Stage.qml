@@ -93,8 +93,9 @@ Item {
     readonly property real shadowDrop: stage.shadowRoom * 0.25 * stage.shadowAmount
     readonly property real shadowAlpha: 0.62 * stage.shadowAmount
 
-    readonly property real cardRadius: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
-                                                Math.min(geo.cardW, geo.cardH) / 2) * unit
+    readonly property real cardRadiusPx: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
+                                                  Math.min(geo.cardW, geo.cardH) / 2)
+    readonly property real cardRadius: stage.cardRadiusPx * unit
 
     Rectangle {
         anchors.fill: parent
@@ -270,6 +271,21 @@ Item {
         height: Math.max(1, stage.geo.shotH)
         color: stage.doc.codeBg
         CodeBlock { doc: stage.doc }
+    }
+
+    // Over the picture and under the annotations: an arrow drawn on a dimmed
+    // area stays as bright as one drawn on the spotlight.
+    Spotlight {
+        doc: stage.doc
+        holeOffset: stage.geo.inset
+        topRadius: stage.geo.chromeH > 0 ? 0 : stage.cardRadiusPx
+        bottomRadius: stage.cardRadiusPx
+        x: stage.geo.cardX * stage.unit
+        y: (stage.geo.cardY + stage.geo.chromeH) * stage.unit
+        width: Math.max(1, stage.geo.cardW)
+        height: Math.max(1, stage.geo.cardH - stage.geo.chromeH)
+        transformOrigin: Item.TopLeft
+        scale: stage.unit
     }
 
     // In shot pixels, scaled into place.

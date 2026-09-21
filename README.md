@@ -30,6 +30,8 @@ the picture that should not be public.
 
 **Annotation**
 - Arrows, boxes, ellipses, highlighter, text labels and numbered steps
+- Spotlight a rectangle or an ellipse and the rest of the screenshot dims,
+  leaving the background as it is
 - Drag to move, and they stay pinned to the Snap when you reframe
 
 ![Annotations](assets/showcase/annotations.png)
@@ -97,7 +99,7 @@ clipboard if nothing is highlighted.
 
 | Key | Action |
 | --- | --- |
-| `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B` | move, arrow, box, ellipse, text, step, highlight, hide |
+| `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B`, `L` | move, arrow, box, ellipse, text, step, highlight, hide, spotlight |
 | `Ctrl+C` / `Ctrl+S` | copy / save |
 | `Ctrl+Shift+S` | Save as, through the system file dialog |
 | `Ctrl+Z` | undo |

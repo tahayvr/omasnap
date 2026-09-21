@@ -499,6 +499,43 @@ test("a multipoint preset places its colors around the frame", () => {
     ok(odd[1].r > 0, "a missing radius still gets one");
 });
 
+test("the spotlight dim is one path with a hole per spotlight", () => {
+    const holes = Model.spotlightHoles([
+        { kind: "box", x: 0, y: 0, w: 10, h: 10 },
+        { kind: "spotlight", x: 30, y: 40, w: 20, h: 20 },
+        { kind: "spotlight", x: 90, y: 90, w: -20, h: -20 }
+    ], 5, "rect");
+    eq(holes.length, 2, "only spotlights punch holes");
+    eq(holes[0].x, 35, "moved past the inset");
+    eq(holes[1].x, 75, "a hole drawn up and to the left is normalised");
+    eq(holes[1].w, 20);
+
+    // Two subpaths: the picture, then the hole. Odd-even fills between them.
+    const one = Model.spotlightPath(100, 100, 0, 0, [{ x: 20, y: 20, w: 30, h: 30 }]);
+    eq(one.split("M").length - 1, 2, "one hole, two subpaths");
+    ok(one.indexOf("M20,20H50V50H20V20Z") !== -1, "the hole is where it was put");
+    eq(Model.spotlightPath(100, 100, 0, 0, []).split("M").length - 1, 1, "no spotlight, no hole");
+
+    // A hole hanging off the picture is clamped: past the outline the odd-even
+    // rule would fill it in rather than punch it out.
+    const over = Model.spotlightPath(100, 100, 0, 0, [{ x: -40, y: -40, w: 80, h: 80 }]);
+    ok(over.indexOf("M0,0H40V40H0V0Z") !== -1, "clamped to the picture");
+    eq(Model.spotlightPath(100, 100, 0, 0, [{ x: 200, y: 0, w: 20, h: 20 }]).split("M").length - 1, 1,
+       "a hole entirely outside is dropped");
+
+    // Reaching a rounded corner, the hole takes that corner's radius, so it
+    // follows the card instead of cutting across it.
+    const hole = (p) => p.split("M").slice(2).join("M");   // subpath 1 is the picture
+    ok(hole(Model.spotlightPath(100, 100, 12, 8, [{ x: 0, y: 0, w: 50, h: 50 }]))
+        .indexOf("A12,12 0 0 1 12,0Z") !== -1, "the hole rounds off the top left");
+    ok(hole(Model.spotlightPath(100, 100, 12, 8, [{ x: 20, y: 20, w: 50, h: 50 }]))
+        .indexOf("A") === -1, "a hole away from the corners stays square");
+
+    // An ellipse closes on itself, so the fill has an inside to leave alone.
+    const oval = Model.spotlightPath(100, 100, 0, 0, [{ x: 0, y: 0, w: 100, h: 60, shape: "ellipse" }]);
+    ok(oval.indexOf("M0,30A50,30 0 0 1 100,30A50,30 0 0 1 0,30Z") !== -1, "two half arcs");
+});
+
 test("a chosen save path is given the extension the format needs", () => {
     // magick reads the encoder off the extension, so a typed name without
     // one, or with the other format's, has to be corrected.

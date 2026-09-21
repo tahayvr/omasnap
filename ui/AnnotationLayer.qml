@@ -36,6 +36,16 @@ Item {
             width: sizedByContent ? Math.max(1, body.implicitWidth) : Math.max(1, Math.abs(a.w))
             height: sizedByContent ? Math.max(1, body.implicitHeight) : Math.max(1, Math.abs(a.h))
 
+            // Keeping the sign of w/h, which says which way it was drawn.
+            function commit() {
+                var nx = entry.x + (entry.a.w < 0 ? -entry.a.w : 0);
+                var ny = entry.y + (entry.a.h < 0 ? -entry.a.h : 0);
+                anno.doc.annotations.setProperty(entry.index, "x", nx);
+                anno.doc.annotations.setProperty(entry.index, "y", ny);
+                anno.doc.annotationsEdited();
+            }
+
+            // Restores what the drag overwrote.
             function rebind() {
                 entry.x = Qt.binding(function () { return Math.min(entry.a.x, entry.a.x + entry.a.w); });
                 entry.y = Qt.binding(function () { return Math.min(entry.a.y, entry.a.y + entry.a.h); });
@@ -52,6 +62,9 @@ Item {
                     case "highlight": return highlightComp;
                     case "text":      return textComp;
                     case "step":      return stepComp;
+                    // The dim is one layer under every annotation, so a
+                    // spotlight has nothing of its own to draw here.
+                    case "spotlight": return null;
                     }
                     return boxComp;
                 }
@@ -224,15 +237,12 @@ Item {
                 drag.threshold: 2
 
                 onPressed: anno.doc.selectedId = entry.a.uid
+                // The dim is drawn from the model, so a spotlight has to write
+                // its move back as it happens or the hole lags behind the drag.
+                onPositionChanged: if (entry.a.kind === "spotlight") entry.commit()
                 onReleased: {
-                    // Write the move back keeping the sign of w/h, then restore
-                    // the bindings the drag overwrote.
-                    var nx = entry.x + (entry.a.w < 0 ? -entry.a.w : 0);
-                    var ny = entry.y + (entry.a.h < 0 ? -entry.a.h : 0);
-                    anno.doc.annotations.setProperty(entry.index, "x", nx);
-                    anno.doc.annotations.setProperty(entry.index, "y", ny);
+                    entry.commit();
                     entry.rebind();
-                    anno.doc.annotationsEdited();
                 }
             }
         }
