@@ -23,7 +23,8 @@ Imposed by the host, so none of it is negotiable from in here.
   telling the shell, or `toggle` desyncs.
 - `call <id> <fn> <arg>` invokes any root function and returns its string
   result (`undefined` becomes `ok`). Public surface: `edit`, `capture`, `code`,
-  `pick`, `save`, `copy`, `redact`, `copyText`, `set`, `info`, `annotate`.
+  `pick`, `save`, `saveAs`, `copy`, `crop`, `uncrop`, `redact`, `copyText`,
+  `set`, `info`, `annotate`.
   Keep those names stable; the README documents them. `info` cannot be called
   `state` because `Item` already has one.
 - **The CLI splits an argument starting with `[` on commas, and splits on
@@ -108,6 +109,10 @@ Imposed by the host, so none of it is negotiable from in here.
   that also displays a live value has to restore it with `Qt.binding`.
 - **A `Flow` cannot be sized from its own implicit width.** Give it
   `parent.width` or an explicit width.
+- **A plain `{x, y, w, h}` assigned to a `rect` property loses its size.** A
+  QML rect spells that `width`/`height`, and the mismatch is silent: the crop
+  selection arrived 1900 wide and came out zero. Assign `Qt.rect(...)`, and
+  read a rect that crosses into JavaScript through `Model.rectW`/`rectH`.
 - Properties on non-root items are not in scope unqualified: write
   `track.norm`, not `norm`. The Qt 6 linter flags these `[unqualified]`.
 - Annotations use the role `uid`, not `id`, to stay clear of the keyword.
@@ -154,6 +159,14 @@ Imposed by the host, so none of it is negotiable from in here.
   time the overlay goes away, and only the destination is still unknown.
   `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick [open|save]` flashes either
   dialog for a test.
+- **A crop never touches the file it came from.** `doc.cropSource` stays on
+  the picture as it was opened and `doc.cropOffset` says how far the cut has
+  moved, so a second crop is taken from the source at the summed offset
+  rather than from a re-encode of a re-encode, and `uncrop` is a reload.
+  `bin/snap-crop` writes into the scratch directory under a name made from
+  the cut, since Qt's image cache is keyed on the URL. Every crop shifts the
+  annotations with the picture, which is what keeps redaction, OCR boxes and
+  the annotation layer in one coordinate space.
 - **Qt's image cache is keyed on the URL**, so reopening a file that changed
   under the same path hands back the old picture at the old size. Every load
   bumps `doc.shotRevision`, which rides on the URL as a fragment.

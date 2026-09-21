@@ -17,11 +17,14 @@ Loader {
     signal codeRequested()
     signal openRequested()
     signal autoRedactRequested()
+    signal cropRequested()
+    signal uncropRequested()
 
     readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step"]
 
     sourceComponent: {
         if (!doc.hasContent || doc.tool === "select") return captureComp;
+        if (doc.tool === "crop") return cropComp;
         if (doc.tool === "spotlight") return spotlightComp;
         if (doc.tool === "redact") return redactComp;
         if (opts.inkTools.indexOf(doc.tool) !== -1) return inkComp;
@@ -129,6 +132,40 @@ Loader {
                 from: 0; to: 90
                 suffix: "%"
                 onMoved: function (v) { opts.doc.spotDim = Math.round(v); }
+            }
+        }
+    }
+
+    Component {
+        id: cropComp
+        Row {
+            spacing: Ui.gap
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: opts.doc.cropUsable
+                      ? Math.round(opts.doc.cropRect.width) + " \u00d7 " + Math.round(opts.doc.cropRect.height) + " px"
+                      : "Drag over the part to keep"
+                color: opts.doc.cropUsable ? Ui.text : Ui.textMuted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+            }
+
+            IconButton {
+                glyph: "\uf125"
+                label: "Crop"
+                primary: opts.doc.cropUsable
+                enabled: opts.doc.cropUsable
+                tip: "Keep the selection (Enter)"
+                onClicked: opts.cropRequested()
+            }
+
+            IconButton {
+                visible: opts.doc.cropped
+                glyph: "\u21ba"
+                label: "Whole picture"
+                tip: "Back to the picture as it came in"
+                onClicked: opts.uncropRequested()
             }
         }
     }

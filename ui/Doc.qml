@@ -8,6 +8,7 @@ QtObject {
     // pixel size through shotWidth/shotHeight so the frame maths is shared.
     property string kind: "shot"            // shot | code
     property string shotPath: ""
+    property string shotName: ""            // what to call it, whatever a crop is pointing at
     property int shotWidth: 0
     property int shotHeight: 0
     // Bumped on every load so a file that changed under the same path gets
@@ -61,6 +62,15 @@ QtObject {
     property string selectedId: ""
 
     property var redactClasses: ["email", "secret", "card", "net", "phone"]
+
+    // Cropping never touches the file it started from: the picture on show is
+    // a fresh cut of cropSource, and cropOffset says how far it has moved, so
+    // the crop can be widened again or dropped entirely.
+    property string cropSource: ""
+    property point cropOffset: Qt.point(0, 0)
+    property bool cropped: false
+    property rect cropRect: Qt.rect(0, 0, 0, 0)   // the selection being drawn
+    readonly property bool cropUsable: Model.cropUsable(cropRect)
 
     property string spotShape: "rect"       // rect | ellipse, for every spotlight
     property real spotDim: 55               // how dark the rest of the picture goes
@@ -129,6 +139,17 @@ QtObject {
         if (a && a.kind === "arrow") updateAnnotation(a.uid, { style: key });
     }
 
+    // A crop moves the picture out from under everything drawn on it.
+    function shiftAnnotations(dx, dy) {
+        if (dx === 0 && dy === 0) return;
+        for (var i = 0; i < annotations.count; i++) {
+            var a = annotations.get(i);
+            annotations.setProperty(i, "x", a.x + dx);
+            annotations.setProperty(i, "y", a.y + dy);
+        }
+        annotationsEdited();
+    }
+
     function indexOfId(uid) {
         for (var i = 0; i < annotations.count; i++)
             if (annotations.get(i).uid === uid) return i;
@@ -180,6 +201,11 @@ QtObject {
         shotHeight = 0;
         codeText = "";
         codeHtml = "";
+        shotName = "";
+        cropSource = "";
+        cropOffset = Qt.point(0, 0);
+        cropped = false;
+        cropRect = Qt.rect(0, 0, 0, 0);
         frameTitle = "";
         autoPalette = [];
         shotPalette = [];

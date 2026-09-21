@@ -19,6 +19,15 @@ folded="$(printf 'let u = "%s";\n' "$(printf 'x%.0s' $(seq 1 120))" | bash "$roo
 [ "$(printf '%s\n' "$folded" | wc -l)" -ge 3 ] && printf '%s\n' "$folded" | sed -n 2p | grep -qE '^ {5}x' \
   && echo "snap-highlight folds long lines under the gutter" || { echo "snap-highlight did not fold a long line"; fail=1; }
 
+# A crop is taken from the file, so the cut has to come out the size asked for.
+magick -size 200x100 xc:white "$XDG_RUNTIME_DIR/omasnap-crop-src.png" 2>/dev/null
+bash "$root/bin/snap-crop" "$XDG_RUNTIME_DIR/omasnap-crop-src.png" 20 10 100 50 \
+     "$XDG_RUNTIME_DIR/omasnap-crop-out.png" >/dev/null
+csize="$(magick "$XDG_RUNTIME_DIR/omasnap-crop-out.png" -format "%wx%h" info: 2>/dev/null)"
+[ "$csize" = "100x50" ] && echo "snap-crop cuts to the size asked for" \
+  || { echo "snap-crop produced $csize, wanted 100x50"; fail=1; }
+rm -f "$XDG_RUNTIME_DIR/omasnap-crop-src.png" "$XDG_RUNTIME_DIR/omasnap-crop-out.png"
+
 echo "== qmllint"
 lintroot="$(mktemp -d)"
 ln -s "${OMARCHY_PATH:-/usr/share/omarchy}/shell" "$lintroot/qs"

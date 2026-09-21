@@ -48,6 +48,22 @@ Window {
         return out;
     }
 
+    // Off to the side as well: its handles are driven by hand below, since a
+    // harness has no pointer to push around.
+    CropOverlay {
+        id: cropper
+        doc: doc
+        viewScale: 1
+        x: 2000
+        width: 400
+        height: 200
+    }
+
+    function rectText(r) {
+        return Math.round(r.x) + "," + Math.round(r.y) + " "
+             + Math.round(r.width) + "x" + Math.round(r.height);
+    }
+
     IconButton {
         id: button
         x: 20
@@ -208,6 +224,45 @@ Window {
                 || !!s.gradient;
         });
         win.check("every mesh swatch carries its own points", badMesh.length, 0);
+
+        // ---- crop handles --------------------------------------------------
+        doc.shotWidth = 400;
+        doc.shotHeight = 200;
+        doc.tool = "crop";
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+
+        win.check("the top left corner is grabbed", cropper.at(100, 50), 1);
+        win.check("the top right corner is grabbed", cropper.at(300, 50), 2);
+        win.check("the bottom right corner is grabbed", cropper.at(300, 150), 3);
+        win.check("the bottom left corner is grabbed", cropper.at(100, 150), 4);
+        win.check("the inside moves the selection", cropper.at(200, 100), 5);
+        win.check("and the bare picture is left to the tool", cropper.at(20, 20), 0);
+
+        // A corner drag leaves the opposite corner where it was.
+        cropper.begin(100, 50);
+        cropper.dragTo(60, 20);
+        win.check("a corner drag holds the far corner", win.rectText(doc.cropRect), "60,20 240x130");
+
+        // Pulled past that corner, the selection turns inside out and stays
+        // square, rather than going negative.
+        cropper.dragTo(350, 180);
+        win.check("and squares up when pulled past it", win.rectText(doc.cropRect), "300,150 50x30");
+        // Brought right in on the far corner it is a stray drag, and lifting
+        // the button there leaves no selection at all.
+        cropper.dragTo(305, 155);
+        win.check("a corner brought onto the other one", win.rectText(doc.cropRect), "300,150 5x5");
+        cropper.finish();
+        win.check("too small to keep, so it is dropped", win.rectText(doc.cropRect), "0,0 0x0");
+
+        // Moving from the inside, and never off the picture.
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(200, 100);
+        cropper.dragTo(210, 110);
+        win.check("the inside drag moves it", win.rectText(doc.cropRect), "110,60 200x100");
+        cropper.dragTo(4000, 4000);
+        win.check("and stops at the edge of the picture", win.rectText(doc.cropRect), "200,100 200x100");
+        cropper.finish();
+        win.check("a move that size is still a crop", doc.cropUsable, true);
 
         Qt.quit();
     })

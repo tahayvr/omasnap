@@ -21,6 +21,8 @@ Rectangle {
     signal closeRequested()
     signal autoRedactRequested()
     signal copyTextRequested()
+    signal cropRequested()
+    signal uncropRequested()
 
     readonly property Item exportTarget: grabRoot
     readonly property string repoUrl: "https://github.com/tahayvr/omasnap"
@@ -56,7 +58,7 @@ Rectangle {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: doc.kind === "code" && doc.hasContent ? doc.frameTitle
-                      : doc.shotPath ? doc.shotPath.split("/").pop() : "No screenshot yet"
+                      : doc.shotName ? doc.shotName : "No screenshot yet"
                 color: Ui.textMuted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -72,6 +74,8 @@ Rectangle {
             onCodeRequested: editor.codeRequested()
             onOpenRequested: editor.openRequested()
             onAutoRedactRequested: editor.autoRedactRequested()
+            onCropRequested: editor.cropRequested()
+            onUncropRequested: editor.uncropRequested()
         }
 
         Row {
@@ -172,6 +176,10 @@ Rectangle {
             // exactly 1:1 (see Model.grabSize), then cropped by snap-deliver.
             Item {
                 id: grabRoot
+                // Over the drawing surface below, so the crop handles can
+                // take a press; everything else in the stage ignores the
+                // mouse while a tool is in hand, and falls through to it.
+                z: 1
                 readonly property var fit: Model.grabSize(stage.width, stage.height, stage.dpr)
                 width: grabRoot.fit.w
                 height: grabRoot.fit.h
@@ -182,6 +190,7 @@ Rectangle {
                     id: stage
                     doc: editor.doc
                     interactive: true
+                    viewScale: viewport.fit
                 }
             }
 
@@ -208,6 +217,13 @@ Rectangle {
                     if (doc.tool === "select") { doc.selectedId = ""; return; }
                     var p = toShot(e.x, e.y);
                     ox = p.x; oy = p.y;
+
+                    if (doc.tool === "crop") {
+                        doc.selectedId = "";
+                        doc.cropRect = Qt.rect(0, 0, 0, 0);
+                        activeId = "";
+                        return;
+                    }
 
                     var a = Model.newAnnotation(doc.tool, p.x, p.y);
                     a.color = String(doc.inkColor);
@@ -239,6 +255,13 @@ Rectangle {
                 }
 
                 onPositionChanged: function (e) {
+                    if (doc.tool === "crop") {
+                        var c = toShot(e.x, e.y);
+                        var r = Model.cropRect(draw.ox, draw.oy, c.x - draw.ox, c.y - draw.oy,
+                                               doc.shotWidth, doc.shotHeight);
+                        doc.cropRect = Qt.rect(r.x, r.y, r.w, r.h);
+                        return;
+                    }
                     if (activeId === "") return;
                     var p = toShot(e.x, e.y);
                     var i = doc.indexOfId(activeId);
@@ -253,6 +276,10 @@ Rectangle {
                 }
 
                 onReleased: function () {
+                    if (doc.tool === "crop") {
+                        if (!doc.cropUsable) doc.cropRect = Qt.rect(0, 0, 0, 0);
+                        return;
+                    }
                     if (activeId === "") return;
                     var i = doc.indexOfId(activeId);
                     if (i >= 0) {

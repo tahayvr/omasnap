@@ -9,6 +9,10 @@ Item {
 
     property var doc: null
     property bool interactive: false
+    // What the stage is displayed at, for chrome that has to come out a fixed
+    // size on screen. The grab wrapper holds the viewport's fit, so this
+    // cannot be read off the stage's own scale.
+    property real viewScale: 1
     readonly property var geo: doc.geo
     readonly property bool codeKind: doc.kind === "code"
 
@@ -293,7 +297,19 @@ Item {
         doc: stage.doc
         pixelSource: stage.codeKind ? codeSource : pixelSource
         interactive: stage.interactive && stage.doc.tool === "select" && !stage.doc.exporting
-        viewScale: stage.scale * stage.unit
+        viewScale: stage.viewScale * stage.unit
+        x: (stage.geo.cardX + stage.geo.inset) * stage.unit
+        y: (stage.geo.cardY + stage.geo.chromeH + stage.geo.inset) * stage.unit
+        width: Math.max(1, stage.geo.shotW)
+        height: Math.max(1, stage.geo.shotH)
+        transformOrigin: Item.TopLeft
+        scale: stage.unit
+    }
+
+    // Over everything, since it is about the picture rather than part of it.
+    CropOverlay {
+        doc: stage.doc
+        viewScale: stage.viewScale * stage.unit
         x: (stage.geo.cardX + stage.geo.inset) * stage.unit
         y: (stage.geo.cardY + stage.geo.chromeH + stage.geo.inset) * stage.unit
         width: Math.max(1, stage.geo.shotW)

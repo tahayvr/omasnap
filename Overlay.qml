@@ -134,7 +134,8 @@ Item {
         if (shell && typeof shell.hide === "function") shell.hide(pluginId);
     }
 
-    // Public: edit, capture, save, saveAs, copy, redact, copyText (see README, Scripting).
+    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText
+    // (see README, Scripting).
     function edit(path) {
         if (!path) return "no path";
         if (shell && typeof shell.summon === "function"
@@ -202,6 +203,8 @@ Item {
             outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
             bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, inset: doc.inset,
             frame: doc.frame, shotEdge: doc.shotEdge,
+            cropped: doc.cropped, cropRect: [doc.cropRect.x, doc.cropRect.y,
+                                             doc.cropRect.width, doc.cropRect.height],
             codeLang: doc.codeLang, codeDetected: doc.codeDetected, codeTheme: doc.codeTheme,
             codeFont: doc.codeFont, codeNumbers: doc.codeNumbers, codeBg: String(doc.codeBg),
             codeFg: String(doc.codeFg), codeHtmlLength: doc.codeHtml.length
@@ -247,6 +250,8 @@ Item {
         text = text.replace(/\r/g, "").replace(/\n+$/, "");
         if (!text.length) return;
         doc.clearAnnotations();
+        // There is nothing to cut down on a card drawn from its own text.
+        if (doc.tool === "crop") doc.tool = "select";
         doc.kind = "code";
         doc.shotPath = "";
         // The card's size is bound to CodeBlock in code mode; writing it here
@@ -327,9 +332,19 @@ Item {
         Qt.callLater(function () { if (window.visible) scope.forceActiveFocus(); });
     }
 
-    function loadShot(path) {
+    // recut is a crop of the picture already open: it keeps the annotations,
+    // the name and the crop bookkeeping, and only the pixels change.
+    function loadShot(path, recut) {
         if (!path) return;
-        doc.clearAnnotations();
+        if (!recut) {
+            doc.clearAnnotations();
+            doc.shotName = path.split("/").pop();
+            doc.frameTitle = doc.shotName;
+            doc.cropSource = path;
+            doc.cropOffset = Qt.point(0, 0);
+            doc.cropped = false;
+        }
+        doc.cropRect = Qt.rect(0, 0, 0, 0);
         doc.kind = "shot";
         doc.codeText = "";
         doc.codeHtml = "";
@@ -337,7 +352,6 @@ Item {
         doc.shotHeight = 0;
         doc.shotPath = path;
         doc.shotRevision += 1;
-        doc.frameTitle = path.split("/").pop();
         doc.autoPalette = [];
         doc.shotPalette = [];
         doc.shotEdge = "";
@@ -558,6 +572,73 @@ Item {
         return "ok";
     }
 
+    // crop <json>: crop to {x,y,w,h} in the picture on show, or with no
+    // argument to whatever is selected in the editor. With "select":true the
+    // rectangle is only shown, to be taken or redrawn by hand.
+    function crop(json) {
+        if (doc.kind !== "shot" || !doc.hasContent) return "no shot";
+        if (cropProc.running) return "busy";
+        if (json && String(json).length) {
+            var o;
+            try { o = JSON.parse(json); } catch (e) { return "bad json"; }
+            // Qt.rect, not the plain object: assigning one straight to a rect
+            // property keeps only x and y, since a rect spells its size
+            // width/height.
+            var r = Model.cropRect(Number(o.x) || 0, Number(o.y) || 0,
+                                   Number(o.w) || 0, Number(o.h) || 0,
+                                   doc.shotWidth, doc.shotHeight);
+            doc.cropRect = Qt.rect(r.x, r.y, r.w, r.h);
+            if (o.select) return doc.cropUsable ? "ok" : "too small";
+        }
+        if (!doc.cropUsable) return "no selection";
+
+        var cut = Model.cropInSource(doc.cropRect, doc.cropOffset.x, doc.cropOffset.y);
+        // Named for the cut so a reopened crop is never served from Qt's
+        // image cache, and so no two crops write the same file.
+        cropProc.dest = root.scratchDir + "/omasnap-crop-"
+                      + cut.x + "-" + cut.y + "-" + cut.w + "-" + cut.h + ".png";
+        cropProc.moved = Qt.point(doc.cropRect.x, doc.cropRect.y);
+        cropProc.cut = cut;
+        cropProc.command = ["bash", root.pluginDir + "bin/snap-crop", doc.cropSource,
+                            String(cut.x), String(cut.y), String(cut.w), String(cut.h),
+                            cropProc.dest];
+        cropProc.running = true;
+        return "ok";
+    }
+
+    // uncrop: back to the whole picture, annotations and all.
+    function uncrop() {
+        if (!doc.cropped || !doc.cropSource) return "not cropped";
+        var off = doc.cropOffset;
+        loadShot(doc.cropSource, true);
+        doc.shiftAnnotations(off.x, off.y);
+        doc.cropOffset = Qt.point(0, 0);
+        doc.cropped = false;
+        editor.statusText = "Crop removed";
+        return "ok";
+    }
+
+    Process {
+        id: cropProc
+        property string dest: ""
+        property var cut: null
+        property point moved: Qt.point(0, 0)
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.trim() !== "ok") {
+                    editor.statusText = text.trim().length ? text.trim() : "Could not crop";
+                    return;
+                }
+                root.loadShot(cropProc.dest, true);
+                doc.shiftAnnotations(-cropProc.moved.x, -cropProc.moved.y);
+                doc.cropOffset = Qt.point(cropProc.cut.x, cropProc.cut.y);
+                doc.cropped = true;
+                doc.tool = "select";
+                editor.statusText = "Cropped to " + cropProc.cut.w + "\u00d7" + cropProc.cut.h;
+            }
+        }
+    }
+
     function outputName() {
         return "snap-" + Model.stamp() + "." + (doc.format === "jpg" ? "jpg" : "png");
     }
@@ -636,8 +717,15 @@ Item {
 
     function handleKey(event) {
         if (event.key === Qt.Key_Escape) {
-            if (doc.selectedId !== "") doc.selectedId = "";
+            if (doc.cropUsable) doc.cropRect = Qt.rect(0, 0, 0, 0);
+            else if (doc.selectedId !== "") doc.selectedId = "";
             else root.dismiss();
+            return true;
+        }
+
+        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                && doc.tool === "crop" && doc.cropUsable) {
+            root.crop("");
             return true;
         }
 
@@ -668,6 +756,7 @@ Item {
         map[Qt.Key_T] = "text";    map[Qt.Key_S] = "step";
         map[Qt.Key_H] = "highlight"; map[Qt.Key_B] = "redact";
         map[Qt.Key_L] = "spotlight";
+        if (doc.kind === "shot") map[Qt.Key_C] = "crop";
         if (map[event.key] !== undefined) {
             doc.tool = map[event.key];
             doc.selectedId = "";
@@ -724,6 +813,8 @@ Item {
                 onSaveAsRequested: root.saveAs()
                 onOpenRequested: root.pick()
                 onAutoRedactRequested: root.redact()
+                onCropRequested: root.crop("")
+                onUncropRequested: root.uncrop()
                 onCopyTextRequested: root.copyText()
             }
 

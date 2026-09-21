@@ -81,6 +81,12 @@ Window {
         empty.text = ""; empty.color = "#000000"; empty.width = 4;
         doc.annotations.append(empty);   // placeholder must not export
 
+        // Editing chrome must not reach the file: the crop tool is in hand
+        // with a selection over a corner of the shot, and every check below
+        // still reads the bare picture.
+        doc.tool = "crop";
+        doc.cropRect = Qt.rect(0, 0, 200, 120);
+
         doc.annotationsEdited();
         grabTimer.start();
     }

@@ -509,6 +509,31 @@ test("a multipoint preset places its colors around the frame", () => {
     ok(odd[1].r > 0, "a missing radius still gets one");
 });
 
+test("a crop selection is squared up against the picture", () => {
+    // Drawn up and to the left, and running off two edges of a 400x200 shot.
+    const r = Model.cropRect(300, 150, -500, -400, 400, 200);
+    eq(r.x, 0); eq(r.y, 0); eq(r.w, 300); eq(r.h, 150);
+
+    const inside = Model.cropRect(50, 20, 100, 60, 400, 200);
+    eq(inside.x, 50); eq(inside.w, 100); eq(inside.h, 60);
+
+    // Off the far edge, and rounded to whole pixels.
+    const over = Model.cropRect(350.4, 180.6, 120, 90, 400, 200);
+    eq(over.x, 350); eq(over.w, 50); eq(over.y, 181); eq(over.h, 19);
+
+    ok(!Model.cropUsable(Model.cropRect(10, 10, 4, 400, 400, 200)), "a stray click is not a crop");
+    ok(!Model.cropUsable(null));
+    // A QML rect arrives spelling its size width/height rather than w/h.
+    ok(Model.cropUsable({ x: 0, y: 0, width: 100, height: 60 }), "a QML rect is measured too");
+    eq(Model.cropInSource({ x: 1, y: 2, width: 30, height: 40 }, 0, 0).w, 30);
+    ok(Model.cropUsable(inside));
+
+    // A second crop is measured against the file, not against the first cut.
+    eq(Model.cropInSource({ x: 10, y: 5, w: 100, h: 50 }, 40, 20).x, 50);
+    eq(Model.cropInSource({ x: 10, y: 5, w: 100, h: 50 }, 40, 20).y, 25);
+    eq(Model.cropInSource({ x: 10, y: 5, w: 100, h: 50 }, 40, 20).w, 100);
+});
+
 test("an arrow is drawn from its style", () => {
     const head = 10;
     // Flat run to the right: the straight shaft sits on the line, stops short
