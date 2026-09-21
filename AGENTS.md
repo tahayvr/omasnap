@@ -139,8 +139,12 @@ Imposed by the host, so none of it is negotiable from in here.
   cannot work; `bin/snap-portal.py` holds the connection until the `Response`
   signal. It runs as `/usr/bin/python3` explicitly, because a linuxbrew or mise
   `python3` on PATH has no `gi`. The overlay hides while `picking` so the
-  dialog is not buried under the layer surface.
-  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick` flashes it for a test.
+  dialog is not buried under the layer surface — which is why **Save as
+  renders before it raises the dialog**: `grabToImage` cannot render an
+  unmapped window, so the picture is already in the scratch directory by the
+  time the overlay goes away, and only the destination is still unknown.
+  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick [open|save]` flashes either
+  dialog for a test.
 - **Qt's image cache is keyed on the URL**, so reopening a file that changed
   under the same path hands back the old picture at the old size. Every load
   bumps `doc.shotRevision`, which rides on the URL as a fragment.

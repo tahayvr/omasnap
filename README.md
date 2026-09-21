@@ -99,6 +99,7 @@ clipboard if nothing is highlighted.
 | --- | --- |
 | `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B` | move, arrow, box, ellipse, text, step, highlight, hide |
 | `Ctrl+C` / `Ctrl+S` | copy / save |
+| `Ctrl+Shift+S` | Save as, through the system file dialog |
 | `Ctrl+Z` | undo |
 | `Ctrl+N` | Grab another region |
 | `Ctrl+K` | Code card from the selected text |
@@ -121,6 +122,7 @@ omarchy-shell shell call tahayvr.omasnap info ''               # the document as
 omarchy-shell shell call tahayvr.omasnap redact ''            # find and hide secrets
 omarchy-shell shell call tahayvr.omasnap copyText ''          # text to the clipboard
 omarchy-shell shell call tahayvr.omasnap save ''              # export to disk (and clipboard)
+omarchy-shell shell call tahayvr.omasnap saveAs ''            # export, choosing the file
 omarchy-shell shell call tahayvr.omasnap copy ''              # export to the clipboard
 ```
 

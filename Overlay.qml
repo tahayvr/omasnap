@@ -134,7 +134,7 @@ Item {
         if (shell && typeof shell.hide === "function") shell.hide(pluginId);
     }
 
-    // Public: edit, capture, save, copy, redact, copyText (see README, Scripting).
+    // Public: edit, capture, save, saveAs, copy, redact, copyText (see README, Scripting).
     function edit(path) {
         if (!path) return "no path";
         if (shell && typeof shell.summon === "function"
@@ -555,9 +555,12 @@ Item {
         return "ok";
     }
 
+    function outputName() {
+        return "snap-" + Model.stamp() + "." + (doc.format === "jpg" ? "jpg" : "png");
+    }
+
     function outputPath() {
-        var ext = doc.format === "jpg" ? "jpg" : "png";
-        return root.shotDir + "/snap-" + Model.stamp() + "." + ext;
+        return root.shotDir + "/" + outputName();
     }
 
     function save() {
@@ -565,6 +568,22 @@ Item {
             deliver.args = ["save", p, outputPath(), doc.format, String(doc.quality),
                             String(doc.outWidth), String(doc.outHeight)];
             deliver.running = true;
+        });
+    }
+
+    // saveAs: render first and only then raise the dialog. The overlay has to
+    // hide for the dialog to be reachable, and grabToImage cannot render an
+    // unmapped window.
+    function saveAs() {
+        if (saver.running) return "busy";
+        return exportTo(root.scratchDir + "/omasnap-out.png", function (p) {
+            saver.rendered = p;
+            // A function call in a binding would never re-evaluate, and the
+            // suggested name carries the time and the current format.
+            saver.command = ["bash", root.pluginDir + "bin/snap-pick", "save",
+                             root.shotDir, root.outputName()];
+            root.picking = true;
+            saver.running = true;
         });
     }
 
@@ -630,7 +649,9 @@ Item {
         if (event.modifiers & Qt.ControlModifier) {
             switch (event.key) {
             case Qt.Key_C: root.copy(); return true;
-            case Qt.Key_S: root.save(); return true;
+            case Qt.Key_S:
+                if (event.modifiers & Qt.ShiftModifier) root.saveAs(); else root.save();
+                return true;
             case Qt.Key_Z: doc.undo(); return true;
             case Qt.Key_N: root.capture("region"); return true;
             case Qt.Key_K: root.code(); return true;
@@ -688,6 +709,7 @@ Item {
                 anchors.fill: parent
                 doc: doc
                 systemThemes: root.systemThemes
+                saveDir: root.shotDir
                 radius: 0
 
                 onCaptureRequested: function (mode) { root.capture(mode); }
@@ -695,6 +717,7 @@ Item {
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()
                 onSaveRequested: root.save()
+                onSaveAsRequested: root.saveAs()
                 onOpenRequested: root.pick()
                 onAutoRedactRequested: root.redact()
                 onCopyTextRequested: root.copyText()
@@ -707,8 +730,29 @@ Item {
     }
 
     Process {
+        id: saver
+        property string rendered: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var dest = text.trim();
+                root.picking = false;
+                root.focusEditor();
+                if (!dest.length || dest.indexOf("/") !== 0) {
+                    editor.statusText = "Save cancelled";
+                    return;
+                }
+                deliver.args = ["save", saver.rendered,
+                                Model.withExtension(dest, doc.format === "jpg" ? "jpg" : "png"),
+                                doc.format, String(doc.quality),
+                                String(doc.outWidth), String(doc.outHeight)];
+                deliver.running = true;
+            }
+        }
+    }
+
+    Process {
         id: picker
-        command: ["bash", root.pluginDir + "bin/snap-pick", root.shotDir]
+        command: ["bash", root.pluginDir + "bin/snap-pick", "open", root.shotDir]
         stdout: StdioCollector {
             onStreamFinished: {
                 var p = text.trim();

@@ -8,6 +8,7 @@ Rectangle {
 
     property var doc
     property var systemThemes: []
+    property string saveDir: ""
     property string statusText: ""
     property bool busy: false
 
@@ -15,6 +16,7 @@ Rectangle {
     signal codeRequested()
     signal copyRequested()
     signal saveRequested()
+    signal saveAsRequested()
     signal openRequested()
     signal closeRequested()
     signal autoRedactRequested()
@@ -340,7 +342,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: Ui.pad
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(implicitWidth, parent.width - Style.space(360))
+            width: Math.min(implicitWidth, parent.width - Style.space(400))
             elide: Text.ElideRight
             text: editor.statusText !== "" ? editor.statusText
                   : doc.outputTooLarge ? "Too large to render at " + doc.exportScale + "\u00d7 \u2014 pick a smaller export scale"
@@ -372,8 +374,15 @@ Rectangle {
                 onClicked: editor.copyRequested()
             }
             IconButton {
+                glyph: "\uf0c7"
+                flat: true
+                tip: "Save as\u2026 (Ctrl+Shift+S)"
+                onClicked: editor.saveAsRequested()
+            }
+            IconButton {
                 glyph: "\u2193"
                 label: "Save"
+                tip: "Save to " + editor.saveDir + " (Ctrl+S)"
                 primary: true
                 onClicked: editor.saveRequested()
             }

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Print a chosen image path, or nothing when cancelled. The picker comes from
-# the XDG desktop portal, so it is whatever file chooser the system has
+# Print a chosen path, or nothing when cancelled. The dialog comes from the
+# XDG desktop portal, so it is whatever file chooser the system has
 # configured.
+#   snap-pick [open] [dir]          an image to edit
+#   snap-pick save   [dir] [name]   where to write the Snap
 set -uo pipefail
 exec </dev/null
+mode="open"
+case "${1:-}" in open|save) mode="$1"; shift ;; esac
 dir="${1:-$HOME/Pictures}"
-exec /usr/bin/python3 "$(dirname "$0")/snap-portal.py" "$dir" 2>/dev/null
+name="${2:-}"
+exec /usr/bin/python3 "$(dirname "$0")/snap-portal.py" "$mode" "$dir" "$name" 2>/dev/null

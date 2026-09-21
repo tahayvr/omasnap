@@ -499,6 +499,18 @@ test("a multipoint preset places its colors around the frame", () => {
     ok(odd[1].r > 0, "a missing radius still gets one");
 });
 
+test("a chosen save path is given the extension the format needs", () => {
+    // magick reads the encoder off the extension, so a typed name without
+    // one, or with the other format's, has to be corrected.
+    eq(Model.withExtension("/home/a/shot", "png"), "/home/a/shot.png");
+    eq(Model.withExtension("/home/a/shot.png", "png"), "/home/a/shot.png");
+    eq(Model.withExtension("/home/a/shot.PNG", "png"), "/home/a/shot.PNG", "already right, whatever the case");
+    eq(Model.withExtension("/home/a/shot.png", "jpg"), "/home/a/shot.jpg", "the other format is replaced");
+    eq(Model.withExtension("/home/a/shot.jpeg", "jpg"), "/home/a/shot.jpeg", "jpeg is a jpg");
+    eq(Model.withExtension("/home/a/v1.2 notes", "png"), "/home/a/v1.2 notes.png", "a dot in the name is not an extension");
+    eq(Model.withExtension("/home/a.b/shot", "png"), "/home/a.b/shot.png", "nor one in a directory");
+});
+
 test("themes resolve, and anything unlisted is an installed Omarchy theme", () => {
     eq(Code.themeByKey("dracula").bat, "Dracula");
     eq(Code.themeByKey("").key, "omarchy", "no key falls back");
