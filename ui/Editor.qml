@@ -8,6 +8,7 @@ Rectangle {
 
     property var doc
     property var systemThemes: []
+    property string saveDir: ""
     property string statusText: ""
     property bool busy: false
 
@@ -15,10 +16,39 @@ Rectangle {
     signal codeRequested()
     signal copyRequested()
     signal saveRequested()
+    signal saveAsRequested()
     signal openRequested()
     signal closeRequested()
     signal autoRedactRequested()
     signal copyTextRequested()
+    signal cropRequested()
+    signal uncropRequested()
+
+    // The drawing surface hovers as well as drags, so `held` says whether the
+    // button is actually down. Every tool but crop had an annotation started
+    // on press to check instead; crop had nothing, and its selection followed
+    // the bare pointer around the picture. Callable, so the harness can hold
+    // that behaviour down without a mouse.
+    function drawMove(px, py, held) {
+        if (!held) return;
+
+        if (doc.tool === "crop") {
+            var r = Model.cropRect(draw.ox, draw.oy, px - draw.ox, py - draw.oy,
+                                   doc.shotWidth, doc.shotHeight);
+            doc.cropRect = Qt.rect(r.x, r.y, r.w, r.h);
+            return;
+        }
+
+        if (draw.activeId === "") return;
+        var i = doc.indexOfId(draw.activeId);
+        if (i < 0) return;
+        doc.annotations.setProperty(i, "w", px - draw.ox);
+        doc.annotations.setProperty(i, "h", py - draw.oy);
+        // Every other tool draws itself from the delegate, which follows the
+        // model on its own. The dim is one layer over the picture, so it only
+        // redraws when the document says something changed.
+        if (doc.tool === "spotlight") doc.annotationsEdited();
+    }
 
     readonly property Item exportTarget: grabRoot
     readonly property string repoUrl: "https://github.com/tahayvr/omasnap"
@@ -54,24 +84,24 @@ Rectangle {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: doc.kind === "code" && doc.hasContent ? doc.frameTitle
-                      : doc.shotPath ? doc.shotPath.split("/").pop() : "No screenshot yet"
+                      : doc.shotName ? doc.shotName : "No screenshot yet"
                 color: Ui.textMuted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 elide: Text.ElideMiddle
-                width: Math.min(implicitWidth, Style.space(220))
+                width: Math.min(implicitWidth, Style.space(150))
             }
         }
 
-        Row {
+        ToolOptions {
             anchors.centerIn: parent
-            spacing: Ui.gap
-
-            IconButton { glyph: "\u2b1a"; label: "Region"; onClicked: editor.captureRequested("region") }
-            IconButton { glyph: "\u25f0"; label: "Window"; onClicked: editor.captureRequested("windows") }
-            IconButton { glyph: "\u2b1c"; label: "Screen"; onClicked: editor.captureRequested("fullscreen") }
-            IconButton { glyph: "\u2039\u203a"; label: "Code"; tip: "Selected text as a code card"; onClicked: editor.codeRequested() }
-            IconButton { glyph: "\uf1c5"; label: "File"; tip: "Open a file"; onClicked: editor.openRequested() }
+            doc: editor.doc
+            onCaptureRequested: function (mode) { editor.captureRequested(mode); }
+            onCodeRequested: editor.codeRequested()
+            onOpenRequested: editor.openRequested()
+            onAutoRedactRequested: editor.autoRedactRequested()
+            onCropRequested: editor.cropRequested()
+            onUncropRequested: editor.uncropRequested()
         }
 
         Row {
@@ -172,6 +202,10 @@ Rectangle {
             // exactly 1:1 (see Model.grabSize), then cropped by snap-deliver.
             Item {
                 id: grabRoot
+                // Over the drawing surface below, so the crop handles can
+                // take a press; everything else in the stage ignores the
+                // mouse while a tool is in hand, and falls through to it.
+                z: 1
                 readonly property var fit: Model.grabSize(stage.width, stage.height, stage.dpr)
                 width: grabRoot.fit.w
                 height: grabRoot.fit.h
@@ -182,6 +216,7 @@ Rectangle {
                     id: stage
                     doc: editor.doc
                     interactive: true
+                    viewScale: viewport.fit
                 }
             }
 
@@ -209,9 +244,17 @@ Rectangle {
                     var p = toShot(e.x, e.y);
                     ox = p.x; oy = p.y;
 
+                    if (doc.tool === "crop") {
+                        doc.selectedId = "";
+                        doc.cropRect = Qt.rect(0, 0, 0, 0);
+                        activeId = "";
+                        return;
+                    }
+
                     var a = Model.newAnnotation(doc.tool, p.x, p.y);
                     a.color = String(doc.inkColor);
                     a.width = doc.inkWidth;
+                    if (doc.tool === "arrow") a.style = String(doc.arrowStyle);
 
                     if (doc.tool === "step") {
                         var size = Math.max(22, Math.round(doc.inkWidth * 9));
@@ -238,15 +281,15 @@ Rectangle {
                 }
 
                 onPositionChanged: function (e) {
-                    if (activeId === "") return;
                     var p = toShot(e.x, e.y);
-                    var i = doc.indexOfId(activeId);
-                    if (i < 0) return;
-                    doc.annotations.setProperty(i, "w", p.x - ox);
-                    doc.annotations.setProperty(i, "h", p.y - oy);
+                    editor.drawMove(p.x, p.y, draw.pressed);
                 }
 
                 onReleased: function () {
+                    if (doc.tool === "crop") {
+                        if (!doc.cropUsable) doc.cropRect = Qt.rect(0, 0, 0, 0);
+                        return;
+                    }
                     if (activeId === "") return;
                     var i = doc.indexOfId(activeId);
                     if (i >= 0) {
@@ -306,7 +349,6 @@ Rectangle {
         anchors { top: header.bottom; bottom: footer.top; right: parent.right }
         width: Style.space(300)
         visible: doc.hasContent
-        onAutoRedactRequested: editor.autoRedactRequested()
         onCopyTextRequested: editor.copyTextRequested()
     }
 
@@ -340,7 +382,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: Ui.pad
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(implicitWidth, parent.width - Style.space(360))
+            width: Math.min(implicitWidth, parent.width - Style.space(400))
             elide: Text.ElideRight
             text: editor.statusText !== "" ? editor.statusText
                   : doc.outputTooLarge ? "Too large to render at " + doc.exportScale + "\u00d7 \u2014 pick a smaller export scale"
@@ -372,8 +414,15 @@ Rectangle {
                 onClicked: editor.copyRequested()
             }
             IconButton {
+                glyph: "\uf0c7"
+                flat: true
+                tip: "Save as\u2026 (Ctrl+Shift+S)"
+                onClicked: editor.saveAsRequested()
+            }
+            IconButton {
                 glyph: "\u2193"
                 label: "Save"
+                tip: "Save to " + editor.saveDir + " (Ctrl+S)"
                 primary: true
                 onClicked: editor.saveRequested()
             }

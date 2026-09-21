@@ -171,6 +171,16 @@ function tsv(text, opts) {
 const ALL = Redact.CLASSES.map(c => c.key);
 function labels(found) { return Object.keys(found.counts).sort(); }
 
+test("every sensitive class carries both of its labels", () => {
+    // The header's tool bar uses the short one; a class added without it
+    // would leave a nameless chip there.
+    for (const c of Redact.CLASSES) {
+        ok(c.label && c.label.length > 0, c.key + " has a label");
+        ok(c.short && c.short.length > 0 && c.short.length <= 8, c.key + " has a short label");
+        ok(c.members.length > 0, c.key + " matches at least one pattern");
+    }
+});
+
 test("luhn accepts real card numbers and rejects look-alikes", () => {
     ok(Redact.luhn("4111 1111 1111 1111"));
     ok(Redact.luhn("5500-0000-0000-0004"));
@@ -497,6 +507,228 @@ test("a multipoint preset places its colors around the frame", () => {
     eq(odd[0].y, -0.5, "y clamped");
     ok(odd[0].r > 0, "radius floored");
     ok(odd[1].r > 0, "a missing radius still gets one");
+});
+
+test("a number reads against the badge it sits on", () => {
+    eq(Model.textOn("#ffffff"), "#1b1b1b", "dark on white");
+    eq(Model.textOn("#ffbd2e"), "#1b1b1b", "and on a light amber");
+    eq(Model.textOn("#111111"), "#f0f0f0", "light on black");
+    eq(Model.textOn("#b0577f"), "#f0f0f0", "and on a mid plum");
+    // A QML colour arrives with its alpha in front when it is not opaque.
+    eq(Model.textOn("#ccffffff"), "#1b1b1b", "the alpha is not part of the colour");
+    eq(Model.textOn(""), "#e8e8e8", "and nothing readable falls back");
+});
+
+test("a press picks the mark it lands on, not the box around it", () => {
+    const box = { kind: "box", x: 10, y: 10, w: 100, h: 50, width: 4 };
+    ok(Model.hitAnnotation(box, 10, 35, 6), "on the left edge");
+    ok(Model.hitAnnotation(box, 60, 12, 6), "on the top edge");
+    ok(!Model.hitAnnotation(box, 60, 35, 6), "but not in the hollow middle");
+    ok(!Model.hitAnnotation(box, 200, 35, 6), "nor outside it");
+
+    const ell = { kind: "ellipse", x: 0, y: 0, w: 100, h: 100, width: 4 };
+    ok(Model.hitAnnotation(ell, 0, 50, 6), "on the ring");
+    ok(!Model.hitAnnotation(ell, 50, 50, 6), "not in the middle");
+    ok(!Model.hitAnnotation(ell, 4, 4, 6), "nor in the corner of its box");
+
+    // A text label has no size of its own: the delegate is as big as the
+    // text, and passes that in. Without it only the very corner was clickable.
+    const label = { kind: "text", x: 10, y: 10, w: 0, h: 0, width: 4 };
+    ok(Model.hitAnnotation(label, 60, 20, 6, 120, 30), "over the text");
+    ok(!Model.hitAnnotation(label, 60, 20, 6), "and nowhere near it without the size");
+    ok(!Model.hitAnnotation(label, 200, 20, 6, 120, 30), "past the end of the text");
+
+    // The filled kinds are their whole box, which is what they look like.
+    ok(Model.hitAnnotation({ kind: "highlight", x: 0, y: 0, w: 80, h: 20, width: 4 }, 40, 10, 6));
+    ok(Model.hitAnnotation({ kind: "redact", x: 0, y: 0, w: 80, h: 20, width: 4 }, 40, 10, 6));
+
+    const arrow = { kind: "arrow", x: 0, y: 0, w: 100, h: 0, width: 4, style: "straight" };
+    ok(Model.hitAnnotation(arrow, 50, 0, 6), "on the shaft");
+    ok(Model.hitAnnotation(arrow, 98, 2, 6), "and at the head");
+    ok(!Model.hitAnnotation(arrow, 50, 30, 6), "not well off it");
+
+    // A curved arrow is where it is drawn, not on the chord it spans.
+    const bent = { kind: "arrow", x: 0, y: 0, w: 100, h: 0, width: 4, style: "curved" };
+    ok(!Model.hitAnnotation(bent, 50, 0, 6), "the chord is bare");
+    ok(Model.hitAnnotation(bent, 50, -11, 6), "the curve is where the bow is");
+});
+
+test("a selected mark is pulled about by its handles", () => {
+    const box = { kind: "box", x: 10, y: 10, w: 100, h: 50, width: 4 };
+    const h = Model.resizeHandles(box);
+    eq(h.length, 4);
+    eq(h[0].key, "tl"); eq(h[0].x, 10); eq(h[0].y, 10);
+    eq(h[2].key, "br"); eq(h[2].x, 110); eq(h[2].y, 60);
+
+    // Drawn backwards, the handles are still the corners of what is seen.
+    const back = Model.resizeHandles({ kind: "box", x: 110, y: 60, w: -100, h: -50, width: 4 });
+    eq(back[0].x, 10); eq(back[0].y, 10);
+
+    // An arrow is held by its ends, which are not corners of a box.
+    const ends = Model.resizeHandles({ kind: "arrow", x: 10, y: 10, w: -60, h: 40, width: 4 });
+    eq(ends.length, 2);
+    eq(ends[0].key, "tail"); eq(ends[0].x, 10); eq(ends[0].y, 10);
+    eq(ends[1].key, "tip"); eq(ends[1].x, -50); eq(ends[1].y, 50);
+
+    eq(Model.resizeHandles({ kind: "text", x: 0, y: 0, w: 0, h: 0 }).length, 0,
+       "a text label is sized by its text");
+
+    // The corner opposite the one in hand stays put.
+    const br = Model.resizeAnnotation(box, "br", 200, 100);
+    eq(br.x, 10); eq(br.y, 10); eq(br.w, 190); eq(br.h, 90);
+    const tl = Model.resizeAnnotation(box, "tl", 0, 0);
+    eq(tl.x, 0); eq(tl.y, 0); eq(tl.w, 110); eq(tl.h, 60);
+
+    // Pulled past that corner it turns inside out rather than going negative.
+    const past = Model.resizeAnnotation(box, "tl", 200, 100);
+    eq(past.x, 110); eq(past.y, 60); eq(past.w, 90); eq(past.h, 40);
+
+    // Never smaller than something that can be grabbed again.
+    const tiny = Model.resizeAnnotation(box, "br", 11, 11);
+    eq(tiny.w, 8); eq(tiny.h, 8);
+
+    // A step badge is a circle, so its sides stay equal.
+    const step = Model.resizeAnnotation({ kind: "step", x: 0, y: 0, w: 30, h: 30, width: 4 },
+                                        "br", 90, 40);
+    eq(step.w, 90); eq(step.h, 90);
+
+    // An arrow end moves on its own; the other stays where it was.
+    const tail = Model.resizeAnnotation({ kind: "arrow", x: 0, y: 0, w: 100, h: 50 }, "tail", 20, 10);
+    eq(tail.x, 20); eq(tail.y, 10); eq(tail.w, 80); eq(tail.h, 40);
+    const tip = Model.resizeAnnotation({ kind: "arrow", x: 0, y: 0, w: 100, h: 50 }, "tip", 20, 10);
+    eq(tip.x, 0); eq(tip.y, 0); eq(tip.w, 20); eq(tip.h, 10);
+});
+
+test("a crop takes the marks that were only on what it cuts away", () => {
+    const inside = { kind: "box", x: 10, y: 10, w: 50, h: 50 };
+    ok(Model.overlapsRect(inside, 0, 0, 100, 100));
+    ok(!Model.overlapsRect({ kind: "box", x: 200, y: 10, w: 50, h: 50 }, 0, 0, 100, 100),
+       "past the right edge");
+    ok(!Model.overlapsRect({ kind: "box", x: 10, y: -80, w: 50, h: 50 }, 0, 0, 100, 100),
+       "and above the top");
+    ok(Model.overlapsRect({ kind: "box", x: 80, y: 10, w: 50, h: 50 }, 0, 0, 100, 100),
+       "half in is still in");
+    ok(Model.overlapsRect({ kind: "text", x: 40, y: 40, w: 0, h: 0 }, 0, 0, 100, 100),
+       "a text label has no size of its own but is somewhere");
+    ok(!Model.overlapsRect({ kind: "box", x: 10, y: 10, w: -50, h: -50 }, 20, 20, 100, 100),
+       "measured as it is seen, not as it was drawn");
+});
+
+test("a crop selection is squared up against the picture", () => {
+    // Drawn up and to the left, and running off two edges of a 400x200 shot.
+    const r = Model.cropRect(300, 150, -500, -400, 400, 200);
+    eq(r.x, 0); eq(r.y, 0); eq(r.w, 300); eq(r.h, 150);
+
+    const inside = Model.cropRect(50, 20, 100, 60, 400, 200);
+    eq(inside.x, 50); eq(inside.w, 100); eq(inside.h, 60);
+
+    // Off the far edge, and rounded to whole pixels.
+    const over = Model.cropRect(350.4, 180.6, 120, 90, 400, 200);
+    eq(over.x, 350); eq(over.w, 50); eq(over.y, 181); eq(over.h, 19);
+
+    ok(!Model.cropUsable(Model.cropRect(10, 10, 4, 400, 400, 200)), "a stray click is not a crop");
+    ok(!Model.cropUsable(null));
+    // A QML rect arrives spelling its size width/height rather than w/h.
+    ok(Model.cropUsable({ x: 0, y: 0, width: 100, height: 60 }), "a QML rect is measured too");
+    eq(Model.cropInSource({ x: 1, y: 2, width: 30, height: 40 }, 0, 0).w, 30);
+    ok(Model.cropUsable(inside));
+
+    // A second crop is measured against the file, not against the first cut.
+    eq(Model.cropInSource({ x: 10, y: 5, w: 100, h: 50 }, 40, 20).x, 50);
+    eq(Model.cropInSource({ x: 10, y: 5, w: 100, h: 50 }, 40, 20).y, 25);
+    eq(Model.cropInSource({ x: 10, y: 5, w: 100, h: 50 }, 40, 20).w, 100);
+});
+
+test("an arrow is drawn from its style", () => {
+    const head = 10;
+    // Flat run to the right: the straight shaft sits on the line, stops short
+    // of the head, and the head points the way it was drawn.
+    const s = Model.arrowShape(100, 0, "straight", head);
+    eq(s.tailY, 0); eq(s.tipX, 100);
+    eq(s.cy, 0, "no bow");
+    eq(Math.round(s.angEnd * 100) / 100, 0, "the head points along the run");
+    eq(s.sx, 0, "the tail is where it was drawn");
+    ok(s.ex < 100 && s.ex > 90, "the shaft stops short of the head");
+    ok(s.headEnd && !s.headStart);
+
+    // Drawn up and to the left, the tip is the far corner, not the origin.
+    const back = Model.arrowShape(-100, -40, "straight", head);
+    eq(back.tailX, 100); eq(back.tailY, 40);
+    eq(back.tipX, 0); eq(back.tipY, 0);
+
+    // A curve leaves the chord: its control point is off to one side, and
+    // both ends aim at it rather than at each other.
+    const c = Model.arrowShape(100, 0, "curved", head);
+    eq(c.cx, 50, "still half way along");
+    eq(c.cy, -22, "and a fifth of the run to one side");
+    ok(c.angEnd > 0.3, "so the head turns with the curve");
+    ok(c.ey < 0, "and the shaft ends above the chord");
+
+    // A line has no head at all, so nothing is trimmed off it.
+    const line = Model.arrowShape(100, 0, "line", head);
+    ok(!line.headEnd && !line.headStart);
+    eq(line.sx, 0); eq(line.ex, 100, "the shaft runs the whole way");
+
+    // Two heads, and the shaft short at both ends.
+    const two = Model.arrowShape(100, 0, "double", head);
+    ok(two.headEnd && two.headStart);
+    ok(two.sx > 0 && two.ex < 100, "trimmed at both ends");
+    eq(Math.round(Math.abs(two.angStart) * 100) / 100, 3.14, "the tail head points back");
+
+    // An unknown style, and an annotation made before styles existed, are
+    // both the plain arrow.
+    eq(Model.arrowShape(100, 0, "", head).headEnd, true);
+    eq(Model.arrowShape(100, 0, undefined, head).cy, 0);
+    eq(Model.newAnnotation("arrow", 0, 0).style, "", "an arrow starts without one");
+});
+
+test("the spotlight dim is one path with a hole per spotlight", () => {
+    const holes = Model.spotlightHoles([
+        { kind: "box", x: 0, y: 0, w: 10, h: 10 },
+        { kind: "spotlight", x: 30, y: 40, w: 20, h: 20 },
+        { kind: "spotlight", x: 90, y: 90, w: -20, h: -20 }
+    ], 5, "rect");
+    eq(holes.length, 2, "only spotlights punch holes");
+    eq(holes[0].x, 35, "moved past the inset");
+    eq(holes[1].x, 75, "a hole drawn up and to the left is normalised");
+    eq(holes[1].w, 20);
+
+    // Two subpaths: the picture, then the hole. Odd-even fills between them.
+    const one = Model.spotlightPath(100, 100, 0, 0, [{ x: 20, y: 20, w: 30, h: 30 }]);
+    eq(one.split("M").length - 1, 2, "one hole, two subpaths");
+    ok(one.indexOf("M20,20H50V50H20V20Z") !== -1, "the hole is where it was put");
+    eq(Model.spotlightPath(100, 100, 0, 0, []).split("M").length - 1, 1, "no spotlight, no hole");
+
+    // A hole hanging off the picture is clamped: past the outline the odd-even
+    // rule would fill it in rather than punch it out.
+    const over = Model.spotlightPath(100, 100, 0, 0, [{ x: -40, y: -40, w: 80, h: 80 }]);
+    ok(over.indexOf("M0,0H40V40H0V0Z") !== -1, "clamped to the picture");
+    eq(Model.spotlightPath(100, 100, 0, 0, [{ x: 200, y: 0, w: 20, h: 20 }]).split("M").length - 1, 1,
+       "a hole entirely outside is dropped");
+
+    // Reaching a rounded corner, the hole takes that corner's radius, so it
+    // follows the card instead of cutting across it.
+    const hole = (p) => p.split("M").slice(2).join("M");   // subpath 1 is the picture
+    ok(hole(Model.spotlightPath(100, 100, 12, 8, [{ x: 0, y: 0, w: 50, h: 50 }]))
+        .indexOf("A12,12 0 0 1 12,0Z") !== -1, "the hole rounds off the top left");
+    ok(hole(Model.spotlightPath(100, 100, 12, 8, [{ x: 20, y: 20, w: 50, h: 50 }]))
+        .indexOf("A") === -1, "a hole away from the corners stays square");
+
+    // An ellipse closes on itself, so the fill has an inside to leave alone.
+    const oval = Model.spotlightPath(100, 100, 0, 0, [{ x: 0, y: 0, w: 100, h: 60, shape: "ellipse" }]);
+    ok(oval.indexOf("M0,30A50,30 0 0 1 100,30A50,30 0 0 1 0,30Z") !== -1, "two half arcs");
+});
+
+test("a chosen save path is given the extension the format needs", () => {
+    // magick reads the encoder off the extension, so a typed name without
+    // one, or with the other format's, has to be corrected.
+    eq(Model.withExtension("/home/a/shot", "png"), "/home/a/shot.png");
+    eq(Model.withExtension("/home/a/shot.png", "png"), "/home/a/shot.png");
+    eq(Model.withExtension("/home/a/shot.PNG", "png"), "/home/a/shot.PNG", "already right, whatever the case");
+    eq(Model.withExtension("/home/a/shot.png", "jpg"), "/home/a/shot.jpg", "the other format is replaced");
+    eq(Model.withExtension("/home/a/shot.jpeg", "jpg"), "/home/a/shot.jpeg", "jpeg is a jpg");
+    eq(Model.withExtension("/home/a/v1.2 notes", "png"), "/home/a/v1.2 notes.png", "a dot in the name is not an extension");
+    eq(Model.withExtension("/home/a.b/shot", "png"), "/home/a.b/shot.png", "nor one in a directory");
 });
 
 test("themes resolve, and anything unlisted is an installed Omarchy theme", () => {

@@ -8,7 +8,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 # seven, which knocked the live overlay out from under whoever was using it.
 out="${XDG_RUNTIME_DIR:-/tmp}/omasnap-tests"
 mkdir -p "$out"
-rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png" "$out/export-odd.png"
+rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png" \
+      "$out/export-odd.png" "$out/export-spot.png" "$out/export-spot-oval.png"
 
 # Synthetic screenshot: white left half, black right half, and a band of
 # 1px red/blue stripes through the middle that redaction has to destroy.
@@ -75,7 +76,17 @@ else
 fi
 expect "box border is blue"                52  75     0   0 255
 expect "step badge is red"                352 140   255   0   0
+# The white badge at shot (120,10): its number is the only dark thing in it.
+badge="$(magick "$out/export.png" -crop 36x36+160+50 +repage -colorspace gray -format "%[fx:int(255*minima)]" info:)"
+[ "$badge" -lt 90 ] && echo "ok   a pale badge takes a dark number (min $badge)" \
+  || { echo "FAIL the number on a pale badge is invisible (min $badge)"; fail=1; }
 expect "arrow shaft is magenta"           390  90   255   0 255
+
+# The curved arrow runs flat from shot (250,175) to (330,175), so a straight
+# one would be at export y 215 all the way. Bowed, it passes through 206 and
+# leaves the chord bare.
+expect "curved arrow bows off the chord"  330 206     0 255 255
+expect "and the chord is left bare"       330 215     0   0   0
 
 # The unredacted part of the stripe band must come out pixel for pixel: the
 # export path is expected to be exact, not merely close.
@@ -113,7 +124,7 @@ fi
 slog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen timeout 30 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessControls.qml 2>&1)"
 echo "$slog" | grep -E "^qml: (ok|FAIL)" | sed 's/^qml: //'
 if echo "$slog" | grep -q "FAIL"; then fail=1; fi
-echo "$slog" | grep -q "^qml: ok   every mesh swatch carries its own points" \
+echo "$slog" | grep -q "^qml: ok   one of them being the tip" \
   || { echo "FAIL controls harness did not run to the end"; fail=1; }
 
 # ---- inset -----------------------------------------------------------------
@@ -157,6 +168,37 @@ if [ $gpu = 1 ]; then
   else
     echo "FAIL odd export missing"; fail=1
   fi
+fi
+
+# ---- spotlight -------------------------------------------------------------
+# One spotlight over shot (10,10)-(90,190) at 60%, on the same 480x280 frame as
+# the first export: inside stays the shot, outside is the shot at 40% of its
+# brightness, and the background around the card must not move at all.
+if [ $gpu = 1 ]; then
+  for f in spot spot-oval; do
+    [ -f "$out/export-$f.png" ] || { echo "FAIL $f export missing"; fail=1; continue; }
+    spx() { magick "$out/export-$f.png" -format "%[fx:int(255*p{$1,$2}.r+0.5)] %[fx:int(255*p{$1,$2}.g+0.5)] %[fx:int(255*p{$1,$2}.b+0.5)]" info:; }
+    sexpect() { local got; got="$(spx "$2" "$3")"; local tol=6
+      read -r r g b <<<"$got"
+      if (( r-$4 > tol || $4-r > tol || g-$5 > tol || $5-g > tol || b-$6 > tol || $6-b > tol )); then
+        echo "FAIL $1 at $2,$3: expected $4 $5 $6, got $got"; fail=1
+      else
+        echo "ok   $1"
+      fi
+    }
+    # Shot pixel (sx,sy) is at (sx+40, sy+40).
+    sexpect "$f leaves the background alone"      5   5     0 255   0
+    sexpect "$f dims the white half outside"    170  70   102 102 102
+    sexpect "$f dims the black half outside"    390  60     0   0   0
+    if [ "$f" = "spot" ]; then
+      sexpect "$f keeps the corner of the hole"  54  54   255 255 255
+    else
+      # An ellipse inscribed in the same box: bright in the middle, and that
+      # same corner now falls outside it.
+      sexpect "$f dims the corner of the box"    54  54   102 102 102
+    fi
+    sexpect "$f keeps the middle of the hole"    90 140   255 255 255
+  done
 fi
 
 # ---- multipoint gradient ---------------------------------------------------

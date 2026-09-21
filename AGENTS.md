@@ -23,7 +23,8 @@ Imposed by the host, so none of it is negotiable from in here.
   telling the shell, or `toggle` desyncs.
 - `call <id> <fn> <arg>` invokes any root function and returns its string
   result (`undefined` becomes `ok`). Public surface: `edit`, `capture`, `code`,
-  `pick`, `save`, `copy`, `redact`, `copyText`, `set`, `info`, `annotate`.
+  `pick`, `save`, `saveAs`, `copy`, `crop`, `uncrop`, `redact`, `copyText`,
+  `set`, `info`, `annotate`.
   Keep those names stable; the README documents them. `info` cannot be called
   `state` because `Item` already has one.
 - **The CLI splits an argument starting with `[` on commas, and splits on
@@ -76,6 +77,15 @@ Imposed by the host, so none of it is negotiable from in here.
   the `.qsb` with the command in the shader's header after editing it, and
   commit both. Meshes still go through `QtQuick.Shapes`. `half` is a
   reserved word in the shader language qsb compiles.
+- **The spotlight dim is one filled path for every spotlight**
+  (`ui/Spotlight.qml`, `Model.spotlightPath`): drawn one per annotation they
+  would darken twice where two overlap. It is the picture's outline plus a
+  subpath per spotlight, filled odd-even, and a hole is clamped to the
+  outline — past it the odd-even rule fills the hole in instead of punching
+  it out, which showed as a dark wedge outside the card. A `ListModel` emits
+  nothing a binding can follow, so the path rides on `doc.annotationRevision`,
+  and anything that moves a spotlight without going through `addAnnotation`
+  has to call `annotationsEdited()` for the dim to keep up.
 - Redaction samples a hidden full-size `Image` through a `ShaderEffectSource`
   with a tiny `textureSize` and `smooth: false`, so each block is one sample
   with nothing to sharpen back out.
@@ -99,6 +109,23 @@ Imposed by the host, so none of it is negotiable from in here.
   that also displays a live value has to restore it with `Qt.binding`.
 - **A `Flow` cannot be sized from its own implicit width.** Give it
   `parent.width` or an explicit width.
+- **A delegate over `doc.annotations` is handed `index` as zero.** Its
+  `model` is right, but `required property int index` comes through as 0 for
+  every row of a `ListModel` with `dynamicRoles: true` — measured; the same
+  declaration over a JavaScript array (the auto swatches) and over an integer
+  model (the resize handles) is correct. Moving an annotation therefore wrote
+  its new position onto the first one, from the first commit until it was
+  found. Reach a row by `uid`, through `Doc.updateAnnotation`, never by the
+  delegate's index. A partial patch there leaves the rest of the row alone.
+- **A `Repeater` whose model is a freshly built array rebuilds every
+  delegate.** A resize handle that writes the new geometry back into the
+  model would then be destroyed mid-drag, taking its `MouseArea` and the
+  grab with it. The handles are a fixed count of four that read their own
+  position out of the model instead, and hide themselves when there is none.
+- **A plain `{x, y, w, h}` assigned to a `rect` property loses its size.** A
+  QML rect spells that `width`/`height`, and the mismatch is silent: the crop
+  selection arrived 1900 wide and came out zero. Assign `Qt.rect(...)`, and
+  read a rect that crosses into JavaScript through `Model.rectW`/`rectH`.
 - Properties on non-root items are not in scope unqualified: write
   `track.norm`, not `norm`. The Qt 6 linter flags these `[unqualified]`.
 - Annotations use the role `uid`, not `id`, to stay clear of the keyword.
@@ -139,8 +166,20 @@ Imposed by the host, so none of it is negotiable from in here.
   cannot work; `bin/snap-portal.py` holds the connection until the `Response`
   signal. It runs as `/usr/bin/python3` explicitly, because a linuxbrew or mise
   `python3` on PATH has no `gi`. The overlay hides while `picking` so the
-  dialog is not buried under the layer surface.
-  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick` flashes it for a test.
+  dialog is not buried under the layer surface — which is why **Save as
+  renders before it raises the dialog**: `grabToImage` cannot render an
+  unmapped window, so the picture is already in the scratch directory by the
+  time the overlay goes away, and only the destination is still unknown.
+  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick [open|save]` flashes either
+  dialog for a test.
+- **A crop never touches the file it came from.** `doc.cropSource` stays on
+  the picture as it was opened and `doc.cropOffset` says how far the cut has
+  moved, so a second crop is taken from the source at the summed offset
+  rather than from a re-encode of a re-encode, and `uncrop` is a reload.
+  `bin/snap-crop` writes into the scratch directory under a name made from
+  the cut, since Qt's image cache is keyed on the URL. Every crop shifts the
+  annotations with the picture, which is what keeps redaction, OCR boxes and
+  the annotation layer in one coordinate space.
 - **Qt's image cache is keyed on the URL**, so reopening a file that changed
   under the same path hands back the old picture at the old size. Every load
   bumps `doc.shotRevision`, which rides on the URL as a fragment.
@@ -164,6 +203,11 @@ Imposed by the host, so none of it is negotiable from in here.
   genuine one-off width.
 - All editor chrome is square. Only the exported card has a radius, and that
   is a user setting.
+- **The middle of the header belongs to the current tool**
+  (`ui/ToolOptions.qml`): the ink colors, the spotlight's shape and dim, the
+  classes auto-redaction looks for, and with the move tool the ways to get a
+  picture in. The inspector on the right is only about the picture, so tool
+  options do not go back there.
 - Section titles and the wordmark are uppercase with letter spacing 1.
 - Fonts and colors come from `qs.Commons.Style` and `qs.Commons.Color`.
 - Text inside cards is `Text.StyledText`, not `RichText`.

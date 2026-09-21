@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 import qs.Commons
+import "../lib/Model.js" as Model
 
 // Annotations live in screenshot pixel coordinates. Ids avoid `layer` and
 // `item`: every Item has a `layer` property and Loader exposes `item`, and
@@ -10,9 +11,23 @@ Item {
 
     property var doc: null
     property Item pixelSource: null
+    // The live editor, as against the export or the bar widget's preview.
     property bool interactive: false
+    // With the move tool every mark is there to be taken. With a tool that
+    // draws, only the one just drawn is, so a press anywhere else still
+    // starts a new mark.
+    readonly property bool moving: anno.doc !== null && anno.doc.tool === "select"
+    // Cropping is about the picture, not the marks on it: the whole surface
+    // belongs to the selection being drawn.
+    readonly property bool editable: anno.interactive && anno.doc !== null
+                                     && anno.doc.tool !== "crop"
 
     property real viewScale: 1
+
+    // Screen sizes, so they stay put however far the picture is scaled down.
+    readonly property real hairline: Math.max(1, 1.5 / anno.viewScale)
+    readonly property real handle: 9 / anno.viewScale
+    readonly property real slop: 6 / anno.viewScale
 
     clip: false
 
@@ -21,21 +36,39 @@ Item {
 
         delegate: Item {
             id: entry
-            required property int index
+            // Not `index` as well: a Repeater over this document's ListModel
+            // hands every delegate a zero, so a move wrote itself onto the
+            // first annotation instead of its own. Rows are found by uid.
             required property var model
 
             readonly property var a: model
             readonly property bool selected: anno.doc.selectedId === a.uid
+            readonly property bool grabbable: anno.editable && (anno.moving || entry.selected)
             readonly property color ink: (a.color && a.color !== "")
                                          ? a.color : anno.doc.inkColor
             readonly property real stroke: Math.max(1, a.width)
             readonly property bool sizedByContent: a.kind === "text"
+            // Where the mark sits by the model. During a move the item is
+            // dragged away from this and the model only catches up on
+            // release, so anything placed inside the item measures from here
+            // and travels with it.
+            readonly property real originX: Math.min(a.x, a.x + a.w)
+            readonly property real originY: Math.min(a.y, a.y + a.h)
 
             x: Math.min(a.x, a.x + a.w)
             y: Math.min(a.y, a.y + a.h)
             width: sizedByContent ? Math.max(1, body.implicitWidth) : Math.max(1, Math.abs(a.w))
             height: sizedByContent ? Math.max(1, body.implicitHeight) : Math.max(1, Math.abs(a.h))
 
+            // Keeping the sign of w/h, which says which way it was drawn.
+            function commit() {
+                anno.doc.updateAnnotation(entry.a.uid, {
+                    x: entry.x + (entry.a.w < 0 ? -entry.a.w : 0),
+                    y: entry.y + (entry.a.h < 0 ? -entry.a.h : 0)
+                });
+            }
+
+            // Restores what the drag overwrote.
             function rebind() {
                 entry.x = Qt.binding(function () { return Math.min(entry.a.x, entry.a.x + entry.a.w); });
                 entry.y = Qt.binding(function () { return Math.min(entry.a.y, entry.a.y + entry.a.h); });
@@ -52,6 +85,9 @@ Item {
                     case "highlight": return highlightComp;
                     case "text":      return textComp;
                     case "step":      return stepComp;
+                    // The dim is one layer under every annotation, so a
+                    // spotlight has nothing of its own to draw here.
+                    case "spotlight": return null;
                     }
                     return boxComp;
                 }
@@ -106,38 +142,59 @@ Item {
                     anchors.fill: parent
                     preferredRendererType: Shape.CurveRenderer
 
-                    readonly property real x1: entry.a.w >= 0 ? 0 : width
-                    readonly property real y1: entry.a.h >= 0 ? 0 : height
-                    readonly property real x2: entry.a.w >= 0 ? width : 0
-                    readonly property real y2: entry.a.h >= 0 ? height : 0
-                    readonly property real ang: Math.atan2(y2 - y1, x2 - x1)
                     readonly property real head: Math.max(entry.stroke * 3.2, 10)
-                    readonly property real bx: x2 - Math.cos(ang) * head * 0.82
-                    readonly property real by: y2 - Math.sin(ang) * head * 0.82
+                    readonly property var g: Model.arrowShape(entry.a.w, entry.a.h,
+                                                              entry.a.style, arw.head)
 
                     ShapePath {
                         strokeColor: entry.ink
                         strokeWidth: entry.stroke
                         capStyle: ShapePath.RoundCap
                         fillColor: "transparent"
-                        startX: arw.x1
-                        startY: arw.y1
-                        PathLine { x: arw.bx; y: arw.by }
+                        startX: arw.g.sx
+                        startY: arw.g.sy
+                        // Straight is the same curve with its control point on
+                        // the midpoint, so there is only ever one shaft.
+                        PathQuad {
+                            x: arw.g.ex
+                            y: arw.g.ey
+                            controlX: arw.g.cx
+                            controlY: arw.g.cy
+                        }
                     }
+
+                    // A ShapePath cannot be hidden, so a head that is not
+                    // wanted is filled with nothing.
                     ShapePath {
                         strokeColor: "transparent"
-                        fillColor: entry.ink
-                        startX: arw.x2
-                        startY: arw.y2
+                        fillColor: arw.g.headEnd ? entry.ink : "transparent"
+                        startX: arw.g.tipX
+                        startY: arw.g.tipY
                         PathLine {
-                            x: arw.x2 - Math.cos(arw.ang - 0.42) * arw.head
-                            y: arw.y2 - Math.sin(arw.ang - 0.42) * arw.head
+                            x: arw.g.tipX - Math.cos(arw.g.angEnd - 0.42) * arw.head
+                            y: arw.g.tipY - Math.sin(arw.g.angEnd - 0.42) * arw.head
                         }
                         PathLine {
-                            x: arw.x2 - Math.cos(arw.ang + 0.42) * arw.head
-                            y: arw.y2 - Math.sin(arw.ang + 0.42) * arw.head
+                            x: arw.g.tipX - Math.cos(arw.g.angEnd + 0.42) * arw.head
+                            y: arw.g.tipY - Math.sin(arw.g.angEnd + 0.42) * arw.head
                         }
-                        PathLine { x: arw.x2; y: arw.y2 }
+                        PathLine { x: arw.g.tipX; y: arw.g.tipY }
+                    }
+
+                    ShapePath {
+                        strokeColor: "transparent"
+                        fillColor: arw.g.headStart ? entry.ink : "transparent"
+                        startX: arw.g.tailX
+                        startY: arw.g.tailY
+                        PathLine {
+                            x: arw.g.tailX - Math.cos(arw.g.angStart - 0.42) * arw.head
+                            y: arw.g.tailY - Math.sin(arw.g.angStart - 0.42) * arw.head
+                        }
+                        PathLine {
+                            x: arw.g.tailX - Math.cos(arw.g.angStart + 0.42) * arw.head
+                            y: arw.g.tailY - Math.sin(arw.g.angStart + 0.42) * arw.head
+                        }
+                        PathLine { x: arw.g.tailX; y: arw.g.tailY }
                     }
                 }
             }
@@ -197,7 +254,8 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: entry.a.index
-                        color: "#ffffff"
+                        // A white badge had a white number on it.
+                        color: Model.textOn(String(entry.ink))
                         font.family: Style.font.family
                         font.bold: true
                         font.pixelSize: Math.round(parent.width * 0.56)
@@ -208,31 +266,102 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: -4 / anno.viewScale
-                visible: anno.interactive && entry.selected && !anno.doc.exporting
+                visible: anno.editable && entry.selected && !anno.doc.exporting
                 color: "transparent"
                 border.color: Color.accent
-                border.width: Math.max(1, 1.5 / anno.viewScale)
+                border.width: anno.hairline
                 radius: 0
             }
 
             MouseArea {
                 anchors.fill: parent
-                anchors.margins: -6 / anno.viewScale
+                id: hold
+                anchors.margins: -anno.slop
                 enabled: anno.interactive
-                cursorShape: Qt.SizeAllCursor
+                hoverEnabled: anno.interactive
+
+                // Whether a press here lands on the mark rather than in the
+                // hollow middle of it or off the line of an arrow.
+                readonly property bool onMark: Model.hitAnnotation(
+                    entry.a,
+                    entry.originX - anno.slop + hold.mouseX,
+                    entry.originY - anno.slop + hold.mouseY,
+                    anno.slop, entry.width, entry.height)
+
+                // The cursor promises only what a press will do: a move where
+                // one is on offer, and otherwise whatever the surface
+                // underneath would have shown.
+                cursorShape: (hold.onMark && entry.grabbable) ? Qt.SizeAllCursor
+                           : anno.moving ? Qt.ArrowCursor : Qt.CrossCursor
                 drag.target: entry
                 drag.threshold: 2
 
-                onPressed: anno.doc.selectedId = entry.a.uid
+                // A box, an ellipse and an arrow are mostly empty space.
+                // Taking the whole bounding box meant whichever was drawn
+                // last swallowed every press over what sits inside it, so a
+                // press that misses the mark itself is left to the one
+                // underneath.
+                onPressed: function (e) {
+                    var p = mapToItem(anno, e.x, e.y);
+                    if (!entry.grabbable
+                            || !Model.hitAnnotation(entry.a, p.x, p.y, anno.slop,
+                                                    entry.width, entry.height)) {
+                        e.accepted = false;
+                        return;
+                    }
+                    anno.doc.selectedId = entry.a.uid;
+                }
+                // The dim is drawn from the model, so a spotlight has to write
+                // its move back as it happens or the hole lags behind the drag.
+                onPositionChanged: if (entry.a.kind === "spotlight") entry.commit()
                 onReleased: {
-                    // Write the move back keeping the sign of w/h, then restore
-                    // the bindings the drag overwrote.
-                    var nx = entry.x + (entry.a.w < 0 ? -entry.a.w : 0);
-                    var ny = entry.y + (entry.a.h < 0 ? -entry.a.h : 0);
-                    anno.doc.annotations.setProperty(entry.index, "x", nx);
-                    anno.doc.annotations.setProperty(entry.index, "y", ny);
+                    entry.commit();
                     entry.rebind();
-                    anno.doc.annotationsEdited();
+                }
+            }
+
+            // Corners to pull it by, or the two ends of an arrow. A fixed
+            // count, so a delegate is never rebuilt out from under a drag;
+            // a text label is sized by its text and has none.
+            Repeater {
+                model: 4
+                delegate: Rectangle {
+                    id: knob
+                    required property int index
+                    readonly property var spot: Model.resizeHandles(entry.a)[knob.index] || null
+
+                    visible: knob.spot !== null && anno.editable && entry.selected
+                             && !anno.doc.exporting
+                    x: (knob.spot ? knob.spot.x - entry.originX : 0) - width / 2
+                    y: (knob.spot ? knob.spot.y - entry.originY : 0) - height / 2
+                    width: anno.handle
+                    height: anno.handle
+                    color: Color.accent
+                    border.width: anno.hairline
+                    border.color: Qt.rgba(0, 0, 0, 0.55)
+
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -anno.slop / 2
+                        enabled: knob.visible
+                        cursorShape: {
+                            var k = knob.spot ? knob.spot.key : "";
+                            if (k === "tl" || k === "br") return Qt.SizeFDiagCursor;
+                            if (k === "tr" || k === "bl") return Qt.SizeBDiagCursor;
+                            return Qt.SizeAllCursor;
+                        }
+
+                        onPressed: anno.doc.selectedId = entry.a.uid
+                        onPositionChanged: function (e) {
+                            if (!pressed || !knob.spot) return;
+                            var p = mapToItem(anno, e.x, e.y);
+                            // By uid, and through the document, which tells
+                            // everything drawn from the model that it moved.
+                            anno.doc.updateAnnotation(entry.a.uid,
+                                Model.resizeAnnotation(entry.a, knob.spot.key, p.x, p.y));
+                        }
+                        onReleased: anno.doc.annotationsEdited()
+                    }
                 }
             }
         }

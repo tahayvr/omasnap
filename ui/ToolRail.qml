@@ -17,8 +17,15 @@ Item {
         { key: "text",      glyph: "T",      name: "Text",      hint: "T" },
         { key: "step",      glyph: "①", name: "Step",      hint: "S" },
         { key: "highlight", glyph: "▤", name: "Highlight", hint: "H" },
-        { key: "redact",    glyph: "░", name: "Hide",      hint: "B" }
+        { key: "redact",    glyph: "░", name: "Hide",      hint: "B" },
+        { key: "spotlight", glyph: "◎", name: "Spotlight", hint: "L" },
+        { key: "crop",      glyph: "\uf125", name: "Crop",  hint: "C", shotOnly: true }
     ]
+
+    // A code card is drawn from its text, so there is nothing to cut down.
+    readonly property var offered: rail.tools.filter(function (t) {
+        return !t.shotOnly || (rail.doc && rail.doc.kind === "shot");
+    })
 
     implicitWidth: Ui.button + Ui.row * 2
 
@@ -29,7 +36,7 @@ Item {
         spacing: Ui.gap
 
         Repeater {
-            model: rail.tools
+            model: rail.offered
             IconButton {
                 required property var modelData
                 glyph: modelData.glyph

@@ -9,6 +9,10 @@ Item {
 
     property var doc: null
     property bool interactive: false
+    // What the stage is displayed at, for chrome that has to come out a fixed
+    // size on screen. The grab wrapper holds the viewport's fit, so this
+    // cannot be read off the stage's own scale.
+    property real viewScale: 1
     readonly property var geo: doc.geo
     readonly property bool codeKind: doc.kind === "code"
 
@@ -93,8 +97,9 @@ Item {
     readonly property real shadowDrop: stage.shadowRoom * 0.25 * stage.shadowAmount
     readonly property real shadowAlpha: 0.62 * stage.shadowAmount
 
-    readonly property real cardRadius: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
-                                                Math.min(geo.cardW, geo.cardH) / 2) * unit
+    readonly property real cardRadiusPx: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
+                                                  Math.min(geo.cardW, geo.cardH) / 2)
+    readonly property real cardRadius: stage.cardRadiusPx * unit
 
     Rectangle {
         anchors.fill: parent
@@ -272,12 +277,39 @@ Item {
         CodeBlock { doc: stage.doc }
     }
 
+    // Over the picture and under the annotations: an arrow drawn on a dimmed
+    // area stays as bright as one drawn on the spotlight.
+    Spotlight {
+        doc: stage.doc
+        holeOffset: stage.geo.inset
+        topRadius: stage.geo.chromeH > 0 ? 0 : stage.cardRadiusPx
+        bottomRadius: stage.cardRadiusPx
+        x: stage.geo.cardX * stage.unit
+        y: (stage.geo.cardY + stage.geo.chromeH) * stage.unit
+        width: Math.max(1, stage.geo.cardW)
+        height: Math.max(1, stage.geo.cardH - stage.geo.chromeH)
+        transformOrigin: Item.TopLeft
+        scale: stage.unit
+    }
+
     // In shot pixels, scaled into place.
     AnnotationLayer {
         doc: stage.doc
         pixelSource: stage.codeKind ? codeSource : pixelSource
-        interactive: stage.interactive && stage.doc.tool === "select" && !stage.doc.exporting
-        viewScale: stage.scale * stage.unit
+        interactive: stage.interactive && !stage.doc.exporting
+        viewScale: stage.viewScale * stage.unit
+        x: (stage.geo.cardX + stage.geo.inset) * stage.unit
+        y: (stage.geo.cardY + stage.geo.chromeH + stage.geo.inset) * stage.unit
+        width: Math.max(1, stage.geo.shotW)
+        height: Math.max(1, stage.geo.shotH)
+        transformOrigin: Item.TopLeft
+        scale: stage.unit
+    }
+
+    // Over everything, since it is about the picture rather than part of it.
+    CropOverlay {
+        doc: stage.doc
+        viewScale: stage.viewScale * stage.unit
         x: (stage.geo.cardX + stage.geo.inset) * stage.unit
         y: (stage.geo.cardY + stage.geo.chromeH + stage.geo.inset) * stage.unit
         width: Math.max(1, stage.geo.shotW)

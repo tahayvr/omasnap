@@ -63,9 +63,20 @@ Window {
         step.w = 36; step.h = 36; step.index = 7; step.color = "#ff0000";
         doc.annotations.append(step);
 
+        // A white badge, whose number has to be dark to be seen at all.
+        var pale = Model.newAnnotation("step", 120, 10);
+        pale.w = 36; pale.h = 36; pale.index = 3; pale.color = "#ffffff";
+        doc.annotations.append(pale);
+
         var arrow = Model.newAnnotation("arrow", 320, 20);
         arrow.w = 60; arrow.h = 60; arrow.color = "#ff00ff"; arrow.width = 4;
         doc.annotations.append(arrow);
+
+        // Bowing up from a flat run: its apex has to be off the chord.
+        var curve = Model.newAnnotation("arrow", 250, 175);
+        curve.w = 80; curve.h = 0; curve.color = "#00ffff"; curve.width = 4;
+        curve.style = "curved";
+        doc.annotations.append(curve);
 
         var label = Model.newAnnotation("text", 20, 150);
         label.text = "Hello"; label.color = "#000000"; label.width = 4;
@@ -74,6 +85,12 @@ Window {
         var empty = Model.newAnnotation("text", 20, 100);
         empty.text = ""; empty.color = "#000000"; empty.width = 4;
         doc.annotations.append(empty);   // placeholder must not export
+
+        // Editing chrome must not reach the file: the crop tool is in hand
+        // with a selection over a corner of the shot, and every check below
+        // still reads the bare picture.
+        doc.tool = "crop";
+        doc.cropRect = Qt.rect(0, 0, 200, 120);
 
         doc.annotationsEdited();
         grabTimer.start();
@@ -150,6 +167,35 @@ Window {
     Timer {
         id: oddTimer
         interval: 250
-        onTriggered: win.grab("export-odd", function () { Qt.quit(); })
+        onTriggered: win.grab("export-odd", function () {
+            // Back to the first frame, with everything but a spotlight
+            // cleared: the dim has to land on the picture and nowhere else.
+            doc.padding = 10;
+            doc.clearAnnotations();
+            // Clear of the stripe band, so the hole is plain white and a
+            // dimmed reading cannot be confused with the stripes.
+            var spot = Model.newAnnotation("spotlight", 10, 10);
+            spot.w = 80; spot.h = 180;
+            doc.addAnnotation(spot);
+            doc.selectedId = "";
+            doc.spotShape = "rect";
+            doc.spotDim = 60;
+            spotTimer.start();
+        })
+    }
+
+    Timer {
+        id: spotTimer
+        interval: 250
+        onTriggered: win.grab("export-spot", function () {
+            doc.spotShape = "ellipse";
+            ovalTimer.start();
+        })
+    }
+
+    Timer {
+        id: ovalTimer
+        interval: 250
+        onTriggered: win.grab("export-spot-oval", function () { Qt.quit(); })
     }
 }

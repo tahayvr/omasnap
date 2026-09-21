@@ -16,7 +16,7 @@ the picture that should not be public.
 ## Features
 
 **Framing**
-- Padding, aspect ratio presets, corner radius, shadow and an optional title bar
+- Padding, aspect ratio presets, corner radius, crop, shadow and an optional title bar
 - Inset, which extends the screenshot's own edge color outwards to give a
   cramped window room to breathe
 
@@ -30,6 +30,8 @@ the picture that should not be public.
 
 **Annotation**
 - Arrows, boxes, ellipses, highlighter, text labels and numbered steps
+- Spotlight a rectangle or an ellipse and the rest of the screenshot dims,
+  leaving the background as it is
 - Drag to move, and they stay pinned to the Snap when you reframe
 
 ![Annotations](assets/showcase/annotations.png)
@@ -97,8 +99,9 @@ clipboard if nothing is highlighted.
 
 | Key | Action |
 | --- | --- |
-| `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B` | move, arrow, box, ellipse, text, step, highlight, hide |
+| `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B`, `L`, `C` | move, arrow, box, ellipse, text, step, highlight, hide, spotlight, crop |
 | `Ctrl+C` / `Ctrl+S` | copy / save |
+| `Ctrl+Shift+S` | Save as, through the system file dialog |
 | `Ctrl+Z` | undo |
 | `Ctrl+N` | Grab another region |
 | `Ctrl+K` | Code card from the selected text |
@@ -117,10 +120,13 @@ omarchy-shell shell call tahayvr.omasnap code ''               # code card from 
 omarchy-shell shell call tahayvr.omasnap pick ''               # system file picker
 omarchy-shell shell call tahayvr.omasnap set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
 omarchy-shell shell call tahayvr.omasnap annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
+omarchy-shell shell call tahayvr.omasnap crop '{"x":80,"y":40,"w":900,"h":600}'   # or '' for the selection
+omarchy-shell shell call tahayvr.omasnap uncrop ''            # back to the whole picture
 omarchy-shell shell call tahayvr.omasnap info ''               # the document as JSON
 omarchy-shell shell call tahayvr.omasnap redact ''            # find and hide secrets
 omarchy-shell shell call tahayvr.omasnap copyText ''          # text to the clipboard
 omarchy-shell shell call tahayvr.omasnap save ''              # export to disk (and clipboard)
+omarchy-shell shell call tahayvr.omasnap saveAs ''            # export, choosing the file
 omarchy-shell shell call tahayvr.omasnap copy ''              # export to the clipboard
 ```
 

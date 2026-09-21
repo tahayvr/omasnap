@@ -3,7 +3,6 @@ import QtQuick.Controls as QQC
 import qs.Commons
 import "controls"
 import "../lib/Model.js" as Model
-import "../lib/Redact.js" as Redact
 import "../lib/Code.js" as Code
 
 Flickable {
@@ -11,7 +10,6 @@ Flickable {
     property var doc
     property var systemThemes: []
 
-    signal autoRedactRequested()
     signal copyTextRequested()
 
     contentWidth: width
@@ -258,77 +256,6 @@ Flickable {
             }
         }
 
-        Section {
-            title: "Ink"
-
-            Flow {
-                width: parent.width
-                spacing: Ui.gap
-                Repeater {
-                    model: ["#ff5f56", "#ffbd2e", "#27c93f", "#4aa6c7", "#b0577f", "#ffffff", "#111111"]
-                    Swatch {
-                        required property var modelData
-                        swatchColor: modelData
-                        active: Qt.colorEqual(doc.inkColor, modelData)
-                        onPicked: doc.inkColor = modelData
-                    }
-                }
-                Swatch {
-                    swatchColor: Color.accent
-                    active: Qt.colorEqual(doc.inkColor, Color.accent)
-                    onPicked: doc.inkColor = Color.accent
-                }
-            }
-
-            LabeledSlider {
-                label: "Stroke"
-                value: doc.inkWidth
-                from: 1; to: 16; decimals: 0
-                onMoved: function (v) { doc.inkWidth = v; }
-            }
-        }
-
-        Section {
-            title: "Hide sensitive data"
-            visible: doc.kind === "shot"
-
-            Flow {
-                width: parent.width
-                spacing: Ui.gap
-                Repeater {
-                    model: Redact.CLASSES
-                    Chip {
-                        required property var modelData
-                        label: modelData.label
-                        on: doc.redactClasses.indexOf(modelData.key) !== -1
-                        onToggled: {
-                            var c = doc.redactClasses.slice();
-                            var i = c.indexOf(modelData.key);
-                            if (i === -1) c.push(modelData.key); else c.splice(i, 1);
-                            doc.redactClasses = c;
-                        }
-                    }
-                }
-            }
-
-            Row {
-                width: parent.width
-                spacing: Ui.gap
-                IconButton {
-                    width: (parent.width - Ui.gap) / 2
-                    glyph: "░"
-                    label: "Find and hide"
-                    onClicked: insp.autoRedactRequested()
-                }
-                IconButton {
-                    width: (parent.width - Ui.gap) / 2
-                    glyph: "⎘"
-                    label: "Copy text"
-                    onClicked: insp.copyTextRequested()
-                }
-            }
-        }
-
         // Below the framing controls it belongs with, but out of the way:
         // off by default and rarely reached for.
         Toggle {
@@ -364,6 +291,14 @@ Flickable {
                 value: doc.quality
                 from: 40; to: 100; decimals: 0
                 onMoved: function (v) { doc.quality = v; }
+            }
+
+            IconButton {
+                width: parent.width
+                visible: doc.kind === "shot"
+                glyph: "⎘"
+                label: "Copy the text in the shot"
+                onClicked: insp.copyTextRequested()
             }
 
             Text {

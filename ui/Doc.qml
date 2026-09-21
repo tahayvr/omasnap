@@ -8,6 +8,7 @@ QtObject {
     // pixel size through shotWidth/shotHeight so the frame maths is shared.
     property string kind: "shot"            // shot | code
     property string shotPath: ""
+    property string shotName: ""            // what to call it, whatever a crop is pointing at
     property int shotWidth: 0
     property int shotHeight: 0
     // Bumped on every load so a file that changed under the same path gets
@@ -56,10 +57,27 @@ QtObject {
     property string tool: "select"
     property color inkColor: "#ff5f56"
     property real inkWidth: 4
+    property string arrowStyle: "straight"
     property int stepCounter: 0
     property string selectedId: ""
 
     property var redactClasses: ["email", "secret", "card", "net", "phone"]
+
+    // Cropping never touches the file it started from: the picture on show is
+    // a fresh cut of cropSource, and cropOffset says how far it has moved, so
+    // the crop can be widened again or dropped entirely.
+    property string cropSource: ""
+    property point cropOffset: Qt.point(0, 0)
+    property bool cropped: false
+    property rect cropRect: Qt.rect(0, 0, 0, 0)   // the selection being drawn
+    readonly property bool cropUsable: Model.cropUsable(cropRect)
+
+    property string spotShape: "rect"       // rect | ellipse, for every spotlight
+    property real spotDim: 55               // how dark the rest of the picture goes
+    property int spotlightCount: 0
+    // A ListModel emits nothing a binding can follow, so the dim layer and the
+    // count above ride on this instead.
+    property int annotationRevision: 0
 
     // True for the grab frame; editing affordances bind to it.
     property bool exporting: false
@@ -84,6 +102,14 @@ QtObject {
     // Not `annotationsChanged`: that name belongs to the property.
     signal annotationsEdited()
 
+    onAnnotationsEdited: {
+        var n = 0;
+        for (var i = 0; i < annotations.count; i++)
+            if (annotations.get(i).kind === "spotlight") n++;
+        spotlightCount = n;
+        annotationRevision++;
+    }
+
     property string _previousSelectedId: ""
 
     onSelectedIdChanged: {
@@ -103,6 +129,53 @@ QtObject {
         annotations.append(obj);
         selectedId = obj.uid;
         annotationsEdited();
+    }
+
+    // What the next arrow will be, and the one just drawn: an arrow is
+    // selected the moment it is finished, so the choice reads as live.
+    function setArrowStyle(key) {
+        arrowStyle = key;
+        var a = selectedAnnotation();
+        if (a && a.kind === "arrow") updateAnnotation(a.uid, { style: key });
+    }
+
+    // A crop moves the picture out from under everything drawn on it.
+    function shiftAnnotations(dx, dy) {
+        if (dx === 0 && dy === 0) return;
+        for (var i = 0; i < annotations.count; i++) {
+            var a = annotations.get(i);
+            annotations.setProperty(i, "x", a.x + dx);
+            annotations.setProperty(i, "y", a.y + dy);
+        }
+        annotationsEdited();
+    }
+
+    // The tool bar edits whatever is in hand: the selected mark if there is
+    // one, and always the setting the next mark will be made with.
+    function styleSelection(prop, value) {
+        var a = selectedAnnotation();
+        if (!a) return false;
+        var patch = {};
+        patch[prop] = value;
+        updateAnnotation(a.uid, patch);
+        return true;
+    }
+
+    // What a crop cuts away takes the marks that were only on it.
+    function dropOutside(w, h) {
+        var gone = 0;
+        for (var i = annotations.count - 1; i >= 0; i--) {
+            var a = annotations.get(i);
+            if (Model.overlapsRect(a, 0, 0, w, h)) continue;
+            if (selectedId === a.uid) selectedId = "";
+            annotations.remove(i);
+            gone++;
+        }
+        if (gone > 0) {
+            renumberSteps();
+            annotationsEdited();
+        }
+        return gone;
     }
 
     function indexOfId(uid) {
@@ -128,7 +201,22 @@ QtObject {
         if (i < 0) return;
         if (selectedId === uid) selectedId = "";
         annotations.remove(i);
+        renumberSteps();
         annotationsEdited();
+    }
+
+    // Steps are read as a sequence, so losing one in the middle must not
+    // leave a hole in it: the rest close up, in the order they were made,
+    // and the next one carries on from the end.
+    function renumberSteps() {
+        var n = 0;
+        for (var i = 0; i < annotations.count; i++) {
+            if (annotations.get(i).kind !== "step") continue;
+            n++;
+            if (annotations.get(i).index !== n) annotations.setProperty(i, "index", n);
+        }
+        stepCounter = n;
+        return n;
     }
 
     function clearAnnotations() {
@@ -141,9 +229,8 @@ QtObject {
     function undo() {
         if (annotations.count === 0) return;
         selectedId = "";
-        var last = annotations.get(annotations.count - 1);
-        if (last.kind === "step") stepCounter = Math.max(0, stepCounter - 1);
         annotations.remove(annotations.count - 1);
+        renumberSteps();
         annotationsEdited();
     }
 
@@ -156,6 +243,11 @@ QtObject {
         shotHeight = 0;
         codeText = "";
         codeHtml = "";
+        shotName = "";
+        cropSource = "";
+        cropOffset = Qt.point(0, 0);
+        cropped = false;
+        cropRect = Qt.rect(0, 0, 0, 0);
         frameTitle = "";
         autoPalette = [];
         shotPalette = [];
@@ -169,7 +261,8 @@ QtObject {
         radius = 3; shadow = 45;
         frame = "none"; tool = "select";
         bgMode = "auto"; bgSolid = "#1e222a"; bgGradient = "dusk";
-        inkColor = "#ff5f56"; inkWidth = 4;
+        spotShape = "rect"; spotDim = 55;
+        inkColor = "#ff5f56"; inkWidth = 4; arrowStyle = "straight";
         exportScale = 1; format = "png"; quality = 92;
         codeTheme = "omarchy"; codeFont = 16; codeNumbers = false;
     }
