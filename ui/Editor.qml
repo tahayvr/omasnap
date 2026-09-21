@@ -61,19 +61,17 @@ Rectangle {
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 elide: Text.ElideMiddle
-                width: Math.min(implicitWidth, Style.space(220))
+                width: Math.min(implicitWidth, Style.space(150))
             }
         }
 
-        Row {
+        ToolOptions {
             anchors.centerIn: parent
-            spacing: Ui.gap
-
-            IconButton { glyph: "\u2b1a"; label: "Region"; onClicked: editor.captureRequested("region") }
-            IconButton { glyph: "\u25f0"; label: "Window"; onClicked: editor.captureRequested("windows") }
-            IconButton { glyph: "\u2b1c"; label: "Screen"; onClicked: editor.captureRequested("fullscreen") }
-            IconButton { glyph: "\u2039\u203a"; label: "Code"; tip: "Selected text as a code card"; onClicked: editor.codeRequested() }
-            IconButton { glyph: "\uf1c5"; label: "File"; tip: "Open a file"; onClicked: editor.openRequested() }
+            doc: editor.doc
+            onCaptureRequested: function (mode) { editor.captureRequested(mode); }
+            onCodeRequested: editor.codeRequested()
+            onOpenRequested: editor.openRequested()
+            onAutoRedactRequested: editor.autoRedactRequested()
         }
 
         Row {
@@ -313,7 +311,6 @@ Rectangle {
         anchors { top: header.bottom; bottom: footer.top; right: parent.right }
         width: Style.space(300)
         visible: doc.hasContent
-        onAutoRedactRequested: editor.autoRedactRequested()
         onCopyTextRequested: editor.copyTextRequested()
     }
 

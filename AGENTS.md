@@ -177,6 +177,11 @@ Imposed by the host, so none of it is negotiable from in here.
   genuine one-off width.
 - All editor chrome is square. Only the exported card has a radius, and that
   is a user setting.
+- **The middle of the header belongs to the current tool**
+  (`ui/ToolOptions.qml`): the ink colors, the spotlight's shape and dim, the
+  classes auto-redaction looks for, and with the move tool the ways to get a
+  picture in. The inspector on the right is only about the picture, so tool
+  options do not go back there.
 - Section titles and the wordmark are uppercase with letter spacing 1.
 - Fonts and colors come from `qs.Commons.Style` and `qs.Commons.Color`.
 - Text inside cards is `Text.StyledText`, not `RichText`.

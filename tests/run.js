@@ -171,6 +171,16 @@ function tsv(text, opts) {
 const ALL = Redact.CLASSES.map(c => c.key);
 function labels(found) { return Object.keys(found.counts).sort(); }
 
+test("every sensitive class carries both of its labels", () => {
+    // The header's tool bar uses the short one; a class added without it
+    // would leave a nameless chip there.
+    for (const c of Redact.CLASSES) {
+        ok(c.label && c.label.length > 0, c.key + " has a label");
+        ok(c.short && c.short.length > 0 && c.short.length <= 8, c.key + " has a short label");
+        ok(c.members.length > 0, c.key + " matches at least one pattern");
+    }
+});
+
 test("luhn accepts real card numbers and rejects look-alikes", () => {
     ok(Redact.luhn("4111 1111 1111 1111"));
     ok(Redact.luhn("5500-0000-0000-0004"));
