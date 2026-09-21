@@ -120,7 +120,7 @@ fi
 slog="$(cd "$here" && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen timeout 30 /usr/lib/qt6/bin/qml -I "$here/stubs" HarnessControls.qml 2>&1)"
 echo "$slog" | grep -E "^qml: (ok|FAIL)" | sed 's/^qml: //'
 if echo "$slog" | grep -q "FAIL"; then fail=1; fi
-echo "$slog" | grep -q "^qml: ok   an annotation is not resized by a hover" \
+echo "$slog" | grep -q "^qml: ok   one of them being the tip" \
   || { echo "FAIL controls harness did not run to the end"; fail=1; }
 
 # ---- inset -----------------------------------------------------------------

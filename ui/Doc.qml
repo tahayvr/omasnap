@@ -150,6 +150,31 @@ QtObject {
         annotationsEdited();
     }
 
+    // The tool bar edits whatever is in hand: the selected mark if there is
+    // one, and always the setting the next mark will be made with.
+    function styleSelection(prop, value) {
+        var a = selectedAnnotation();
+        if (!a) return false;
+        var patch = {};
+        patch[prop] = value;
+        updateAnnotation(a.uid, patch);
+        return true;
+    }
+
+    // What a crop cuts away takes the marks that were only on it.
+    function dropOutside(w, h) {
+        var gone = 0;
+        for (var i = annotations.count - 1; i >= 0; i--) {
+            var a = annotations.get(i);
+            if (Model.overlapsRect(a, 0, 0, w, h)) continue;
+            if (selectedId === a.uid) selectedId = "";
+            annotations.remove(i);
+            gone++;
+        }
+        if (gone > 0) annotationsEdited();
+        return gone;
+    }
+
     function indexOfId(uid) {
         for (var i = 0; i < annotations.count; i++)
             if (annotations.get(i).uid === uid) return i;

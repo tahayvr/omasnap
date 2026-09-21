@@ -509,6 +509,94 @@ test("a multipoint preset places its colors around the frame", () => {
     ok(odd[1].r > 0, "a missing radius still gets one");
 });
 
+test("a press picks the mark it lands on, not the box around it", () => {
+    const box = { kind: "box", x: 10, y: 10, w: 100, h: 50, width: 4 };
+    ok(Model.hitAnnotation(box, 10, 35, 6), "on the left edge");
+    ok(Model.hitAnnotation(box, 60, 12, 6), "on the top edge");
+    ok(!Model.hitAnnotation(box, 60, 35, 6), "but not in the hollow middle");
+    ok(!Model.hitAnnotation(box, 200, 35, 6), "nor outside it");
+
+    const ell = { kind: "ellipse", x: 0, y: 0, w: 100, h: 100, width: 4 };
+    ok(Model.hitAnnotation(ell, 0, 50, 6), "on the ring");
+    ok(!Model.hitAnnotation(ell, 50, 50, 6), "not in the middle");
+    ok(!Model.hitAnnotation(ell, 4, 4, 6), "nor in the corner of its box");
+
+    // The filled kinds are their whole box, which is what they look like.
+    ok(Model.hitAnnotation({ kind: "highlight", x: 0, y: 0, w: 80, h: 20, width: 4 }, 40, 10, 6));
+    ok(Model.hitAnnotation({ kind: "redact", x: 0, y: 0, w: 80, h: 20, width: 4 }, 40, 10, 6));
+
+    const arrow = { kind: "arrow", x: 0, y: 0, w: 100, h: 0, width: 4, style: "straight" };
+    ok(Model.hitAnnotation(arrow, 50, 0, 6), "on the shaft");
+    ok(Model.hitAnnotation(arrow, 98, 2, 6), "and at the head");
+    ok(!Model.hitAnnotation(arrow, 50, 30, 6), "not well off it");
+
+    // A curved arrow is where it is drawn, not on the chord it spans.
+    const bent = { kind: "arrow", x: 0, y: 0, w: 100, h: 0, width: 4, style: "curved" };
+    ok(!Model.hitAnnotation(bent, 50, 0, 6), "the chord is bare");
+    ok(Model.hitAnnotation(bent, 50, -11, 6), "the curve is where the bow is");
+});
+
+test("a selected mark is pulled about by its handles", () => {
+    const box = { kind: "box", x: 10, y: 10, w: 100, h: 50, width: 4 };
+    const h = Model.resizeHandles(box);
+    eq(h.length, 4);
+    eq(h[0].key, "tl"); eq(h[0].x, 10); eq(h[0].y, 10);
+    eq(h[2].key, "br"); eq(h[2].x, 110); eq(h[2].y, 60);
+
+    // Drawn backwards, the handles are still the corners of what is seen.
+    const back = Model.resizeHandles({ kind: "box", x: 110, y: 60, w: -100, h: -50, width: 4 });
+    eq(back[0].x, 10); eq(back[0].y, 10);
+
+    // An arrow is held by its ends, which are not corners of a box.
+    const ends = Model.resizeHandles({ kind: "arrow", x: 10, y: 10, w: -60, h: 40, width: 4 });
+    eq(ends.length, 2);
+    eq(ends[0].key, "tail"); eq(ends[0].x, 10); eq(ends[0].y, 10);
+    eq(ends[1].key, "tip"); eq(ends[1].x, -50); eq(ends[1].y, 50);
+
+    eq(Model.resizeHandles({ kind: "text", x: 0, y: 0, w: 0, h: 0 }).length, 0,
+       "a text label is sized by its text");
+
+    // The corner opposite the one in hand stays put.
+    const br = Model.resizeAnnotation(box, "br", 200, 100);
+    eq(br.x, 10); eq(br.y, 10); eq(br.w, 190); eq(br.h, 90);
+    const tl = Model.resizeAnnotation(box, "tl", 0, 0);
+    eq(tl.x, 0); eq(tl.y, 0); eq(tl.w, 110); eq(tl.h, 60);
+
+    // Pulled past that corner it turns inside out rather than going negative.
+    const past = Model.resizeAnnotation(box, "tl", 200, 100);
+    eq(past.x, 110); eq(past.y, 60); eq(past.w, 90); eq(past.h, 40);
+
+    // Never smaller than something that can be grabbed again.
+    const tiny = Model.resizeAnnotation(box, "br", 11, 11);
+    eq(tiny.w, 8); eq(tiny.h, 8);
+
+    // A step badge is a circle, so its sides stay equal.
+    const step = Model.resizeAnnotation({ kind: "step", x: 0, y: 0, w: 30, h: 30, width: 4 },
+                                        "br", 90, 40);
+    eq(step.w, 90); eq(step.h, 90);
+
+    // An arrow end moves on its own; the other stays where it was.
+    const tail = Model.resizeAnnotation({ kind: "arrow", x: 0, y: 0, w: 100, h: 50 }, "tail", 20, 10);
+    eq(tail.x, 20); eq(tail.y, 10); eq(tail.w, 80); eq(tail.h, 40);
+    const tip = Model.resizeAnnotation({ kind: "arrow", x: 0, y: 0, w: 100, h: 50 }, "tip", 20, 10);
+    eq(tip.x, 0); eq(tip.y, 0); eq(tip.w, 20); eq(tip.h, 10);
+});
+
+test("a crop takes the marks that were only on what it cuts away", () => {
+    const inside = { kind: "box", x: 10, y: 10, w: 50, h: 50 };
+    ok(Model.overlapsRect(inside, 0, 0, 100, 100));
+    ok(!Model.overlapsRect({ kind: "box", x: 200, y: 10, w: 50, h: 50 }, 0, 0, 100, 100),
+       "past the right edge");
+    ok(!Model.overlapsRect({ kind: "box", x: 10, y: -80, w: 50, h: 50 }, 0, 0, 100, 100),
+       "and above the top");
+    ok(Model.overlapsRect({ kind: "box", x: 80, y: 10, w: 50, h: 50 }, 0, 0, 100, 100),
+       "half in is still in");
+    ok(Model.overlapsRect({ kind: "text", x: 40, y: 40, w: 0, h: 0 }, 0, 0, 100, 100),
+       "a text label has no size of its own but is somewhere");
+    ok(!Model.overlapsRect({ kind: "box", x: 10, y: 10, w: -50, h: -50 }, 20, 20, 100, 100),
+       "measured as it is seen, not as it was drawn");
+});
+
 test("a crop selection is squared up against the picture", () => {
     // Drawn up and to the left, and running off two edges of a 400x200 shot.
     const r = Model.cropRect(300, 150, -500, -400, 400, 200);

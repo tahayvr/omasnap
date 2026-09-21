@@ -631,10 +631,13 @@ Item {
                 }
                 root.loadShot(cropProc.dest, true);
                 doc.shiftAnnotations(-cropProc.moved.x, -cropProc.moved.y);
+                var gone = doc.dropOutside(cropProc.cut.w, cropProc.cut.h);
                 doc.cropOffset = Qt.point(cropProc.cut.x, cropProc.cut.y);
                 doc.cropped = true;
                 doc.tool = "select";
-                editor.statusText = "Cropped to " + cropProc.cut.w + "\u00d7" + cropProc.cut.h;
+                editor.statusText = "Cropped to " + cropProc.cut.w + "\u00d7" + cropProc.cut.h
+                                  + (gone > 0 ? "  \u00b7  " + gone + (gone === 1 ? " annotation" : " annotations")
+                                                + " dropped" : "");
             }
         }
     }

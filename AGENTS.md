@@ -109,6 +109,19 @@ Imposed by the host, so none of it is negotiable from in here.
   that also displays a live value has to restore it with `Qt.binding`.
 - **A `Flow` cannot be sized from its own implicit width.** Give it
   `parent.width` or an explicit width.
+- **A delegate over `doc.annotations` is handed `index` as zero.** Its
+  `model` is right, but `required property int index` comes through as 0 for
+  every row of a `ListModel` with `dynamicRoles: true` — measured; the same
+  declaration over a JavaScript array (the auto swatches) and over an integer
+  model (the resize handles) is correct. Moving an annotation therefore wrote
+  its new position onto the first one, from the first commit until it was
+  found. Reach a row by `uid`, through `Doc.updateAnnotation`, never by the
+  delegate's index. A partial patch there leaves the rest of the row alone.
+- **A `Repeater` whose model is a freshly built array rebuilds every
+  delegate.** A resize handle that writes the new geometry back into the
+  model would then be destroyed mid-drag, taking its `MouseArea` and the
+  grab with it. The handles are a fixed count of four that read their own
+  position out of the model instead, and hide themselves when there is none.
 - **A plain `{x, y, w, h}` assigned to a `rect` property loses its size.** A
   QML rect spells that `width`/`height`, and the mismatch is silent: the crop
   selection arrived 1900 wide and came out zero. Assign `Qt.rect(...)`, and

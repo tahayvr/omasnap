@@ -22,12 +22,37 @@ Loader {
 
     readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step"]
 
+    // The mark in hand, if one is selected: the strip is then about that
+    // rather than about the tool, so a mark can be restyled after the fact.
+    readonly property var picked: {
+        doc.selectedId;
+        doc.annotationRevision;
+        return doc.hasContent ? doc.selectedAnnotation() : null;
+    }
+    readonly property string subject: opts.picked ? String(opts.picked.kind) : doc.tool
+    readonly property color ink: (opts.picked && opts.picked.color && opts.picked.color !== "")
+                                 ? opts.picked.color : doc.inkColor
+    readonly property real stroke: opts.picked ? opts.picked.width : doc.inkWidth
+    readonly property string arrowStyle: (opts.picked && opts.picked.style && opts.picked.style !== "")
+                                         ? opts.picked.style : doc.arrowStyle
+
+    // Both at once: what is in hand changes, and so does what the next mark
+    // will be made with.
+    function setInk(c) {
+        doc.inkColor = c;
+        doc.styleSelection("color", String(c));
+    }
+    function setStroke(v) {
+        doc.inkWidth = v;
+        doc.styleSelection("width", v);
+    }
+
     sourceComponent: {
-        if (!doc.hasContent || doc.tool === "select") return captureComp;
-        if (doc.tool === "crop") return cropComp;
-        if (doc.tool === "spotlight") return spotlightComp;
-        if (doc.tool === "redact") return redactComp;
-        if (opts.inkTools.indexOf(doc.tool) !== -1) return inkComp;
+        if (!doc.hasContent) return captureComp;
+        if (opts.subject === "crop") return cropComp;
+        if (opts.subject === "spotlight") return spotlightComp;
+        if (opts.subject === "redact") return redactComp;
+        if (opts.inkTools.indexOf(opts.subject) !== -1) return inkComp;
         return captureComp;
     }
 
@@ -63,14 +88,14 @@ Loader {
             Row {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Ui.gap
-                visible: opts.doc.tool === "arrow"
+                visible: opts.subject === "arrow"
                 Repeater {
                     model: Model.ARROW_STYLES
                     IconButton {
                         required property var modelData
                         glyph: modelData.glyph
                         tip: modelData.label
-                        active: opts.doc.arrowStyle === modelData.key
+                        active: opts.arrowStyle === modelData.key
                         onClicked: opts.doc.setArrowStyle(modelData.key)
                     }
                 }
@@ -84,22 +109,22 @@ Loader {
                     Swatch {
                         required property var modelData
                         swatchColor: modelData
-                        active: Qt.colorEqual(opts.doc.inkColor, modelData)
-                        onPicked: opts.doc.inkColor = modelData
+                        active: Qt.colorEqual(opts.ink, modelData)
+                        onPicked: opts.setInk(modelData)
                     }
                 }
                 Swatch {
                     swatchColor: Color.accent
-                    active: Qt.colorEqual(opts.doc.inkColor, Color.accent)
-                    onPicked: opts.doc.inkColor = Color.accent
+                    active: Qt.colorEqual(opts.ink, Color.accent)
+                    onPicked: opts.setInk(Color.accent)
                 }
             }
 
             InlineSlider {
-                label: opts.doc.tool === "text" ? "Size" : "Stroke"
-                value: opts.doc.inkWidth
+                label: opts.subject === "text" ? "Size" : "Stroke"
+                value: opts.stroke
                 from: 1; to: 16
-                onMoved: function (v) { opts.doc.inkWidth = Math.round(v); }
+                onMoved: function (v) { opts.setStroke(Math.round(v)); }
             }
         }
     }

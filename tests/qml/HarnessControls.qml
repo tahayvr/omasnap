@@ -63,6 +63,36 @@ Window {
         height: 200
     }
 
+    // The annotation layer proper, so the handles on a selected mark can be
+    // found in the tree and read off: there is no pointer here to grab one.
+    AnnotationLayer {
+        id: marks
+        doc: doc
+        interactive: true
+        viewScale: 1
+        x: 4000
+        width: 400
+        height: 200
+    }
+
+    function entries(item, out) {
+        for (var i = 0; i < item.children.length; i++) {
+            var c = item.children[i];
+            if (typeof c.commit === "function" && typeof c.rebind === "function") out.push(c);
+            win.entries(c, out);
+        }
+        return out;
+    }
+
+    function knobs(item, out) {
+        for (var i = 0; i < item.children.length; i++) {
+            var c = item.children[i];
+            if (c.hasOwnProperty("spot") && c.visible) out.push(c);
+            win.knobs(c, out);
+        }
+        return out;
+    }
+
     function rectText(r) {
         return Math.round(r.x) + "," + Math.round(r.y) + " "
              + Math.round(r.width) + "x" + Math.round(r.height);
@@ -285,6 +315,107 @@ Window {
         editor.drawMove(100, 80, false);
         win.check("an annotation is not resized by a hover",
                   doc.annotations.get(0).w, 0);
+
+        // ---- what a crop cuts away -----------------------------------------
+        doc.clearAnnotations();
+        var keep = Model.newAnnotation("box", 20, 20); keep.w = 40; keep.h = 40;
+        var half = Model.newAnnotation("box", 180, 20); half.w = 60; half.h = 40;
+        var gone = Model.newAnnotation("box", 400, 300); gone.w = 40; gone.h = 40;
+        var mark = Model.newAnnotation("step", 500, 500); mark.w = 30; mark.h = 30;
+        doc.annotations.append(keep);
+        doc.annotations.append(half);
+        doc.annotations.append(gone);
+        doc.annotations.append(mark);
+        doc.selectedId = mark.uid;
+        doc.annotationsEdited();
+
+        win.check("two marks are cut away with the picture", doc.dropOutside(200, 200), 2);
+        win.check("and the rest stay", doc.annotations.count, 2);
+        win.check("including one only half inside", doc.annotations.get(1).x, 180);
+        win.check("nothing is left selected that is gone", doc.selectedId, "");
+
+        // Restyling reaches what is in hand, and leaves the rest alone.
+        doc.selectedId = doc.annotations.get(0).uid;
+        win.check("the selected mark is restyled", doc.styleSelection("color", "#00ff00"), true);
+        win.check("in the model", String(doc.annotations.get(0).color), "#00ff00");
+        win.check("and its neighbour is untouched", String(doc.annotations.get(1).color), "");
+        doc.selectedId = "";
+        win.check("with nothing selected there is nothing to restyle",
+                  doc.styleSelection("color", "#ff0000"), false);
+
+        // ---- handles on the selected mark ----------------------------------
+        doc.clearAnnotations();
+        doc.tool = "select";
+        var one = Model.newAnnotation("box", 40, 20);
+        one.w = 120; one.h = 60;
+        doc.annotations.append(one);
+        var two = Model.newAnnotation("arrow", 200, 100);
+        two.w = 80; two.h = -40;
+        doc.annotations.append(two);
+        doc.annotationsEdited();
+
+        win.check("nothing selected, no handles", win.knobs(marks, []).length, 0);
+
+        doc.selectedId = one.uid;
+        var k = win.knobs(marks, []);
+        win.check("a box is held at four corners", k.length, 4);
+        var keys = k.map(function (h) { return h.spot.key; }).sort().join(" ");
+        win.check("one at each", keys, "bl br tl tr");
+
+        doc.selectedId = two.uid;
+        var ends = win.knobs(marks, []);
+        win.check("an arrow is held at its two ends", ends.length, 2);
+        win.check("one of them being the tip",
+                  ends.filter(function (h) { return h.spot.key === "tip"; }).length, 1);
+
+        // The auto swatches are keyed by their place in the palette, which is
+        // the other delegate index in the editor.
+        doc.kind = "shot";
+        doc.bgMode = "auto";
+        doc.autoPalette = ["#111111", "#222222", "#333333"];
+        var pal = [];
+        (function walk(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                var c = item.children[i];
+                if (c.hasOwnProperty("swatchColor") && c.hasOwnProperty("index")) pal.push(c);
+                walk(c);
+            }
+        })(inspector);
+        win.check("the auto swatches know their place",
+                  pal.map(function (c) { return c.index; }).join(","), "0,1,2");
+
+        // ---- one mark moves, the others stay -------------------------------
+        doc.clearAnnotations();
+        var m1 = Model.newAnnotation("box", 10, 10); m1.w = 50; m1.h = 50;
+        var m2 = Model.newAnnotation("box", 100, 100); m2.w = 50; m2.h = 50;
+        var m3 = Model.newAnnotation("arrow", 200, 40); m3.w = 60; m3.h = 30;
+        doc.annotations.append(m1);
+        doc.annotations.append(m2);
+        doc.annotations.append(m3);
+        doc.annotationsEdited();
+
+        var es = win.entries(marks, []);
+        win.check("one delegate per mark", es.length, 3);
+        // A drag moves the delegate itself; the release writes it back.
+        es[1].x = es[1].x + 30;
+        es[1].y = es[1].y + 20;
+        es[1].commit();
+        es[1].rebind();
+        win.check("the one dragged moved",
+                  doc.annotations.get(1).x + "," + doc.annotations.get(1).y, "130,120");
+        win.check("the first stayed where it was",
+                  doc.annotations.get(0).x + "," + doc.annotations.get(0).y, "10,10");
+        win.check("and so did the third",
+                  doc.annotations.get(2).x + "," + doc.annotations.get(2).y, "200,40");
+
+        // A resize goes through the document the same way, and a patch of a
+        // few properties must leave the rest of the mark alone.
+        doc.annotations.setProperty(1, "color", "#123456");
+        doc.updateAnnotation(doc.annotations.get(1).uid, { x: 60, y: 70, w: 80, h: 90 });
+        var r = doc.annotations.get(1);
+        win.check("resized", r.x + "," + r.y + " " + r.w + "x" + r.h, "60,70 80x90");
+        win.check("still the same kind of mark", r.kind, "box");
+        win.check("and the same color", String(r.color), "#123456");
 
         Qt.quit();
     })

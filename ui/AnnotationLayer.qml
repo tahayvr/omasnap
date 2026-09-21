@@ -15,6 +15,11 @@ Item {
 
     property real viewScale: 1
 
+    // Screen sizes, so they stay put however far the picture is scaled down.
+    readonly property real hairline: Math.max(1, 1.5 / anno.viewScale)
+    readonly property real handle: 9 / anno.viewScale
+    readonly property real slop: 6 / anno.viewScale
+
     clip: false
 
     Repeater {
@@ -22,7 +27,9 @@ Item {
 
         delegate: Item {
             id: entry
-            required property int index
+            // Not `index` as well: a Repeater over this document's ListModel
+            // hands every delegate a zero, so a move wrote itself onto the
+            // first annotation instead of its own. Rows are found by uid.
             required property var model
 
             readonly property var a: model
@@ -39,11 +46,10 @@ Item {
 
             // Keeping the sign of w/h, which says which way it was drawn.
             function commit() {
-                var nx = entry.x + (entry.a.w < 0 ? -entry.a.w : 0);
-                var ny = entry.y + (entry.a.h < 0 ? -entry.a.h : 0);
-                anno.doc.annotations.setProperty(entry.index, "x", nx);
-                anno.doc.annotations.setProperty(entry.index, "y", ny);
-                anno.doc.annotationsEdited();
+                anno.doc.updateAnnotation(entry.a.uid, {
+                    x: entry.x + (entry.a.w < 0 ? -entry.a.w : 0),
+                    y: entry.y + (entry.a.h < 0 ? -entry.a.h : 0)
+                });
             }
 
             // Restores what the drag overwrote.
@@ -246,25 +252,91 @@ Item {
                 visible: anno.interactive && entry.selected && !anno.doc.exporting
                 color: "transparent"
                 border.color: Color.accent
-                border.width: Math.max(1, 1.5 / anno.viewScale)
+                border.width: anno.hairline
                 radius: 0
             }
 
             MouseArea {
                 anchors.fill: parent
-                anchors.margins: -6 / anno.viewScale
+                id: hold
+                anchors.margins: -anno.slop
                 enabled: anno.interactive
-                cursorShape: Qt.SizeAllCursor
+                hoverEnabled: anno.interactive
+                // Says which presses this mark will take: over its hollow
+                // middle the press goes to whatever is underneath, so the
+                // cursor must not promise a move there.
+                cursorShape: Model.hitAnnotation(entry.a,
+                                                 entry.x - anno.slop + hold.mouseX,
+                                                 entry.y - anno.slop + hold.mouseY,
+                                                 anno.slop)
+                             ? Qt.SizeAllCursor : Qt.ArrowCursor
                 drag.target: entry
                 drag.threshold: 2
 
-                onPressed: anno.doc.selectedId = entry.a.uid
+                // A box, an ellipse and an arrow are mostly empty space.
+                // Taking the whole bounding box meant whichever was drawn
+                // last swallowed every press over what sits inside it, so a
+                // press that misses the mark itself is left to the one
+                // underneath.
+                onPressed: function (e) {
+                    var p = mapToItem(anno, e.x, e.y);
+                    if (!Model.hitAnnotation(entry.a, p.x, p.y, anno.slop)) {
+                        e.accepted = false;
+                        return;
+                    }
+                    anno.doc.selectedId = entry.a.uid;
+                }
                 // The dim is drawn from the model, so a spotlight has to write
                 // its move back as it happens or the hole lags behind the drag.
                 onPositionChanged: if (entry.a.kind === "spotlight") entry.commit()
                 onReleased: {
                     entry.commit();
                     entry.rebind();
+                }
+            }
+
+            // Corners to pull it by, or the two ends of an arrow. A fixed
+            // count, so a delegate is never rebuilt out from under a drag;
+            // a text label is sized by its text and has none.
+            Repeater {
+                model: 4
+                delegate: Rectangle {
+                    id: knob
+                    required property int index
+                    readonly property var spot: Model.resizeHandles(entry.a)[knob.index] || null
+
+                    visible: knob.spot !== null && anno.interactive && entry.selected
+                             && !anno.doc.exporting
+                    x: (knob.spot ? knob.spot.x - entry.x : 0) - width / 2
+                    y: (knob.spot ? knob.spot.y - entry.y : 0) - height / 2
+                    width: anno.handle
+                    height: anno.handle
+                    color: Color.accent
+                    border.width: anno.hairline
+                    border.color: Qt.rgba(0, 0, 0, 0.55)
+
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -anno.slop / 2
+                        enabled: knob.visible
+                        cursorShape: {
+                            var k = knob.spot ? knob.spot.key : "";
+                            if (k === "tl" || k === "br") return Qt.SizeFDiagCursor;
+                            if (k === "tr" || k === "bl") return Qt.SizeBDiagCursor;
+                            return Qt.SizeAllCursor;
+                        }
+
+                        onPressed: anno.doc.selectedId = entry.a.uid
+                        onPositionChanged: function (e) {
+                            if (!pressed || !knob.spot) return;
+                            var p = mapToItem(anno, e.x, e.y);
+                            // By uid, and through the document, which tells
+                            // everything drawn from the model that it moved.
+                            anno.doc.updateAnnotation(entry.a.uid,
+                                Model.resizeAnnotation(entry.a, knob.spot.key, p.x, p.y));
+                        }
+                        onReleased: anno.doc.annotationsEdited()
+                    }
                 }
             }
         }
