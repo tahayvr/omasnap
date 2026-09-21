@@ -38,6 +38,12 @@ Item {
                                          ? a.color : anno.doc.inkColor
             readonly property real stroke: Math.max(1, a.width)
             readonly property bool sizedByContent: a.kind === "text"
+            // Where the mark sits by the model. During a move the item is
+            // dragged away from this and the model only catches up on
+            // release, so anything placed inside the item measures from here
+            // and travels with it.
+            readonly property real originX: Math.min(a.x, a.x + a.w)
+            readonly property real originY: Math.min(a.y, a.y + a.h)
 
             x: Math.min(a.x, a.x + a.w)
             y: Math.min(a.y, a.y + a.h)
@@ -266,9 +272,9 @@ Item {
                 // middle the press goes to whatever is underneath, so the
                 // cursor must not promise a move there.
                 cursorShape: Model.hitAnnotation(entry.a,
-                                                 entry.x - anno.slop + hold.mouseX,
-                                                 entry.y - anno.slop + hold.mouseY,
-                                                 anno.slop)
+                                                 entry.originX - anno.slop + hold.mouseX,
+                                                 entry.originY - anno.slop + hold.mouseY,
+                                                 anno.slop, entry.width, entry.height)
                              ? Qt.SizeAllCursor : Qt.ArrowCursor
                 drag.target: entry
                 drag.threshold: 2
@@ -280,7 +286,8 @@ Item {
                 // underneath.
                 onPressed: function (e) {
                     var p = mapToItem(anno, e.x, e.y);
-                    if (!Model.hitAnnotation(entry.a, p.x, p.y, anno.slop)) {
+                    if (!Model.hitAnnotation(entry.a, p.x, p.y, anno.slop,
+                                             entry.width, entry.height)) {
                         e.accepted = false;
                         return;
                     }
@@ -307,8 +314,8 @@ Item {
 
                     visible: knob.spot !== null && anno.interactive && entry.selected
                              && !anno.doc.exporting
-                    x: (knob.spot ? knob.spot.x - entry.x : 0) - width / 2
-                    y: (knob.spot ? knob.spot.y - entry.y : 0) - height / 2
+                    x: (knob.spot ? knob.spot.x - entry.originX : 0) - width / 2
+                    y: (knob.spot ? knob.spot.y - entry.originY : 0) - height / 2
                     width: anno.handle
                     height: anno.handle
                     color: Color.accent

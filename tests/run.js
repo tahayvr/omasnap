@@ -521,6 +521,13 @@ test("a press picks the mark it lands on, not the box around it", () => {
     ok(!Model.hitAnnotation(ell, 50, 50, 6), "not in the middle");
     ok(!Model.hitAnnotation(ell, 4, 4, 6), "nor in the corner of its box");
 
+    // A text label has no size of its own: the delegate is as big as the
+    // text, and passes that in. Without it only the very corner was clickable.
+    const label = { kind: "text", x: 10, y: 10, w: 0, h: 0, width: 4 };
+    ok(Model.hitAnnotation(label, 60, 20, 6, 120, 30), "over the text");
+    ok(!Model.hitAnnotation(label, 60, 20, 6), "and nowhere near it without the size");
+    ok(!Model.hitAnnotation(label, 200, 20, 6, 120, 30), "past the end of the text");
+
     // The filled kinds are their whole box, which is what they look like.
     ok(Model.hitAnnotation({ kind: "highlight", x: 0, y: 0, w: 80, h: 20, width: 4 }, 40, 10, 6));
     ok(Model.hitAnnotation({ kind: "redact", x: 0, y: 0, w: 80, h: 20, width: 4 }, 40, 10, 6));

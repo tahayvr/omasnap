@@ -362,6 +362,18 @@ Window {
         var keys = k.map(function (h) { return h.spot.key; }).sort().join(" ");
         win.check("one at each", keys, "bl br tl tr");
 
+        // A handle is placed against the mark's own origin, so it travels with
+        // the item while a move is dragged; measured from the model it would
+        // sit still and jump into place on release.
+        var tl = win.knobs(marks, []).filter(function (h) { return h.spot.key === "tl"; })[0];
+        var held = win.entries(marks, [])[0];
+        win.check("a handle sits on its corner",
+                  Math.round(held.x + tl.x + tl.width / 2), 40);
+        held.x += 30;
+        win.check("and moves with the mark as it is dragged",
+                  Math.round(held.x + tl.x + tl.width / 2), 70);
+        held.x -= 30;
+
         doc.selectedId = two.uid;
         var ends = win.knobs(marks, []);
         win.check("an arrow is held at its two ends", ends.length, 2);
