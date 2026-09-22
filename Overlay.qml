@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
@@ -99,11 +100,36 @@ Item {
         }
     }
 
+    // The output this opening came from. The window is bound to it, so a
+    // later focus change or the unmap during capture cannot move it.
+    property var invokedScreen: null
+
+    function screenByName(name) {
+        var wanted = String(name || "");
+        if (!wanted.length) return null;
+        var screens = Quickshell.screens || [];
+        for (var i = 0; i < screens.length; i++) {
+            var candidate = screens[i];
+            if (candidate && String(candidate.name) === wanted) return candidate;
+        }
+        return null;
+    }
+
+    function rememberScreen(payload) {
+        var screen = payload && payload.screen ? root.screenByName(payload.screen) : null;
+        if (!screen) {
+            var mon = Hyprland.focusedMonitor;
+            if (mon && mon.name) screen = root.screenByName(mon.name);
+        }
+        if (screen) root.invokedScreen = screen;
+    }
+
     function open(payloadJson) {
         var payload = {};
         try { payload = payloadJson ? JSON.parse(payloadJson) : {}; } catch (e) { payload = {}; }
         if (!payload || typeof payload !== "object") payload = {};
 
+        root.rememberScreen(payload);
         opened = true;
 
         if (payload.path) {
@@ -770,6 +796,7 @@ Item {
 
     PanelWindow {
         id: window
+        screen: root.invokedScreen
         visible: root.opened && !root.capturing && !root.picking
         color: "transparent"
 

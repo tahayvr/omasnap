@@ -27,8 +27,20 @@ BarWidget {
     implicitWidth: button.implicitWidth
     implicitHeight: barSize
 
+    // Tell the editor which output this icon is on. It keeps that output
+    // for the whole time it is open.
+    function invokingScreen() {
+        var win = root.QsWindow.window;
+        return win && win.screen && win.screen.name ? String(win.screen.name) : "";
+    }
+
     function summon(payload) {
-        root.bar.shell.summon(root.moduleName, payload);
+        var body = {};
+        try { body = payload ? JSON.parse(payload) : {}; } catch (e) { body = {}; }
+        if (!body || typeof body !== "object") body = {};
+        var name = invokingScreen();
+        if (name.length) body.screen = name;
+        root.bar.shell.summon(root.moduleName, JSON.stringify(body));
     }
 
     function choose(payload) {
