@@ -6,7 +6,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 # Scratch goes to the runtime dir, not the plugin directory: writing a file
 # under the plugin reloads it in the running shell, and a full run wrote
 # seven, which knocked the live overlay out from under whoever was using it.
-out="${XDG_RUNTIME_DIR:-/tmp}/omasnap-tests"
+out="${XDG_RUNTIME_DIR:-/tmp}/postcard-tests"
 mkdir -p "$out"
 rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png" \
       "$out/export-odd.png" "$out/export-spot.png" "$out/export-spot-oval.png"
@@ -23,7 +23,7 @@ magick -size 400x200 xc:white -fill black -draw "rectangle 200,0 399,199" \
 # there. On a live Wayland session the harness opens a real window for about
 # a second and renders on the GPU, which covers everything.
 platform=offscreen
-[ -n "${WAYLAND_DISPLAY:-}" ] && [ "${OMASNAP_TEST_OFFSCREEN:-0}" != "1" ] && platform=wayland
+[ -n "${WAYLAND_DISPLAY:-}" ] && [ "${POSTCARD_TEST_OFFSCREEN:-0}" != "1" ] && platform=wayland
 
 # Qt routes messages to journald when stderr is not a terminal; force them here.
 log="$(cd "$here" && QSG_INFO=1 QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=$platform timeout 40 /usr/lib/qt6/bin/qml -I "$here/stubs" Harness.qml -- "$out" 2>&1)"
@@ -35,7 +35,7 @@ if echo "$log" | grep -qE "Error|error|Unable to assign"; then echo "FAIL runtim
 [ -f "$out/export.png" ] || { echo "no export written"; exit 1; }
 
 # The harness grabs a wrapper padded up to whole device pixels, as the overlay
-# does; crop each file to the size the document reported, as snap-deliver does.
+# does; crop each file to the size the document reported, as postcard-deliver does.
 crop_to() { # crop_to <file> <WxH>
   [ -f "$1" ] && magick "$1" -crop "$2+0+0" +repage "$1"
 }

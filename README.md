@@ -1,17 +1,17 @@
 <p align="center">
-  <img src="assets/logo/omasnap-logo.png" alt="OmaSnap" width="560">
+  <img src="assets/logo/postcard-logo.png" alt="Postcard" width="560">
 </p>
 
 <p align="center">
   <a href="https://omarchy.org"><img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/3ee85c9ea63c83845b992f8acb086c4a69cca12a/badges/v1/built-for-omarchy.svg" alt="Built for Omarchy"></a>
 </p>
 
-Make a screenshot worth posting. OmaSnap is an [Omarchy](https://omarchy.org)
+Make a screenshot worth posting. Postcard is an [Omarchy](https://omarchy.org)
 shell plugin: grab a region and it adds padding, a background, 
 rounded corners and a shadow, lets you annotate, and hides anything in 
 the picture that should not be public.
 
-![OmaSnap editor](assets/showcase/screenshot-full.jpg)
+![Postcard editor](assets/showcase/screenshot-full.jpg)
 
 ## Features
 
@@ -32,7 +32,7 @@ the picture that should not be public.
 - Arrows, boxes, ellipses, highlighter, text labels and numbered steps
 - Spotlight a rectangle or an ellipse and the rest of the screenshot dims,
   leaving the background as it is
-- Drag to move, and they stay pinned to the Snap when you reframe
+- Drag to move, and they stay pinned to the screenshot when you reframe
 
 ![Annotations](assets/showcase/annotations.png)
 
@@ -52,7 +52,7 @@ the picture that should not be public.
 - Every Omarchy theme you have installed, plus Dracula, Monokai, One Dark,
   GitHub and Solarized
 
-![OmaSnap code card preview](assets/showcase/screenshot-full-code.jpg)
+![Postcard code card preview](assets/showcase/screenshot-full-code.jpg)
 
 **Output**
 - Clipboard or disk, PNG or JPEG, at 1x, 2x or 3x
@@ -61,34 +61,34 @@ the picture that should not be public.
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/tahayvr/omasnap.git --enable
+omarchy plugin add https://github.com/tahayvr/postcard.git --enable
 ```
 
-Update it with `omarchy plugin update tahayvr.omasnap` 
+Update it with `omarchy plugin update tahayvr.postcard` 
 
-Remove it with `omarchy plugin remove tahayvr.omasnap`, 
+Remove it with `omarchy plugin remove tahayvr.postcard`, 
 
-or `omarchy plugin disable tahayvr.omasnap` to keep it installed but off.
+or `omarchy plugin disable tahayvr.postcard` to keep it installed but off.
 
 Plugins run as unsandboxed code inside your shell process. Read the source
 before you enable it.
 
 ## Usage
 
-Enabling the plugin puts an OmaSnap button 󰆟  in the bar. Left-click it to grab a
+Enabling the plugin puts an Postcard button 󰆟  in the bar. Left-click it to grab a
 region or window, middle-click to make a code card from the selected text, right-click
 for a menu: region, window, code card, or the editor. Move it with:
 
 ```sh
-omarchy bar move tahayvr.omasnap --section center
+omarchy bar move tahayvr.postcard --section center
 ```
 
 Or bind keys in `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + SHIFT + PRINT", "OmaSnap", "omarchy-shell shell summon tahayvr.omasnap '{\"capture\":\"region\"}'")
-o.bind("SUPER + SHIFT + C", "OmaSnap code card", "omarchy-shell shell summon tahayvr.omasnap '{\"code\":true}'")
-o.bind("SUPER + SHIFT + S", "OmaSnap editor", "omarchy-shell shell toggle tahayvr.omasnap '{}'")
+o.bind("SUPER + SHIFT + PRINT", "Postcard", "omarchy-shell shell summon tahayvr.postcard '{\"capture\":\"region\"}'")
+o.bind("SUPER + SHIFT + C", "Postcard code card", "omarchy-shell shell summon tahayvr.postcard '{\"code\":true}'")
+o.bind("SUPER + SHIFT + S", "Postcard editor", "omarchy-shell shell toggle tahayvr.postcard '{}'")
 ```
 
 The buttons at the top of the editor grab a region, window or screen, make a
@@ -114,20 +114,20 @@ clipboard if nothing is highlighted.
 Every call returns `ok`, or a short reason such as `busy` or `no shot`:
 
 ```sh
-omarchy-shell shell call tahayvr.omasnap edit ~/Pictures/Screenshots/snap.png
-omarchy-shell shell call tahayvr.omasnap capture fullscreen   # region | windows | fullscreen | smart
-omarchy-shell shell call tahayvr.omasnap code ''               # code card from the selection (or pass the text)
-omarchy-shell shell call tahayvr.omasnap pick ''               # system file picker
-omarchy-shell shell call tahayvr.omasnap set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
-omarchy-shell shell call tahayvr.omasnap annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
-omarchy-shell shell call tahayvr.omasnap crop '{"x":80,"y":40,"w":900,"h":600}'   # or '' for the selection
-omarchy-shell shell call tahayvr.omasnap uncrop ''            # back to the whole picture
-omarchy-shell shell call tahayvr.omasnap info ''               # the document as JSON
-omarchy-shell shell call tahayvr.omasnap redact ''            # find and hide secrets
-omarchy-shell shell call tahayvr.omasnap copyText ''          # text to the clipboard
-omarchy-shell shell call tahayvr.omasnap save ''              # export to disk (and clipboard)
-omarchy-shell shell call tahayvr.omasnap saveAs ''            # export, choosing the file
-omarchy-shell shell call tahayvr.omasnap copy ''              # export to the clipboard
+omarchy-shell shell call tahayvr.postcard edit ~/Pictures/Screenshots/shot.png
+omarchy-shell shell call tahayvr.postcard capture fullscreen   # region | windows | fullscreen | smart
+omarchy-shell shell call tahayvr.postcard code ''               # code card from the selection (or pass the text)
+omarchy-shell shell call tahayvr.postcard pick ''               # system file picker
+omarchy-shell shell call tahayvr.postcard set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
+omarchy-shell shell call tahayvr.postcard annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
+omarchy-shell shell call tahayvr.postcard crop '{"x":80,"y":40,"w":900,"h":600}'   # or '' for the selection
+omarchy-shell shell call tahayvr.postcard uncrop ''            # back to the whole picture
+omarchy-shell shell call tahayvr.postcard info ''               # the document as JSON
+omarchy-shell shell call tahayvr.postcard redact ''            # find and hide secrets
+omarchy-shell shell call tahayvr.postcard copyText ''          # text to the clipboard
+omarchy-shell shell call tahayvr.postcard save ''              # export to disk (and clipboard)
+omarchy-shell shell call tahayvr.postcard saveAs ''            # export, choosing the file
+omarchy-shell shell call tahayvr.postcard copy ''              # export to the clipboard
 ```
 
 ## Dependencies
@@ -142,9 +142,9 @@ All of these ship with Omarchy:
 - `python-gobject`
 - `xdg-desktop-portal`
 
-Snaps are read from and saved to the directory Omarchy uses
+Postcards are read from and saved to the directory Omarchy uses
 (`$OMARCHY_SCREENSHOT_DIR`, else `$XDG_PICTURES_DIR`, else `~/Pictures`) as
-`snap-<date>_<time>.png`. OCR follows `$OMARCHY_OCR_LANGS`.
+`postcard-<date>_<time>.png`. OCR follows `$OMARCHY_OCR_LANGS`.
 
 ## Licence
 

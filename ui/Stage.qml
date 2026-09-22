@@ -65,7 +65,7 @@ Item {
 
     // The title bar takes its color from the card underneath it, so a shot
     // and its frame stay in harmony: the code theme's own background, or the
-    // screenshot's dominant color as sampled by bin/snap-palette.
+    // screenshot's dominant color as sampled by bin/postcard-palette.
     readonly property string chromeSource: {
         if (codeKind) return String(doc.codeBg);
         return doc.shotPalette.length > 0 ? String(doc.shotPalette[0]) : "";

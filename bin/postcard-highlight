@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# snap-highlight [lang] [bat-theme] [numbers 0|1] [columns]  (code on stdin)
+# postcard-highlight [lang] [bat-theme] [numbers 0|1] [columns]  (code on stdin)
 # Prints ANSI-colored code, wrapped at `columns` the way bat wraps it: a
 # continuation line keeps the gutter, so a long URL folds under its line
 # number rather than running the card off the edge.

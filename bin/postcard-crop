@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# snap-crop <src> <x> <y> <w> <h> <dest> -> the cropped picture at <dest>.
+# postcard-crop <src> <x> <y> <w> <h> <dest> -> the cropped picture at <dest>.
 # The editor keeps the file it started from, so a crop is always taken from
 # the original rather than from the last crop of a crop.
 set -uo pipefail

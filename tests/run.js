@@ -392,8 +392,8 @@ test("language guessing", () => {
         c:    "#include <stdio.h>\nint main(void) { return 0; }",
         cpp:  "#include <iostream>\nint main() { std::cout << 1; }",
         sql:  "SELECT id, name FROM users WHERE id = 1;",
-        yaml: "name: omasnap\nversion: 1\nkinds:\n  - overlay",
-        toml: "[package]\nname = \"omasnap\"",
+        yaml: "name: postcard\nversion: 1\nkinds:\n  - overlay",
+        toml: "[package]\nname = \"postcard\"",
         css:  ".card { color: red; margin: 0; }",
         html: "<div class=\"x\"><span>hi</span></div>",
         md:   "# Title\n\nSome text\n\n```sh\nls\n```",
@@ -736,7 +736,7 @@ test("themes resolve, and anything unlisted is an installed Omarchy theme", () =
     eq(Code.themeByKey("").key, "omarchy", "no key falls back");
     eq(Code.languageLabel("rs"), "Rust");
 
-    // The system themes arrive at runtime from bin/snap-themes, keyed by
+    // The system themes arrive at runtime from bin/postcard-themes, keyed by
     // their directory name, so an unknown key is one of those rather than
     // an error: it renders as bat's ansi output through that theme's palette.
     const t = Code.themeByKey("tokyo-night");

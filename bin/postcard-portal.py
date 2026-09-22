@@ -2,10 +2,10 @@
 """Run the system file dialog through the XDG desktop portal and print the
 chosen path. Prints nothing when cancelled.
 
-    snap-portal.py open [start-directory]
-    snap-portal.py save [start-directory] [suggested-name]
+    postcard-portal.py open [start-directory]
+    postcard-portal.py save [start-directory] [suggested-name]
 
-Set OMASNAP_PICK_TIMEOUT (seconds) to auto-cancel.
+Set POSTCARD_PICK_TIMEOUT (seconds) to auto-cancel.
 
 A one-shot D-Bus CLI cannot do this: the portal closes a request as soon as
 the calling connection disconnects, so the connection has to stay open until
@@ -27,7 +27,7 @@ if not os.path.isdir(start):
 
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 sender = bus.get_unique_name()[1:].replace(".", "_")
-token = "omasnap%d" % os.getpid()
+token = "postcard%d" % os.getpid()
 request = "/org/freedesktop/portal/desktop/request/%s/%s" % (sender, token)
 
 loop = GLib.MainLoop()
@@ -71,7 +71,7 @@ else:
     ])
 
 method = "SaveFile" if mode == "save" else "OpenFile"
-title = "Save the Snap" if mode == "save" else "Open an image"
+title = "Save the postcard" if mode == "save" else "Open an image"
 reply = bus.call_sync("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
                       "org.freedesktop.portal.FileChooser", method,
                       GLib.Variant("(ssa{sv})", ("", title, options)),
@@ -91,7 +91,7 @@ def give_up():
     return False
 
 
-timeout = float(os.environ.get("OMASNAP_PICK_TIMEOUT", "0") or 0)
+timeout = float(os.environ.get("POSTCARD_PICK_TIMEOUT", "0") or 0)
 if timeout > 0:
     GLib.timeout_add(int(timeout * 1000), give_up)
 

@@ -51,7 +51,7 @@ Rectangle {
     }
 
     readonly property Item exportTarget: grabRoot
-    readonly property string repoUrl: "https://github.com/tahayvr/omasnap"
+    readonly property string repoUrl: "https://github.com/tahayvr/postcard"
 
     color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
     border.width: 1
@@ -115,7 +115,7 @@ Rectangle {
             IconButton {
                 glyph: "\uf09b"
                 flat: true
-                tip: "OmaSnap on GitHub"
+                tip: "Postcard on GitHub"
                 onClicked: {
                     Qt.openUrlExternally(editor.repoUrl);
                     editor.closeRequested();
@@ -199,7 +199,7 @@ Rectangle {
 
             // What the export grabs, rather than the stage itself: padded up
             // to a whole number of device pixels so grabToImage renders at
-            // exactly 1:1 (see Model.grabSize), then cropped by snap-deliver.
+            // exactly 1:1 (see Model.grabSize), then cropped by postcard-deliver.
             Item {
                 id: grabRoot
                 // Over the drawing surface below, so the crop handles can

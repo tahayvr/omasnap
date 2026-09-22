@@ -16,7 +16,7 @@ Window {
     readonly property string outDir: {
         var a = Qt.application.arguments;
         var last = a.length ? String(a[a.length - 1]) : "";
-        if (last.charAt(0) !== "/") return "/tmp/omasnap-tests/";
+        if (last.charAt(0) !== "/") return "/tmp/postcard-tests/";
         return last.charAt(last.length - 1) === "/" ? last : last + "/";
     }
 

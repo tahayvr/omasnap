@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# snap-capture [region|windows|fullscreen|smart]
+# postcard-capture [region|windows|fullscreen|smart]
 # Take a screenshot and print the path of the file omarchy wrote.
 # Prints nothing if the user cancelled.
 set -uo pipefail
@@ -15,7 +15,7 @@ case "$mode" in
   *) mode="region" ;;
 esac
 
-# omarchy resolves the screenshot directory the same way snap-dir does,
+# omarchy resolves the screenshot directory the same way postcard-dir does,
 # creates it, and prints the path it saved to.
 path="$(omarchy capture screenshot "$mode" save 2>/dev/null | grep '^/' | tail -n1)"
 [ -n "$path" ] && [ -f "$path" ] && printf '%s\n' "$path"
