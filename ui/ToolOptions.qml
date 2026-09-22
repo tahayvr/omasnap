@@ -12,8 +12,10 @@ Loader {
     id: opts
 
     property var doc
+    property int captureDelay: 0
 
     signal captureRequested(string mode)
+    signal delayRequested(int seconds)
     signal codeRequested()
     signal openRequested()
     signal autoRedactRequested()
@@ -71,6 +73,17 @@ Loader {
         id: captureComp
         Row {
             spacing: Ui.gap
+            IconButton {
+                glyph: "◷"
+                label: opts.captureDelay ? opts.captureDelay + "s" : "Now"
+                active: opts.captureDelay > 0
+                tip: "Capture delay: " + (opts.captureDelay ? opts.captureDelay + " seconds" : "none")
+                     + ". Click to cycle through 0, 3, 5 and 10 seconds."
+                onClicked: {
+                    var delays = [0, 3, 5, 10];
+                    opts.delayRequested(delays[(delays.indexOf(opts.captureDelay) + 1) % delays.length]);
+                }
+            }
             IconButton { glyph: "⬚"; label: "Region"; onClicked: opts.captureRequested("region") }
             IconButton { glyph: "◰"; label: "Window"; onClicked: opts.captureRequested("windows") }
             IconButton { glyph: "⬜"; label: "Screen"; onClicked: opts.captureRequested("fullscreen") }

@@ -100,6 +100,7 @@ Item {
     }
 
     function open(payloadJson) {
+        if (capturing || captureProc.running) return "busy";
         var payload = {};
         try { payload = payloadJson ? JSON.parse(payloadJson) : {}; } catch (e) { payload = {}; }
         if (!payload || typeof payload !== "object") payload = {};
@@ -113,7 +114,7 @@ Item {
         } else if (payload.code) {
             code();
         } else if (payload.capture) {
-            capture(String(payload.capture));
+            capture(String(payload.capture), payload.delay);
         } else {
             // A plain open always starts clean: the empty state offers
             // region, code and file, and nothing from last time lingers.
@@ -126,6 +127,8 @@ Item {
     // Shell calls this on hide; dismiss() calls it too, so it must be idempotent.
     function close() {
         opened = false;
+        hideTimer.stop();
+        if (!captureProc.running) capturing = false;
         doc.selectedId = "";
     }
 
@@ -390,13 +393,25 @@ Item {
         }
     }
 
-    function capture(mode) {
-        if (captureProc.running) return "busy";
+    function capture(mode, delay) {
+        if (capturing || captureProc.running || picking || editor.busy) return "busy";
+        if (typeof mode === "string" && mode.trim().indexOf("{") === 0) {
+            var options;
+            try { options = JSON.parse(mode); } catch (e) { return "bad json"; }
+            mode = options.mode;
+            delay = options.delay;
+        }
+        var seconds = delay === undefined ? 0 : delay;
+        if (typeof seconds !== "number" || !isFinite(seconds)
+                || seconds < 0 || seconds > 60 || Math.floor(seconds) !== seconds)
+            return "bad delay";
         var m = String(mode || "region");
         if (["region", "windows", "fullscreen", "smart"].indexOf(m) === -1) m = "region";
         opened = true;
         capturing = true;
         captureProc.mode = m;
+        // Keep the surface-unmap pause even when the user chooses no delay.
+        hideTimer.interval = 140 + seconds * 1000;
         hideTimer.restart();
         return "ok";
     }
@@ -747,7 +762,7 @@ Item {
                 if (event.modifiers & Qt.ShiftModifier) root.saveAs(); else root.save();
                 return true;
             case Qt.Key_Z: doc.undo(); return true;
-            case Qt.Key_N: root.capture("region"); return true;
+            case Qt.Key_N: root.capture("region", editor.captureDelay); return true;
             case Qt.Key_K: root.code(); return true;
             }
             return false;
@@ -808,7 +823,7 @@ Item {
                 saveDir: root.shotDir
                 radius: 0
 
-                onCaptureRequested: function (mode) { root.capture(mode); }
+                onCaptureRequested: function (mode) { root.capture(mode, editor.captureDelay); }
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()

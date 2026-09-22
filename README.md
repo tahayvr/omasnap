@@ -77,7 +77,7 @@ before you enable it.
 
 Enabling the plugin puts an Postcard button 󰆟  in the bar. Left-click it to grab a
 region or window, middle-click to make a code card from the selected text, right-click
-for a menu: region, window, code card, or the editor. Move it with:
+for a menu: region, window, screen in five seconds, code card, or the editor. Move it with:
 
 ```sh
 omarchy bar move tahayvr.postcard --section center
@@ -94,6 +94,33 @@ o.bind("SUPER + SHIFT + S", "Postcard editor", "omarchy-shell shell toggle tahay
 The buttons at the top of the editor grab a region, window or screen, make a
 code card, or open a file. A code card takes the primary selection, or the
 clipboard if nothing is highlighted.
+
+### Delayed capture
+
+Click **Now** in the editor's capture toolbar to cycle through no delay, 3, 5
+or 10 seconds, then choose Region, Window or Screen. The editor disappears
+while you set up the shot. The same delay applies to `Ctrl+N` and the empty
+editor's capture button; code cards and opening files are unaffected.
+
+For menus and tooltips, use **Screen in 5s** from the bar's right-click menu,
+then open the menu or hover the target. Region and window capture start their
+interactive picker after the delay, so Screen is the best choice for anything
+that disappears when you click elsewhere. You can crop it in the editor afterwards.
+
+The editor remembers its delay until the shell reloads. Bar shortcuts and
+scripted captures stay immediate unless they explicitly request a delay:
+
+```sh
+omarchy-shell shell summon tahayvr.postcard '{"capture":"fullscreen","delay":5}'
+omarchy-shell shell call tahayvr.postcard capture '{"mode":"fullscreen","delay":5}'
+```
+
+`delay` is a whole number of seconds from 0 to 60. Another capture request
+returns `busy` while one is pending. To cancel before the capture starts:
+
+```sh
+omarchy-shell shell hide tahayvr.postcard
+```
 
 ### Keys
 

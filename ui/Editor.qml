@@ -11,6 +11,7 @@ Rectangle {
     property string saveDir: ""
     property string statusText: ""
     property bool busy: false
+    property int captureDelay: 0
 
     signal captureRequested(string mode)
     signal codeRequested()
@@ -96,6 +97,8 @@ Rectangle {
         ToolOptions {
             anchors.centerIn: parent
             doc: editor.doc
+            captureDelay: editor.captureDelay
+            onDelayRequested: function (seconds) { editor.captureDelay = seconds; }
             onCaptureRequested: function (mode) { editor.captureRequested(mode); }
             onCodeRequested: editor.codeRequested()
             onOpenRequested: editor.openRequested()

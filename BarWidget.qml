@@ -20,6 +20,8 @@ BarWidget {
           tip: "Capture a region" },
         { glyph: "◰",       label: "Window", payload: '{"capture":"windows"}',
           tip: "Capture a window" },
+        { glyph: "◷",       label: "Screen in 5s", payload: '{"capture":"fullscreen","delay":5}',
+          tip: "Capture the screen after five seconds to open a menu or tooltip" },
         { glyph: "‹›", label: "Code",   payload: '{"code":true}',
           tip: "Capture selected text" }
     ]
