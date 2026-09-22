@@ -3,7 +3,7 @@
 Things that cost time to find out and cannot be read off the source. Users
 want `README.md`; this is the traps, the outside contracts, and how to run it.
 
-OmaSnap is an Omarchy shell plugin (`tahayvr.omasnap`) living inside the
+Postcard is an Omarchy shell plugin (`tahayvr.postcard`) living inside the
 long-lived Quickshell process `omarchy-shell`: an `overlay` (the editor) and a
 `bar-widget`, `keepLoaded` so the last edit survives a hide. Capture, OCR,
 image encoding and the clipboard are delegated to `omarchy`, `tesseract`,
@@ -47,7 +47,7 @@ Imposed by the host, so none of it is negotiable from in here.
   (1210 shot pixels are 756.25). Grabbing it at 757 renders at 757/756.25 and
   resamples everything, and a padding-0 export came out 1101 wide. So the
   export grabs `grabRoot`, a wrapper padded up to whole device pixels
-  (`Model.grabSize`), and `snap-deliver` crops the surplus. `Stage.dpr` reads
+  (`Model.grabSize`), and `postcard-deliver` crops the surplus. `Stage.dpr` reads
   `Window.window.devicePixelRatio`.
 - **Never draw the shot through a texture round trip.** `ClippingRectangle`,
   `layer.enabled`, `layer.textureSize` and a `MultiEffect` mask all resample
@@ -158,25 +158,25 @@ Imposed by the host, so none of it is negotiable from in here.
   gives every child an open stdin pipe that never reaches EOF, and `slurp`
   reads boxes from stdin whenever stdin is not a terminal — the region picker
   sat blocked in `anon_pipe_read` for minutes with no surface on screen, which
-  looked like a dead bar widget. Only `snap-highlight` and `snap-deliver text`
+  looked like a dead bar widget. Only `postcard-highlight` and `postcard-deliver text`
   read stdin on purpose.
 - **The file picker is whatever the XDG portal is configured to use** — never
   assume a particular chooser. The portal closes a request the moment the
   calling connection disconnects, so `busctl`/`gdbus`/`dbus-send` one-shots
-  cannot work; `bin/snap-portal.py` holds the connection until the `Response`
+  cannot work; `bin/postcard-portal.py` holds the connection until the `Response`
   signal. It runs as `/usr/bin/python3` explicitly, because a linuxbrew or mise
   `python3` on PATH has no `gi`. The overlay hides while `picking` so the
   dialog is not buried under the layer surface — which is why **Save as
   renders before it raises the dialog**: `grabToImage` cannot render an
   unmapped window, so the picture is already in the scratch directory by the
   time the overlay goes away, and only the destination is still unknown.
-  `OMASNAP_PICK_TIMEOUT=4 bash bin/snap-pick [open|save]` flashes either
+  `POSTCARD_PICK_TIMEOUT=4 bash bin/postcard-pick [open|save]` flashes either
   dialog for a test.
 - **A crop never touches the file it came from.** `doc.cropSource` stays on
   the picture as it was opened and `doc.cropOffset` says how far the cut has
   moved, so a second crop is taken from the source at the summed offset
   rather than from a re-encode of a re-encode, and `uncrop` is a reload.
-  `bin/snap-crop` writes into the scratch directory under a name made from
+  `bin/postcard-crop` writes into the scratch directory under a name made from
   the cut, since Qt's image cache is keyed on the URL. Every crop shifts the
   annotations with the picture, which is what keeps redaction, OCR boxes and
   the annotation layer in one coordinate space.
@@ -225,7 +225,7 @@ and proves nothing); then `tests/qml/render.sh`, which drives the real
 components and checks exported pixels with ImageMagick.
 
 - On a Wayland session the harnesses open a real window for about a second to
-  get the GPU. `OMASNAP_TEST_OFFSCREEN=1` forces the offscreen platform.
+  get the GPU. `POSTCARD_TEST_OFFSCREEN=1` forces the offscreen platform.
 - Whether the card rendered is decided by **sampling the exported picture**,
   not by the backend name — what the software scene graph can draw varies by
   Qt and Mesa build.
@@ -235,14 +235,14 @@ components and checks exported pixels with ImageMagick.
 Live checks in the running shell, no mouse needed:
 
 ```sh
-omarchy-shell shell summon tahayvr.omasnap '{"path":"/path/to/shot.png"}'
-omarchy-shell shell call tahayvr.omasnap capture fullscreen   # non-interactive
+omarchy-shell shell summon tahayvr.postcard '{"path":"/path/to/shot.png"}'
+omarchy-shell shell call tahayvr.postcard capture fullscreen   # non-interactive
 printf 'fn main() {}\n' | wl-copy --primary                   # fake a selection
-omarchy-shell shell call tahayvr.omasnap code ''
-omarchy-shell shell call tahayvr.omasnap set '{"frame":"titlebar"}'
-omarchy-shell shell call tahayvr.omasnap info ''
-omarchy-shell shell call tahayvr.omasnap save ''
-qs log -p "$OMARCHY_PATH/shell" --tail 300 | grep -iE "omasnap|TypeError"
+omarchy-shell shell call tahayvr.postcard code ''
+omarchy-shell shell call tahayvr.postcard set '{"frame":"titlebar"}'
+omarchy-shell shell call tahayvr.postcard info ''
+omarchy-shell shell call tahayvr.postcard save ''
+qs log -p "$OMARCHY_PATH/shell" --tail 300 | grep -iE "postcard|TypeError"
 ```
 
 - The overlay is `keepLoaded`, so **QML changes need `omarchy restart shell`**.
@@ -267,7 +267,7 @@ qs log -p "$OMARCHY_PATH/shell" --tail 300 | grep -iE "omasnap|TypeError"
   `QT_FORCE_STDERR_LOGGING=1` when running QML by hand or you see nothing.
   `/usr/bin/qml` is Qt 5 — use `/usr/lib/qt6/bin/qml`.
 - When killing helpers from a script, use a pattern that cannot match the
-  script's own command line (`pkill -f 'snap-portal[.]py'`); a plain
+  script's own command line (`pkill -f 'postcard-portal[.]py'`); a plain
   `pkill -f name` kills the calling shell too.
 - Hyprland's close-window bind closes the window *behind* a layer-shell
   overlay and leaves the overlay up. Verified against the stock Emojis overlay,

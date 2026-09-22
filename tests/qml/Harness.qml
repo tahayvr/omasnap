@@ -16,14 +16,14 @@ Window {
     readonly property string outDir: {
         var a = Qt.application.arguments;
         var last = a.length ? String(a[a.length - 1]) : "";
-        if (last.charAt(0) !== "/") return "/tmp/omasnap-tests/";
+        if (last.charAt(0) !== "/") return "/tmp/postcard-tests/";
         return last.charAt(last.length - 1) === "/" ? last : last + "/";
     }
 
     Doc { id: doc }
 
     // Grabbed the way Editor.qml does it: a wrapper padded up to whole device
-    // pixels, cropped afterwards by render.sh as snap-deliver would.
+    // pixels, cropped afterwards by render.sh as postcard-deliver would.
     Item {
         id: grabRoot
         readonly property var fit: Model.grabSize(stage.width, stage.height, stage.dpr)

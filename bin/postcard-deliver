@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# snap-deliver copy <png> ""     <format> <quality> [w h] -> image onto the clipboard
-# snap-deliver save <png> <dest> <format> <quality> [w h] -> final file on disk (+ clipboard)
-# snap-deliver text                                        -> stdin onto the clipboard
+# postcard-deliver copy <png> ""     <format> <quality> [w h] -> image onto the clipboard
+# postcard-deliver save <png> <dest> <format> <quality> [w h] -> final file on disk (+ clipboard)
+# postcard-deliver text                                        -> stdin onto the clipboard
 # The grab is padded up to whole device pixels so nothing gets resampled;
 # w h is the size of the picture inside it, and the surplus is cropped off.
 set -uo pipefail

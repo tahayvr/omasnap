@@ -19,7 +19,7 @@ Item {
     property bool capturing: false
     property bool picking: false        // the system file dialog is up
 
-    readonly property string pluginId: manifest && manifest.id ? manifest.id : "tahayvr.omasnap"
+    readonly property string pluginId: manifest && manifest.id ? manifest.id : "tahayvr.postcard"
     readonly property string pluginDir: decodeURIComponent(
         Qt.resolvedUrl(".").toString().replace(/^file:\/\//, ""))
 
@@ -48,7 +48,7 @@ Item {
     }
     Process {
         id: themeProc
-        command: ["bash", root.pluginDir + "bin/snap-theme"]
+        command: ["bash", root.pluginDir + "bin/postcard-theme"]
         stdout: StdioCollector {
             onStreamFinished: {
                 root.themeLines = text;
@@ -61,7 +61,7 @@ Item {
     property var systemThemes: []
     Process {
         id: themeListProc
-        command: ["bash", root.pluginDir + "bin/snap-themes"]
+        command: ["bash", root.pluginDir + "bin/postcard-themes"]
         stdout: StdioCollector {
             onStreamFinished: {
                 var rows = [], lines = text.trim().split("\n");
@@ -80,7 +80,7 @@ Item {
     Process {
         id: codeThemeProc
         property string theme: ""
-        command: ["bash", root.pluginDir + "bin/snap-theme", theme]
+        command: ["bash", root.pluginDir + "bin/postcard-theme", theme]
         stdout: StdioCollector {
             onStreamFinished: {
                 root.codeThemeLines = text;
@@ -93,7 +93,7 @@ Item {
     // The desktop wallpaper, for the "desktop" background mode.
     Process {
         id: wallpaperProc
-        command: ["bash", root.pluginDir + "bin/snap-wallpaper"]
+        command: ["bash", root.pluginDir + "bin/postcard-wallpaper"]
         stdout: StdioCollector {
             onStreamFinished: doc.desktopBg = text.trim()
         }
@@ -231,7 +231,7 @@ Item {
 
     Process {
         id: textProc
-        command: ["bash", root.pluginDir + "bin/snap-text"]
+        command: ["bash", root.pluginDir + "bin/postcard-text"]
         stdout: StdioCollector {
             onStreamFinished: {
                 if (text.length) {
@@ -293,7 +293,7 @@ Item {
         id: highlightProc
         property string input: ""
         property bool pending: false
-        command: ["bash", root.pluginDir + "bin/snap-highlight", doc.codeEffectiveLang,
+        command: ["bash", root.pluginDir + "bin/postcard-highlight", doc.codeEffectiveLang,
                   Code.themeByKey(doc.codeTheme).bat, doc.codeNumbers ? "1" : "0",
                   String(Code.WRAP_COLUMNS)]
         stdinEnabled: true
@@ -381,7 +381,7 @@ Item {
 
     Process {
         id: dirProc
-        command: ["bash", root.pluginDir + "bin/snap-dir"]
+        command: ["bash", root.pluginDir + "bin/postcard-dir"]
         stdout: StdioCollector {
             onStreamFinished: {
                 var d = text.trim();
@@ -436,7 +436,7 @@ Item {
     Process {
         id: captureProc
         property string mode: "region"
-        command: ["bash", root.pluginDir + "bin/snap-capture", mode]
+        command: ["bash", root.pluginDir + "bin/postcard-capture", mode]
         stdout: StdioCollector {
             onStreamFinished: {
                 var lines = text.trim().split("\n");
@@ -457,7 +457,7 @@ Item {
     Process {
         id: paletteProc
         property string path: ""
-        command: ["bash", root.pluginDir + "bin/snap-palette", path]
+        command: ["bash", root.pluginDir + "bin/postcard-palette", path]
         stdout: StdioCollector {
             onStreamFinished: {
                 // Each line is "#backdrop #source".
@@ -478,7 +478,7 @@ Item {
     Process {
         id: edgeProc
         property string path: ""
-        command: ["bash", root.pluginDir + "bin/snap-edge", path]
+        command: ["bash", root.pluginDir + "bin/postcard-edge", path]
         stdout: StdioCollector {
             onStreamFinished: {
                 var c = text.trim();
@@ -490,7 +490,7 @@ Item {
     Process {
         id: ocrProc
         property string purpose: "redact"
-        command: ["bash", root.pluginDir + "bin/snap-ocr", doc.shotPath, purpose]
+        command: ["bash", root.pluginDir + "bin/postcard-ocr", doc.shotPath, purpose]
         stdout: StdioCollector {
             onStreamFinished: {
                 if (ocrProc.purpose === "text") {
@@ -527,7 +527,7 @@ Item {
     Process {
         id: clipText
         property string text: ""
-        command: ["bash", root.pluginDir + "bin/snap-deliver", "text"]
+        command: ["bash", root.pluginDir + "bin/postcard-deliver", "text"]
         stdinEnabled: true
         // Closing stdin ends the input; reopen it so the next run can write.
         onRunningChanged: {
@@ -595,11 +595,11 @@ Item {
         var cut = Model.cropInSource(doc.cropRect, doc.cropOffset.x, doc.cropOffset.y);
         // Named for the cut so a reopened crop is never served from Qt's
         // image cache, and so no two crops write the same file.
-        cropProc.dest = root.scratchDir + "/omasnap-crop-"
+        cropProc.dest = root.scratchDir + "/postcard-crop-"
                       + cut.x + "-" + cut.y + "-" + cut.w + "-" + cut.h + ".png";
         cropProc.moved = Qt.point(doc.cropRect.x, doc.cropRect.y);
         cropProc.cut = cut;
-        cropProc.command = ["bash", root.pluginDir + "bin/snap-crop", doc.cropSource,
+        cropProc.command = ["bash", root.pluginDir + "bin/postcard-crop", doc.cropSource,
                             String(cut.x), String(cut.y), String(cut.w), String(cut.h),
                             cropProc.dest];
         cropProc.running = true;
@@ -643,7 +643,7 @@ Item {
     }
 
     function outputName() {
-        return "snap-" + Model.stamp() + "." + (doc.format === "jpg" ? "jpg" : "png");
+        return "postcard-" + Model.stamp() + "." + (doc.format === "jpg" ? "jpg" : "png");
     }
 
     function outputPath() {
@@ -651,7 +651,7 @@ Item {
     }
 
     function save() {
-        return exportTo(root.scratchDir + "/omasnap-out.png", function (p) {
+        return exportTo(root.scratchDir + "/postcard-out.png", function (p) {
             deliver.args = ["save", p, outputPath(), doc.format, String(doc.quality),
                             String(doc.outWidth), String(doc.outHeight)];
             deliver.running = true;
@@ -663,11 +663,11 @@ Item {
     // unmapped window.
     function saveAs() {
         if (saver.running) return "busy";
-        return exportTo(root.scratchDir + "/omasnap-out.png", function (p) {
+        return exportTo(root.scratchDir + "/postcard-out.png", function (p) {
             saver.rendered = p;
             // A function call in a binding would never re-evaluate, and the
             // suggested name carries the time and the current format.
-            saver.command = ["bash", root.pluginDir + "bin/snap-pick", "save",
+            saver.command = ["bash", root.pluginDir + "bin/postcard-pick", "save",
                              root.shotDir, root.outputName()];
             root.picking = true;
             saver.running = true;
@@ -675,7 +675,7 @@ Item {
     }
 
     function copy() {
-        return exportTo(root.scratchDir + "/omasnap-copy.png", function (p) {
+        return exportTo(root.scratchDir + "/postcard-copy.png", function (p) {
             deliver.args = ["copy", p, "", doc.format, String(doc.quality),
                             String(doc.outWidth), String(doc.outHeight)];
             deliver.running = true;
@@ -685,7 +685,7 @@ Item {
     Process {
         id: deliver
         property var args: []
-        command: ["bash", root.pluginDir + "bin/snap-deliver"].concat(args)
+        command: ["bash", root.pluginDir + "bin/postcard-deliver"].concat(args)
         stdout: StdioCollector {
             onStreamFinished: {
                 var msg = text.trim();
@@ -777,7 +777,7 @@ Item {
         exclusionMode: ExclusionMode.Ignore
 
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.namespace: "omasnap"
+        WlrLayershell.namespace: "postcard"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
         onVisibleChanged: if (visible) root.focusEditor()
@@ -850,7 +850,7 @@ Item {
 
     Process {
         id: picker
-        command: ["bash", root.pluginDir + "bin/snap-pick", "open", root.shotDir]
+        command: ["bash", root.pluginDir + "bin/postcard-pick", "open", root.shotDir]
         stdout: StdioCollector {
             onStreamFinished: {
                 var p = text.trim();

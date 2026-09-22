@@ -5,7 +5,7 @@ import "ui"
 
 BarWidget {
     id: root
-    moduleName: "tahayvr.omasnap"
+    moduleName: "tahayvr.postcard"
 
     readonly property string icon: root.setting("icon", "󰆟")
 
@@ -41,7 +41,7 @@ BarWidget {
         anchors.centerIn: parent
         bar: root.bar
         text: root.icon
-        tooltipText: "OmaSnap"
+        tooltipText: "Postcard"
         useActiveColor: false
         onPressed: function (mouseButton) {
             if (mouseButton === Qt.RightButton) menu.open = !menu.open;

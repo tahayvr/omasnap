@@ -34,11 +34,11 @@ QtObject {
     property string bgMode: "auto"          // auto | solid | gradient | theme | desktop | none
     property color bgSolid: "#1e222a"
     property string bgGradient: "dusk"
-    property string desktopBg: ""          // the wallpaper, bin/snap-wallpaper
+    property string desktopBg: ""          // the wallpaper, bin/postcard-wallpaper
     property int bgAngle: 135
-    property var autoPalette: []            // backdrop colors, bin/snap-palette
+    property var autoPalette: []            // backdrop colors, bin/postcard-palette
     property var shotPalette: []            // the same colors as they appear in the shot
-    property string shotEdge: ""            // the shot's edge color, bin/snap-edge
+    property string shotEdge: ""            // the shot's edge color, bin/postcard-edge
 
     property real padding: 5                // percent of the shot's longest edge
     property real inset: 0                  // same units, inside the card

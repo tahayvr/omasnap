@@ -2,12 +2,12 @@
 # Print a chosen path, or nothing when cancelled. The dialog comes from the
 # XDG desktop portal, so it is whatever file chooser the system has
 # configured.
-#   snap-pick [open] [dir]          an image to edit
-#   snap-pick save   [dir] [name]   where to write the Snap
+#   postcard-pick [open] [dir]          an image to edit
+#   postcard-pick save   [dir] [name]   where to write the picture
 set -uo pipefail
 exec </dev/null
 mode="open"
 case "${1:-}" in open|save) mode="$1"; shift ;; esac
 dir="${1:-$HOME/Pictures}"
 name="${2:-}"
-exec /usr/bin/python3 "$(dirname "$0")/snap-portal.py" "$mode" "$dir" "$name" 2>/dev/null
+exec /usr/bin/python3 "$(dirname "$0")/postcard-portal.py" "$mode" "$dir" "$name" 2>/dev/null

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# snap-ocr <image> [redact|text]
+# postcard-ocr <image> [redact|text]
 #   redact -> word-level TSV with bounding boxes in the image's own pixels
 #   text   -> plain text
 # Exit 1: no such image.
