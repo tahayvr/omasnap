@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import qs.Commons
 import qs.Ui
 import "ui"
@@ -30,7 +31,8 @@ BarWidget {
     // Tell the editor which output this icon is on. It keeps that output
     // for the whole time it is open.
     function invokingScreen() {
-        var win = root.QsWindow.window;
+        var attached = root.QsWindow;
+        var win = attached ? attached.window : null;
         return win && win.screen && win.screen.name ? String(win.screen.name) : "";
     }
 
