@@ -1,3 +1,4 @@
 *.out.png
 *.out.jpg
 __pycache__/
+justfile
