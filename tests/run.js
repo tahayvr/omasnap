@@ -768,9 +768,11 @@ function captureOverlay() {
         CaptureDelay: { seconds: 0, remaining: 0 },
         hideTimer: fakeTimer(),
         countdown: fakeTimer(),
-        focusEditor() {}
+        focusEditor() {},
+        pluginId: "tahayvr.postcard",
+        shell: { hides: 0, hide() { this.hides++; } }
     });
-    for (const name of ["capture", "open", "close"]) {
+    for (const name of ["capture", "open", "close", "dismiss"]) {
         const fn = src.match(new RegExp("^    function " + name + "\\([^]*?^    }", "m"));
         if (!fn) throw new Error("Missing overlay function: " + name);
         vm.runInContext(fn[0], ctx);
@@ -814,6 +816,20 @@ test("invalid delays never arm a capture", () => {
         eq(c.opened, false);
     }
     eq(captureOverlay().capture('{"mode":'), "bad json");
+});
+
+test("a summon whose capture cannot start does not show a stale editor", () => {
+    const c = captureOverlay();
+    eq(c.open('{"capture":"fullscreen","delay":"5"}'), "bad delay");
+    ok(!c.opened, "nothing to show, so it closes");
+    eq(c.shell.hides, 1, "and tells the shell");
+
+    const s = captureOverlay();
+    s.doc.hasContent = true;
+    s.open('{"capture":"fullscreen","delay":90}');
+    ok(s.opened, "the picture already there stays up");
+    eq(s.editor.statusText, "Delay must be 0 to 60 whole seconds");
+    eq(s.shell.hides, 0);
 });
 
 test("repeat calls cannot replace or postpone a pending capture", () => {

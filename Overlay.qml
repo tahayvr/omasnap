@@ -115,7 +115,14 @@ Item {
         } else if (payload.code) {
             code();
         } else if (payload.capture) {
-            capture(String(payload.capture), payload.delay);
+            var result = capture(String(payload.capture), payload.delay);
+            if (result !== "ok") {
+                // Otherwise the last picture comes up with no word of why
+                // the capture never happened.
+                if (!doc.hasContent) { dismiss(); return result; }
+                editor.statusText = result === "bad delay"
+                        ? "Delay must be 0 to 60 whole seconds" : "Busy, capture not started";
+            }
         } else {
             // A plain open always starts clean: the empty state offers
             // region, code and file, and nothing from last time lingers.
