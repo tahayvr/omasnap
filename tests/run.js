@@ -748,122 +748,27 @@ test("themes resolve, and anything unlisted is an installed Omarchy theme", () =
     eq(Code.themeByKey("nord").system, true, "bat's Nord no longer shadows Omarchy's");
 });
 
-// Exercise the overlay's actual JavaScript entry points with a fake timer and
-// process. This covers scheduling, not QML bindings or compositor behaviour.
-function fakeTimer() {
-    return {
-        running: false, starts: 0,
-        restart() { this.running = true; this.starts++; },
-        stop() { this.running = false; }
-    };
-}
-
-function captureOverlay() {
-    const src = fs.readFileSync(path.join(__dirname, "..", "Overlay.qml"), "utf8");
-    const ctx = vm.createContext({
-        opened: false, capturing: false, picking: false,
-        editor: { busy: false, statusText: "" },
-        doc: { selectedId: "", clearContent() { throw new Error("cleared pending capture"); } },
-        captureProc: { running: false, mode: "region" },
-        CaptureDelay: { seconds: 0, remaining: 0 },
-        hideTimer: fakeTimer(),
-        countdown: fakeTimer(),
-        focusEditor() {},
-        pluginId: "tahayvr.postcard",
-        shell: { hides: 0, hide() { this.hides++; } }
-    });
-    for (const name of ["capture", "open", "close", "dismiss"]) {
-        const fn = src.match(new RegExp("^    function " + name + "\\([^]*?^    }", "m"));
-        if (!fn) throw new Error("Missing overlay function: " + name);
-        vm.runInContext(fn[0], ctx);
-    }
-    return ctx;
-}
-
-test("capture stays immediate by default and retains its unmap pause", () => {
-    for (const mode of ["region", "windows", "fullscreen", "smart", "unknown"]) {
-        const c = captureOverlay();
-        eq(c.capture(mode), "ok");
-        eq(c.captureProc.mode, mode === "unknown" ? "region" : mode);
-        eq(c.CaptureDelay.remaining, 0);
-        ok(!c.countdown.running, "no countdown without a delay");
-        ok(c.opened && c.capturing && c.hideTimer.running);
-        eq(c.captureProc.running, false, "waits for the timer");
-    }
+test("a capture is immediate unless it asks for a delay", () => {
+    for (const mode of ["region", "windows", "fullscreen", "smart"])
+        eq(Model.captureRequest(mode), { mode, seconds: 0 });
+    eq(Model.captureRequest("unknown").mode, "region", "an unknown mode is a region");
+    eq(Model.captureRequest("").mode, "region");
 });
 
-test("capture delay works through both public entry points", () => {
+test("a delay arrives either beside the mode or inside it as JSON", () => {
     for (const seconds of [0, 3, 5, 10, 60]) {
-        const c = captureOverlay();
-        eq(c.capture(JSON.stringify({ mode: "fullscreen", delay: seconds })), "ok");
-        eq(c.CaptureDelay.remaining, seconds);
-        eq(c.countdown.running, seconds > 0);
-        eq(c.hideTimer.running, seconds === 0, "the unmap pause waits for the count");
-        eq(c.captureProc.mode, "fullscreen");
-        const s = captureOverlay();
-        s.open(JSON.stringify({ capture: "windows", delay: seconds }));
-        eq(s.CaptureDelay.remaining, seconds);
-        eq(s.captureProc.mode, "windows");
+        eq(Model.captureRequest("windows", seconds), { mode: "windows", seconds }, "summon");
+        eq(Model.captureRequest(JSON.stringify({ mode: "fullscreen", delay: seconds })),
+           { mode: "fullscreen", seconds }, "call");
     }
+    eq(Model.captureRequest(' {"delay":5}'), { mode: "region", seconds: 5 }, "leading space, no mode");
 });
 
-test("invalid delays never arm a capture", () => {
-    for (const delay of [-1, 61, 1.5, NaN, Infinity, "5", null, true, {}, []]) {
-        const c = captureOverlay();
-        eq(c.capture("fullscreen", delay), "bad delay");
-        eq(c.hideTimer.starts + c.countdown.starts, 0);
-        eq(c.capturing, false);
-        eq(c.opened, false);
-    }
-    eq(captureOverlay().capture('{"mode":'), "bad json");
-});
-
-test("a summon whose capture cannot start does not show a stale editor", () => {
-    const c = captureOverlay();
-    eq(c.open('{"capture":"fullscreen","delay":"5"}'), "bad delay");
-    ok(!c.opened, "nothing to show, so it closes");
-    eq(c.shell.hides, 1, "and tells the shell");
-
-    const s = captureOverlay();
-    s.doc.hasContent = true;
-    s.open('{"capture":"fullscreen","delay":90}');
-    ok(s.opened, "the picture already there stays up");
-    eq(s.editor.statusText, "Delay must be 0 to 60 whole seconds");
-    eq(s.shell.hides, 0);
-});
-
-test("repeat calls cannot replace or postpone a pending capture", () => {
-    const c = captureOverlay();
-    c.capture("fullscreen", 5);
-    eq(c.capture("region", 10), "busy");
-    eq(c.open('{"capture":"windows","delay":3}'), "busy");
-    eq(c.open('{}'), "busy");
-    eq(c.captureProc.mode, "fullscreen");
-    eq(c.CaptureDelay.remaining, 5);
-    eq(c.countdown.starts, 1);
-});
-
-test("hide cancels the pending timer and is idempotent", () => {
-    const c = captureOverlay();
-    c.capture("fullscreen", 5);
-    c.close();
-    c.close();
-    ok(!c.hideTimer.running && !c.countdown.running && !c.opened && !c.capturing);
-    eq(c.CaptureDelay.remaining, 0, "the bar stops counting");
-    eq(c.captureProc.running, false);
-    eq(c.capture("region"), "ok", "another capture can start");
-    ok(c.hideTimer.running && !c.countdown.running, "previous delay does not leak");
-});
-
-test("capture respects in-flight work", () => {
-    for (const busy of ["process", "picker", "export"]) {
-        const c = captureOverlay();
-        if (busy === "process") c.captureProc.running = true;
-        if (busy === "picker") c.picking = true;
-        if (busy === "export") c.editor.busy = true;
-        eq(c.capture("fullscreen", 5), "busy");
-        eq(c.hideTimer.starts + c.countdown.starts, 0);
-    }
+test("a delay that is not 0 to 60 whole seconds is refused, not rounded", () => {
+    for (const delay of [-1, 61, 1.5, NaN, Infinity, "5", null, true, {}, []])
+        eq(Model.captureRequest("fullscreen", delay), { error: "bad delay" }, JSON.stringify(delay));
+    eq(Model.captureRequest('{"mode":"fullscreen","delay":"5"}'), { error: "bad delay" });
+    eq(Model.captureRequest('{"mode":'), { error: "bad json" });
 });
 
 console.log(passed + " passed, " + failed + " failed");

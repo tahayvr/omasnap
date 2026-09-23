@@ -405,23 +405,13 @@ Item {
 
     function capture(mode, delay) {
         if (capturing || captureProc.running || picking || editor.busy) return "busy";
-        if (typeof mode === "string" && mode.trim().indexOf("{") === 0) {
-            var options;
-            try { options = JSON.parse(mode); } catch (e) { return "bad json"; }
-            mode = options.mode;
-            delay = options.delay;
-        }
-        var seconds = delay === undefined ? 0 : delay;
-        if (typeof seconds !== "number" || !isFinite(seconds)
-                || seconds < 0 || seconds > 60 || Math.floor(seconds) !== seconds)
-            return "bad delay";
-        var m = String(mode || "region");
-        if (["region", "windows", "fullscreen", "smart"].indexOf(m) === -1) m = "region";
+        var request = Model.captureRequest(mode, delay);
+        if (request.error) return request.error;
         opened = true;
         capturing = true;
-        captureProc.mode = m;
-        CaptureDelay.remaining = seconds;
-        if (seconds > 0) countdown.restart();
+        captureProc.mode = request.mode;
+        CaptureDelay.remaining = request.seconds;
+        if (request.seconds > 0) countdown.restart();
         else hideTimer.restart();
         return "ok";
     }
