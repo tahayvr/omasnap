@@ -565,6 +565,21 @@ Item {
         }
     }
 
+    // grabToImage never calls back while the screen is locked or once the
+    // window unmaps mid-grab, and busy would then hold off every save, copy
+    // and capture until the shell restarts. A real render takes seconds.
+    property int exportGeneration: 0
+    Timer {
+        id: exportWatchdog
+        interval: 20000
+        onTriggered: {
+            root.exportGeneration++;
+            doc.exporting = false;
+            editor.busy = false;
+            editor.statusText = "Render timed out";
+        }
+    }
+
     function exportTo(path, andThen) {
         if (!doc.hasContent) return "no shot";
         if (editor.busy) return "busy";
@@ -577,11 +592,17 @@ Item {
         }
         editor.busy = true;
         doc.exporting = true;
+        var generation = ++root.exportGeneration;
+        exportWatchdog.restart();
 
         Qt.callLater(function () {
             var target = editor.exportTarget;
             var size = Qt.size(target.width * doc.exportScale, target.height * doc.exportScale);
             var ok = target.grabToImage(function (result) {
+                // Given up on already: writing now would surprise, and
+                // clearing busy could cut across a newer export.
+                if (generation !== root.exportGeneration) return;
+                exportWatchdog.stop();
                 var wrote = result.saveToFile(path);
                 doc.exporting = false;
                 editor.busy = false;
@@ -593,6 +614,7 @@ Item {
             }, size);
 
             if (!ok) {
+                exportWatchdog.stop();
                 doc.exporting = false;
                 editor.busy = false;
                 editor.statusText = "Render failed — try a smaller export scale";

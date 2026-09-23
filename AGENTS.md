@@ -259,7 +259,9 @@ qs log -p "$OMARCHY_PATH/shell" --tail 300 | grep -iE "postcard|TypeError"
   asynchronously and a screenshot taken immediately can miss it.
 - **A locked screen wedges every screen capture.** `grim` blocks in `poll`,
   `grabToImage` never calls back, and the plugin's export sits at `busy`
-  forever. Nothing in the symptoms points at the lock. Check it first.
+  until a 20s watchdog gives up with "Render timed out"; a callback that
+  arrives after that is dropped by generation. Nothing in the symptoms
+  points at the lock. Check it first.
 - A capture blocks other calls with `busy` until `slurp` finishes or
   `pkill -x slurp`. `/proc/<slurp>/wchan` says `anon_pipe_read` if it is
   stuck on stdin.
