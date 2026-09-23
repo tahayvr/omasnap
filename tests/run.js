@@ -750,6 +750,14 @@ test("themes resolve, and anything unlisted is an installed Omarchy theme", () =
 
 // Exercise the overlay's actual JavaScript entry points with a fake timer and
 // process. This covers scheduling, not QML bindings or compositor behaviour.
+function fakeTimer() {
+    return {
+        running: false, starts: 0,
+        restart() { this.running = true; this.starts++; },
+        stop() { this.running = false; }
+    };
+}
+
 function captureOverlay() {
     const src = fs.readFileSync(path.join(__dirname, "..", "Overlay.qml"), "utf8");
     const ctx = vm.createContext({
@@ -757,11 +765,9 @@ function captureOverlay() {
         editor: { busy: false, statusText: "" },
         doc: { selectedId: "", clearContent() { throw new Error("cleared pending capture"); } },
         captureProc: { running: false, mode: "region" },
-        hideTimer: {
-            interval: 140, running: false, starts: 0,
-            restart() { this.running = true; this.starts++; },
-            stop() { this.running = false; }
-        },
+        CaptureDelay: { seconds: 0, remaining: 0 },
+        hideTimer: fakeTimer(),
+        countdown: fakeTimer(),
         focusEditor() {}
     });
     for (const name of ["capture", "open", "close"]) {
@@ -777,7 +783,8 @@ test("capture stays immediate by default and retains its unmap pause", () => {
         const c = captureOverlay();
         eq(c.capture(mode), "ok");
         eq(c.captureProc.mode, mode === "unknown" ? "region" : mode);
-        eq(c.hideTimer.interval, 140);
+        eq(c.CaptureDelay.remaining, 0);
+        ok(!c.countdown.running, "no countdown without a delay");
         ok(c.opened && c.capturing && c.hideTimer.running);
         eq(c.captureProc.running, false, "waits for the timer");
     }
@@ -787,11 +794,13 @@ test("capture delay works through both public entry points", () => {
     for (const seconds of [0, 3, 5, 10, 60]) {
         const c = captureOverlay();
         eq(c.capture(JSON.stringify({ mode: "fullscreen", delay: seconds })), "ok");
-        eq(c.hideTimer.interval, 140 + seconds * 1000);
+        eq(c.CaptureDelay.remaining, seconds);
+        eq(c.countdown.running, seconds > 0);
+        eq(c.hideTimer.running, seconds === 0, "the unmap pause waits for the count");
         eq(c.captureProc.mode, "fullscreen");
         const s = captureOverlay();
         s.open(JSON.stringify({ capture: "windows", delay: seconds }));
-        eq(s.hideTimer.interval, 140 + seconds * 1000);
+        eq(s.CaptureDelay.remaining, seconds);
         eq(s.captureProc.mode, "windows");
     }
 });
@@ -800,7 +809,7 @@ test("invalid delays never arm a capture", () => {
     for (const delay of [-1, 61, 1.5, NaN, Infinity, "5", null, true, {}, []]) {
         const c = captureOverlay();
         eq(c.capture("fullscreen", delay), "bad delay");
-        eq(c.hideTimer.starts, 0);
+        eq(c.hideTimer.starts + c.countdown.starts, 0);
         eq(c.capturing, false);
         eq(c.opened, false);
     }
@@ -814,8 +823,8 @@ test("repeat calls cannot replace or postpone a pending capture", () => {
     eq(c.open('{"capture":"windows","delay":3}'), "busy");
     eq(c.open('{}'), "busy");
     eq(c.captureProc.mode, "fullscreen");
-    eq(c.hideTimer.interval, 5140);
-    eq(c.hideTimer.starts, 1);
+    eq(c.CaptureDelay.remaining, 5);
+    eq(c.countdown.starts, 1);
 });
 
 test("hide cancels the pending timer and is idempotent", () => {
@@ -823,10 +832,11 @@ test("hide cancels the pending timer and is idempotent", () => {
     c.capture("fullscreen", 5);
     c.close();
     c.close();
-    ok(!c.hideTimer.running && !c.opened && !c.capturing);
+    ok(!c.hideTimer.running && !c.countdown.running && !c.opened && !c.capturing);
+    eq(c.CaptureDelay.remaining, 0, "the bar stops counting");
     eq(c.captureProc.running, false);
     eq(c.capture("region"), "ok", "another capture can start");
-    eq(c.hideTimer.interval, 140, "previous delay does not leak");
+    ok(c.hideTimer.running && !c.countdown.running, "previous delay does not leak");
 });
 
 test("capture respects in-flight work", () => {
@@ -836,7 +846,7 @@ test("capture respects in-flight work", () => {
         if (busy === "picker") c.picking = true;
         if (busy === "export") c.editor.busy = true;
         eq(c.capture("fullscreen", 5), "busy");
-        eq(c.hideTimer.starts, 0);
+        eq(c.hideTimer.starts + c.countdown.starts, 0);
     }
 });
 

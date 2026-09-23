@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 import "ui"
+import "ui/controls"
 
 BarWidget {
     id: root
@@ -20,8 +21,8 @@ BarWidget {
           tip: "Capture a region" },
         { glyph: "◰",       label: "Window", payload: '{"capture":"windows"}',
           tip: "Capture a window" },
-        { glyph: "◷",       label: "Screen in 5s", payload: '{"capture":"fullscreen","delay":5}',
-          tip: "Capture the screen after five seconds to open a menu or tooltip" },
+        { glyph: "⬜",       label: "Screen", mode: "fullscreen", delayed: true,
+          tip: "Capture the whole screen" },
         { glyph: "‹›", label: "Code",   payload: '{"code":true}',
           tip: "Capture selected text" }
     ]
@@ -33,6 +34,8 @@ BarWidget {
         root.bar.shell.summon(root.moduleName, payload);
     }
 
+    readonly property bool counting: CaptureDelay.remaining > 0
+
     function choose(payload) {
         menu.open = false;
         root.summon(payload);
@@ -42,11 +45,15 @@ BarWidget {
         id: button
         anchors.centerIn: parent
         bar: root.bar
-        text: root.icon
-        tooltipText: "Postcard"
-        useActiveColor: false
+        text: root.counting ? String(CaptureDelay.remaining) : root.icon
+        tooltipText: root.counting ? "Capturing soon, click to cancel" : "Postcard"
+        active: root.counting
+        useActiveColor: root.counting
         onPressed: function (mouseButton) {
-            if (mouseButton === Qt.RightButton) menu.open = !menu.open;
+            // Hiding is what cancels a pending capture, and keeps the
+            // shell's idea of whether the overlay is open in step.
+            if (root.counting) root.bar.shell.hide(root.moduleName);
+            else if (mouseButton === Qt.RightButton) menu.open = !menu.open;
             else if (mouseButton === Qt.MiddleButton) root.summon('{"code":true}');
             else root.summon('{"capture":"smart"}');
         }
@@ -103,52 +110,118 @@ BarWidget {
                 Repeater {
                     model: root.actions
 
-                    Rectangle {
+                    Item {
                         id: row
                         required property var modelData
+                        readonly property bool delayed: modelData.delayed === true
                         width: parent.width
                         height: Style.spacing.popupRowHeight
-                        radius: Style.cornerRadius
-                        color: hover.hovered
-                               ? Style.hoverFillFor(root.fg, Color.accent) : "transparent"
 
-                        Row {
-                            anchors.fill: parent
-                            anchors.leftMargin: Style.space(8)
-                            anchors.rightMargin: Style.space(8)
-                            spacing: Style.space(12)
+                        function payload() {
+                            if (!row.delayed) return row.modelData.payload;
+                            return JSON.stringify({ capture: row.modelData.mode,
+                                                    delay: CaptureDelay.seconds });
+                        }
 
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: Style.font.icon
-                                horizontalAlignment: Text.AlignHCenter
-                                text: row.modelData.glyph
-                                color: Qt.darker(root.fg, 1.3)
-                                font.family: root.face
-                                font.pixelSize: Style.font.icon
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.right: row.delayed ? delay.left : parent.right
+                            anchors.rightMargin: row.delayed ? Style.space(4) : 0
+                            radius: Style.cornerRadius
+                            color: hover.hovered
+                                   ? Style.hoverFillFor(root.fg, Color.accent) : "transparent"
+
+                            Row {
+                                anchors.fill: parent
+                                anchors.leftMargin: Style.space(8)
+                                anchors.rightMargin: Style.space(8)
+                                spacing: Style.space(12)
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: Style.font.icon
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: row.modelData.glyph
+                                    color: Qt.darker(root.fg, 1.3)
+                                    font.family: root.face
+                                    font.pixelSize: Style.font.icon
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: row.modelData.label
+                                    color: root.fg
+                                    font.family: root.face
+                                    font.pixelSize: Style.font.body
+                                }
                             }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: row.modelData.label
-                                color: root.fg
-                                font.family: root.face
-                                font.pixelSize: Style.font.body
+
+                            HoverHandler {
+                                id: hover
+                                cursorShape: Qt.PointingHandCursor
+                            }
+
+                            TapHandler {
+                                acceptedButtons: Qt.LeftButton
+                                onTapped: root.choose(row.payload())
+                            }
+
+                            PanelToolTip {
+                                visible: hover.hovered
+                                text: row.delayed && CaptureDelay.seconds
+                                      ? row.modelData.tip + " in " + CaptureDelay.seconds + " seconds"
+                                      : row.modelData.tip
                             }
                         }
 
-                        HoverHandler {
-                            id: hover
-                            cursorShape: Qt.PointingHandCursor
-                        }
+                        // A sibling rather than a child of the row, so a tap
+                        // here cycles the delay without also firing the capture.
+                        Rectangle {
+                            id: delay
+                            visible: row.delayed
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: Style.space(64)
+                            radius: Style.cornerRadius
+                            color: delayHover.hovered
+                                   ? Style.hoverFillFor(root.fg, Color.accent) : "transparent"
 
-                        TapHandler {
-                            acceptedButtons: Qt.LeftButton
-                            onTapped: root.choose(row.modelData.payload)
-                        }
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: Style.space(6)
 
-                        PanelToolTip {
-                            visible: hover.hovered
-                            text: row.modelData.tip
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "◷"
+                                    color: CaptureDelay.seconds ? Color.accent : Qt.darker(root.fg, 1.3)
+                                    font.family: root.face
+                                    font.pixelSize: Style.font.body
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: CaptureDelay.label(CaptureDelay.seconds)
+                                    color: CaptureDelay.seconds ? Color.accent : root.fg
+                                    font.family: root.face
+                                    font.pixelSize: Style.font.body
+                                }
+                            }
+
+                            HoverHandler {
+                                id: delayHover
+                                cursorShape: Qt.PointingHandCursor
+                            }
+
+                            TapHandler {
+                                acceptedButtons: Qt.LeftButton
+                                onTapped: CaptureDelay.cycle()
+                            }
+
+                            PanelToolTip {
+                                visible: delayHover.hovered
+                                text: "Delay before the screen is captured, click to change"
+                            }
                         }
                     }
                 }

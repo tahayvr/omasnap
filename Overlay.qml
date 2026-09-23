@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import "ui"
+import "ui/controls"
 import "lib/Redact.js" as Redact
 import "lib/Model.js" as Model
 import "lib/Code.js" as Code
@@ -128,6 +129,8 @@ Item {
     function close() {
         opened = false;
         hideTimer.stop();
+        countdown.stop();
+        CaptureDelay.remaining = 0;
         if (!captureProc.running) capturing = false;
         doc.selectedId = "";
     }
@@ -410,9 +413,9 @@ Item {
         opened = true;
         capturing = true;
         captureProc.mode = m;
-        // Keep the surface-unmap pause even when the user chooses no delay.
-        hideTimer.interval = 140 + seconds * 1000;
-        hideTimer.restart();
+        CaptureDelay.remaining = seconds;
+        if (seconds > 0) countdown.restart();
+        else hideTimer.restart();
         return "ok";
     }
 
@@ -440,6 +443,20 @@ Item {
         ocrProc.purpose = "text";
         ocrProc.running = true;
         return "ok";
+    }
+
+    // Ticks in whole seconds so the bar can show the count; the unmap pause
+    // still follows the last tick, so the shot never has the count in it.
+    Timer {
+        id: countdown
+        interval: 1000
+        repeat: true
+        onTriggered: {
+            CaptureDelay.remaining -= 1;
+            if (CaptureDelay.remaining > 0) return;
+            stop();
+            hideTimer.restart();
+        }
     }
 
     Timer {
@@ -762,7 +779,7 @@ Item {
                 if (event.modifiers & Qt.ShiftModifier) root.saveAs(); else root.save();
                 return true;
             case Qt.Key_Z: doc.undo(); return true;
-            case Qt.Key_N: root.capture("region", editor.captureDelay); return true;
+            case Qt.Key_N: root.capture("region", CaptureDelay.seconds); return true;
             case Qt.Key_K: root.code(); return true;
             }
             return false;
@@ -823,7 +840,7 @@ Item {
                 saveDir: root.shotDir
                 radius: 0
 
-                onCaptureRequested: function (mode) { root.capture(mode, editor.captureDelay); }
+                onCaptureRequested: function (mode) { root.capture(mode, CaptureDelay.seconds); }
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()
