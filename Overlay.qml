@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import "ui"
+import "ui/controls"
 import "lib/Redact.js" as Redact
 import "lib/Model.js" as Model
 import "lib/Code.js" as Code
@@ -100,6 +101,7 @@ Item {
     }
 
     function open(payloadJson) {
+        if (capturing || captureProc.running) return "busy";
         var payload = {};
         try { payload = payloadJson ? JSON.parse(payloadJson) : {}; } catch (e) { payload = {}; }
         if (!payload || typeof payload !== "object") payload = {};
@@ -113,7 +115,14 @@ Item {
         } else if (payload.code) {
             code();
         } else if (payload.capture) {
-            capture(String(payload.capture));
+            var result = capture(String(payload.capture), payload.delay);
+            if (result !== "ok") {
+                // Otherwise the last picture comes up with no word of why
+                // the capture never happened.
+                if (!doc.hasContent) { dismiss(); return result; }
+                editor.statusText = result === "bad delay"
+                        ? "Delay must be 0 to 60 whole seconds" : "Busy, capture not started";
+            }
         } else {
             // A plain open always starts clean: the empty state offers
             // region, code and file, and nothing from last time lingers.
@@ -126,6 +135,10 @@ Item {
     // Shell calls this on hide; dismiss() calls it too, so it must be idempotent.
     function close() {
         opened = false;
+        hideTimer.stop();
+        countdown.stop();
+        CaptureDelay.remaining = 0;
+        if (!captureProc.running) capturing = false;
         doc.selectedId = "";
     }
 
@@ -390,14 +403,16 @@ Item {
         }
     }
 
-    function capture(mode) {
-        if (captureProc.running) return "busy";
-        var m = String(mode || "region");
-        if (["region", "windows", "fullscreen", "smart"].indexOf(m) === -1) m = "region";
+    function capture(mode, delay) {
+        if (capturing || captureProc.running || picking || editor.busy) return "busy";
+        var request = Model.captureRequest(mode, delay);
+        if (request.error) return request.error;
         opened = true;
         capturing = true;
-        captureProc.mode = m;
-        hideTimer.restart();
+        captureProc.mode = request.mode;
+        CaptureDelay.remaining = request.seconds;
+        if (request.seconds > 0) countdown.restart();
+        else hideTimer.restart();
         return "ok";
     }
 
@@ -425,6 +440,20 @@ Item {
         ocrProc.purpose = "text";
         ocrProc.running = true;
         return "ok";
+    }
+
+    // Ticks in whole seconds so the bar can show the count; the unmap pause
+    // still follows the last tick, so the shot never has the count in it.
+    Timer {
+        id: countdown
+        interval: 1000
+        repeat: true
+        onTriggered: {
+            CaptureDelay.remaining -= 1;
+            if (CaptureDelay.remaining > 0) return;
+            stop();
+            hideTimer.restart();
+        }
     }
 
     Timer {
@@ -536,6 +565,21 @@ Item {
         }
     }
 
+    // grabToImage never calls back while the screen is locked or once the
+    // window unmaps mid-grab, and busy would then hold off every save, copy
+    // and capture until the shell restarts. A real render takes seconds.
+    property int exportGeneration: 0
+    Timer {
+        id: exportWatchdog
+        interval: 20000
+        onTriggered: {
+            root.exportGeneration++;
+            doc.exporting = false;
+            editor.busy = false;
+            editor.statusText = "Render timed out";
+        }
+    }
+
     function exportTo(path, andThen) {
         if (!doc.hasContent) return "no shot";
         if (editor.busy) return "busy";
@@ -548,11 +592,17 @@ Item {
         }
         editor.busy = true;
         doc.exporting = true;
+        var generation = ++root.exportGeneration;
+        exportWatchdog.restart();
 
         Qt.callLater(function () {
             var target = editor.exportTarget;
             var size = Qt.size(target.width * doc.exportScale, target.height * doc.exportScale);
             var ok = target.grabToImage(function (result) {
+                // Given up on already: writing now would surprise, and
+                // clearing busy could cut across a newer export.
+                if (generation !== root.exportGeneration) return;
+                exportWatchdog.stop();
                 var wrote = result.saveToFile(path);
                 doc.exporting = false;
                 editor.busy = false;
@@ -564,6 +614,7 @@ Item {
             }, size);
 
             if (!ok) {
+                exportWatchdog.stop();
                 doc.exporting = false;
                 editor.busy = false;
                 editor.statusText = "Render failed — try a smaller export scale";
@@ -808,7 +859,7 @@ Item {
                 saveDir: root.shotDir
                 radius: 0
 
-                onCaptureRequested: function (mode) { root.capture(mode); }
+                onCaptureRequested: function (mode) { root.capture(mode, mode === "fullscreen" ? CaptureDelay.seconds : 0); }
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()

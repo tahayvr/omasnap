@@ -748,5 +748,28 @@ test("themes resolve, and anything unlisted is an installed Omarchy theme", () =
     eq(Code.themeByKey("nord").system, true, "bat's Nord no longer shadows Omarchy's");
 });
 
+test("a capture is immediate unless it asks for a delay", () => {
+    for (const mode of ["region", "windows", "fullscreen", "smart"])
+        eq(Model.captureRequest(mode), { mode, seconds: 0 });
+    eq(Model.captureRequest("unknown").mode, "region", "an unknown mode is a region");
+    eq(Model.captureRequest("").mode, "region");
+});
+
+test("a delay arrives either beside the mode or inside it as JSON", () => {
+    for (const seconds of [0, 3, 5, 10, 60]) {
+        eq(Model.captureRequest("windows", seconds), { mode: "windows", seconds }, "summon");
+        eq(Model.captureRequest(JSON.stringify({ mode: "fullscreen", delay: seconds })),
+           { mode: "fullscreen", seconds }, "call");
+    }
+    eq(Model.captureRequest(' {"delay":5}'), { mode: "region", seconds: 5 }, "leading space, no mode");
+});
+
+test("a delay that is not 0 to 60 whole seconds is refused, not rounded", () => {
+    for (const delay of [-1, 61, 1.5, NaN, Infinity, "5", null, true, {}, []])
+        eq(Model.captureRequest("fullscreen", delay), { error: "bad delay" }, JSON.stringify(delay));
+    eq(Model.captureRequest('{"mode":"fullscreen","delay":"5"}'), { error: "bad delay" });
+    eq(Model.captureRequest('{"mode":'), { error: "bad json" });
+});
+
 console.log(passed + " passed, " + failed + " failed");
 process.exit(failed ? 1 : 0);

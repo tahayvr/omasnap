@@ -16,6 +16,7 @@ QtObject {
 
     readonly property color hairline: tint(0.12)
     readonly property color fill: tint(0.06)
+    readonly property color fillRaised: tint(0.085)   // the second half of a joined pair
     readonly property color fillHover: tint(0.11)
     readonly property color fillActive: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18)
     readonly property color borderActive: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.6)

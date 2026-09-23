@@ -1,4 +1,5 @@
 singleton Ui 1.0 Ui.qml
+singleton CaptureDelay 1.0 CaptureDelay.qml
 Chip 1.0 Chip.qml
 Dropdown 1.0 Dropdown.qml
 IconButton 1.0 IconButton.qml
