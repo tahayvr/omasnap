@@ -786,7 +786,7 @@ Item {
                 if (event.modifiers & Qt.ShiftModifier) root.saveAs(); else root.save();
                 return true;
             case Qt.Key_Z: doc.undo(); return true;
-            case Qt.Key_N: root.capture("region", CaptureDelay.seconds); return true;
+            case Qt.Key_N: root.capture("region"); return true;
             case Qt.Key_K: root.code(); return true;
             }
             return false;
@@ -847,7 +847,7 @@ Item {
                 saveDir: root.shotDir
                 radius: 0
 
-                onCaptureRequested: function (mode) { root.capture(mode, CaptureDelay.seconds); }
+                onCaptureRequested: function (mode) { root.capture(mode, mode === "fullscreen" ? CaptureDelay.seconds : 0); }
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()

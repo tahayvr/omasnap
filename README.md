@@ -7,8 +7,8 @@
 </p>
 
 Make a screenshot worth posting. Postcard is an [Omarchy](https://omarchy.org)
-shell plugin: grab a region and it adds padding, a background, 
-rounded corners and a shadow, lets you annotate, and hides anything in 
+shell plugin: grab a region and it adds padding, a background,
+rounded corners and a shadow, lets you annotate, and hides anything in
 the picture that should not be public.
 
 ![Postcard editor](assets/showcase/screenshot-full.jpg)
@@ -16,6 +16,7 @@ the picture that should not be public.
 ## Features
 
 **Framing**
+
 - Padding, aspect ratio presets, corner radius, crop, shadow and an optional title bar
 - Inset, which extends the screenshot's own edge color outwards to give a
   cramped window room to breathe
@@ -23,12 +24,14 @@ the picture that should not be public.
 ![Framing](assets/showcase/framing.png)
 
 **Backgrounds**
+
 - Auto from the screenshot, gradients, flat colors, your Omarchy theme, your wallpaper,
   or none for a transparent PNG
 
 ![Backgrounds](assets/showcase/backgrounds.png)
 
 **Annotation**
+
 - Arrows, boxes, ellipses, highlighter, text labels and numbered steps
 - Spotlight a rectangle or an ellipse and the rest of the screenshot dims,
   leaving the background as it is
@@ -37,6 +40,7 @@ the picture that should not be public.
 ![Annotations](assets/showcase/annotations.png)
 
 **Hide sensitive data**
+
 - One click pixelates emails, API keys, JWTs, AWS and GitHub tokens, card
   numbers, IBANs, IP addresses and phone numbers, each category switchable
 - Card numbers are Luhn-checked; dates, versions, hashes and loopback
@@ -47,6 +51,7 @@ the picture that should not be public.
 ![Hiding sensitive data](assets/showcase/redaction.png)
 
 **Code cards**
+
 - Any selected text becomes a syntax-highlighted card in the same frame
 - Language detected or chosen, font size, line numbers
 - Every Omarchy theme you have installed, plus Dracula, Monokai, One Dark,
@@ -55,6 +60,7 @@ the picture that should not be public.
 ![Postcard code card preview](assets/showcase/screenshot-full-code.jpg)
 
 **Output**
+
 - Clipboard or disk, PNG or JPEG, at 1x, 2x or 3x
 - The preview is the file
 
@@ -64,9 +70,9 @@ the picture that should not be public.
 omarchy plugin add https://github.com/tahayvr/postcard.git --enable
 ```
 
-Update it with `omarchy plugin update tahayvr.postcard` 
+Update it with `omarchy plugin update tahayvr.postcard`
 
-Remove it with `omarchy plugin remove tahayvr.postcard`, 
+Remove it with `omarchy plugin remove tahayvr.postcard`,
 
 or `omarchy plugin disable tahayvr.postcard` to keep it installed but off.
 
@@ -75,7 +81,7 @@ before you enable it.
 
 ## Usage
 
-Enabling the plugin puts an Postcard button 󰆟  in the bar. Left-click it to grab a
+Enabling the plugin puts an Postcard button 󰆟 in the bar. Left-click it to grab a
 region or window, middle-click to make a code card from the selected text, right-click
 for a menu: region, window, screen with an optional delay, code card, or the editor. Move it with:
 
@@ -97,17 +103,17 @@ clipboard if nothing is highlighted.
 
 ### Keys
 
-| Key | Action |
-| --- | --- |
+| Key                                              | Action                                                                  |
+| ------------------------------------------------ | ----------------------------------------------------------------------- |
 | `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B`, `L`, `C` | move, arrow, box, ellipse, text, step, highlight, hide, spotlight, crop |
-| `Ctrl+C` / `Ctrl+S` | copy / save |
-| `Ctrl+Shift+S` | Save as, through the system file dialog |
-| `Ctrl+Z` | undo |
-| `Ctrl+N` | Grab another region |
-| `Ctrl+K` | Code card from the selected text |
-| `Delete` | Remove the selected annotation |
-| `Enter` | Finish typing a text label |
-| `Esc` | Deselect, then close |
+| `Ctrl+C` / `Ctrl+S`                              | copy / save                                                             |
+| `Ctrl+Shift+S`                                   | Save as, through the system file dialog                                 |
+| `Ctrl+Z`                                         | undo                                                                    |
+| `Ctrl+N`                                         | Grab another region                                                     |
+| `Ctrl+K`                                         | Code card from the selected text                                        |
+| `Delete`                                         | Remove the selected annotation                                          |
+| `Enter`                                          | Finish typing a text label                                              |
+| `Esc`                                            | Deselect, then close                                                    |
 
 ### Scripting
 

@@ -71,16 +71,30 @@ Loader {
         id: captureComp
         Row {
             spacing: Ui.gap
-            IconButton {
-                glyph: "◷"
-                label: CaptureDelay.label(CaptureDelay.seconds)
-                active: CaptureDelay.seconds > 0
-                tip: "Capture delay, click to change"
-                onClicked: CaptureDelay.cycle()
-            }
             IconButton { glyph: "⬚"; label: "Region"; onClicked: opts.captureRequested("region") }
             IconButton { glyph: "◰"; label: "Window"; onClicked: opts.captureRequested("windows") }
-            IconButton { glyph: "⬜"; label: "Screen"; onClicked: opts.captureRequested("fullscreen") }
+
+            // Joined, since the delay belongs to Screen alone: region and
+            // window pickers wait for a click anyway, which closes any menu.
+            Row {
+                IconButton {
+                    glyph: "⬜"
+                    label: "Screen"
+                    tip: CaptureDelay.seconds
+                         ? "Capture the whole screen in " + CaptureDelay.seconds + " seconds"
+                         : "Capture the whole screen"
+                    onClicked: opts.captureRequested("fullscreen")
+                }
+                Rectangle { width: 1; height: Ui.button; color: Ui.hairline }
+                IconButton {
+                    glyph: "◷"
+                    label: CaptureDelay.label(CaptureDelay.seconds)
+                    rest: Ui.fillRaised
+                    active: CaptureDelay.seconds > 0
+                    tip: "Delay before the screen is captured, click to change"
+                    onClicked: CaptureDelay.cycle()
+                }
+            }
             IconButton { glyph: "‹›"; label: "Code"; tip: "Selected text as a code card"; onClicked: opts.codeRequested() }
             IconButton { glyph: ""; label: "File"; tip: "Open a file"; onClicked: opts.openRequested() }
         }
