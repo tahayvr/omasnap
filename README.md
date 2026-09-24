@@ -37,6 +37,8 @@ the picture that should not be public.
 - Arrows, boxes, ellipses, highlighter, text labels and numbered steps
 - Spotlight a rectangle or an ellipse and the rest of the screenshot dims,
   leaving the background as it is
+- Magnify: drag over a detail and a zoomed lens (2×, 3× or 4×) appears beside it,
+  joined by a line; move the lens and the magnified spot separately
 - Drag to move, and they stay pinned to the screenshot when you reframe
 
 ![Annotations](assets/showcase/annotations.png)
@@ -107,7 +109,7 @@ clipboard if nothing is highlighted.
 
 | Key                                              | Action                                                                  |
 | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B`, `L`, `C` | move, arrow, box, ellipse, text, step, highlight, hide, spotlight, crop |
+| `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B`, `L`, `M`, `C` | move, arrow, box, ellipse, text, step, highlight, hide, spotlight, magnify, crop |
 | `Ctrl+C` / `Ctrl+S`                              | copy / save                                                             |
 | `Ctrl+Shift+S`                                   | Save as, through the system file dialog                                 |
 | `Ctrl+Z`                                         | undo                                                                    |

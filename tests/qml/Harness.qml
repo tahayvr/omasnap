@@ -196,6 +196,36 @@ Window {
     Timer {
         id: ovalTimer
         interval: 250
-        onTriggered: win.grab("export-spot-oval", function () { Qt.quit(); })
+        onTriggered: win.grab("export-spot-oval", function () {
+            // Two magnifiers at 2x, placed by hand: one on the stripes, whose
+            // edges have to stay sharp rather than blend, and one on a hidden
+            // area, which has to show its blocks rather than the stripes
+            // under them.
+            doc.clearAnnotations();
+            var hide = Model.newAnnotation("redact", 220, 60);
+            hide.w = 60; hide.h = 60; hide.strength = 20;
+            doc.annotations.append(hide);
+
+            var onStripes = Model.newAnnotation("magnify", 10, 150);
+            onStripes.w = 40; onStripes.h = 40;
+            onStripes.sx = 120; onStripes.sy = 100; onStripes.zoom = 2;
+            onStripes.color = "#00ff00"; onStripes.width = 1;
+            doc.annotations.append(onStripes);
+
+            var onHidden = Model.newAnnotation("magnify", 330, 150);
+            onHidden.w = 40; onHidden.h = 40;
+            onHidden.sx = 250; onHidden.sy = 90; onHidden.zoom = 2;
+            onHidden.color = "#00ff00"; onHidden.width = 1;
+            doc.annotations.append(onHidden);
+            doc.selectedId = "";
+            doc.annotationsEdited();
+            magnifyTimer.start();
+        })
+    }
+
+    Timer {
+        id: magnifyTimer
+        interval: 350
+        onTriggered: win.grab("export-magnify", function () { Qt.quit(); })
     }
 }

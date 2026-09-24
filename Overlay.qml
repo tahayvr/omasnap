@@ -175,7 +175,7 @@ Item {
     }
 
     // annotate <json>: add annotations in screenshot pixels: one object
-    // {kind, x, y, w, h, color, width, text, index, strength}, or several as
+    // {kind, x, y, w, h, color, width, text, index, strength, zoom}, or several as
     // {"items": [...]} (the IPC CLI splits a bare top-level array on commas).
     function annotate(json) {
         var list;
@@ -202,6 +202,17 @@ Item {
                     var size = Math.max(22, Math.round(a.width * 9));
                     a.x -= size / 2; a.y -= size / 2; a.w = size; a.h = size;
                 }
+            }
+            // As when drawn: the box is the area to magnify, and the lens is
+            // set beside it.
+            if (a.kind === "magnify") {
+                var m = Model.magnifyFromDrag(a.x, a.y, a.x + a.w, a.y + a.h, Number(o.zoom));
+                var lens = Model.placeMagnifier(m.sx, m.sy, m.w / 2 / Model.magnifyZoom(Number(o.zoom)),
+                                                Number(o.zoom), doc.shotWidth, doc.shotHeight);
+                if (m.w < 2 * Model.MIN_MAGNIFY) continue;
+                a.zoom = Model.magnifyZoom(Number(o.zoom));
+                a.sx = m.sx; a.sy = m.sy;
+                a.x = lens.x; a.y = lens.y; a.w = lens.w; a.h = lens.h;
             }
             doc.annotations.append(a);
             added++;
@@ -899,7 +910,7 @@ Item {
         map[Qt.Key_R] = "box";     map[Qt.Key_O] = "ellipse";
         map[Qt.Key_T] = "text";    map[Qt.Key_S] = "step";
         map[Qt.Key_H] = "highlight"; map[Qt.Key_B] = "redact";
-        map[Qt.Key_L] = "spotlight";
+        map[Qt.Key_L] = "spotlight"; map[Qt.Key_M] = "magnify";
         if (doc.kind === "shot") map[Qt.Key_C] = "crop";
         if (map[event.key] !== undefined) {
             doc.tool = map[event.key];

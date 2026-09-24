@@ -20,7 +20,7 @@ Loader {
     signal cropRequested()
     signal uncropRequested()
 
-    readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step"]
+    readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step", "magnify"]
 
     // The mark in hand, if one is selected: the strip is then about that
     // rather than about the tool, so a mark can be restyled after the fact.
@@ -35,6 +35,8 @@ Loader {
     readonly property real stroke: opts.picked ? opts.picked.width : doc.inkWidth
     readonly property string arrowStyle: (opts.picked && opts.picked.style && opts.picked.style !== "")
                                          ? opts.picked.style : doc.arrowStyle
+    readonly property int zoom: opts.picked && opts.picked.kind === "magnify"
+                                ? opts.picked.zoom : doc.magnifyZoom
 
     // Both at once: what is in hand changes, and so does what the next mark
     // will be made with.
@@ -138,6 +140,22 @@ Loader {
                     swatchColor: Color.accent
                     active: Qt.colorEqual(opts.ink, Color.accent)
                     onPicked: opts.setInk(Color.accent)
+                }
+            }
+
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Ui.gap
+                visible: opts.subject === "magnify"
+                Repeater {
+                    model: Model.MAGNIFY_ZOOMS
+                    IconButton {
+                        required property var modelData
+                        label: modelData + "\u00d7"
+                        tip: "Zoom " + modelData + " times"
+                        active: opts.zoom === modelData
+                        onClicked: opts.doc.setMagnifyZoom(modelData)
+                    }
                 }
             }
 
