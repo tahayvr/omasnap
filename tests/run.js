@@ -556,7 +556,7 @@ test("a press picks the mark it lands on, not the box around it", () => {
 test("a selected mark is pulled about by its handles", () => {
     const box = { kind: "box", x: 10, y: 10, w: 100, h: 50, width: 4 };
     const h = Model.resizeHandles(box);
-    eq(h.length, 4);
+    eq(h.length, 8, "four corners and four sides");
     eq(h[0].key, "tl"); eq(h[0].x, 10); eq(h[0].y, 10);
     eq(h[2].key, "br"); eq(h[2].x, 110); eq(h[2].y, 60);
 
@@ -591,6 +591,25 @@ test("a selected mark is pulled about by its handles", () => {
     const step = Model.resizeAnnotation({ kind: "step", x: 0, y: 0, w: 30, h: 30, width: 4 },
                                         "br", 90, 40);
     eq(step.w, 90); eq(step.h, 90);
+
+    // A side sits at the middle of its edge and moves that edge alone, the
+    // other axis untouched however the pointer strays.
+    eq(h[4].key, "t"); eq(h[4].x, 60); eq(h[4].y, 10);
+    eq(h[5].key, "r"); eq(h[5].x, 110); eq(h[5].y, 35);
+    const top = Model.resizeAnnotation(box, "t", 500, 0);
+    eq(top.x, 10); eq(top.y, 0); eq(top.w, 100); eq(top.h, 60);
+    const right = Model.resizeAnnotation(box, "r", 200, -80);
+    eq(right.x, 10); eq(right.y, 10); eq(right.w, 190); eq(right.h, 50);
+    const bottom = Model.resizeAnnotation(box, "b", 0, 100);
+    eq(bottom.y, 10); eq(bottom.h, 90); eq(bottom.w, 100);
+    const left = Model.resizeAnnotation(box, "l", 150, 0);
+    eq(left.x, 110); eq(left.w, 40, "pulled past the right edge it turns over");
+    eq(Model.resizeAnnotation(box, "t", 0, 58).h, 8, "and never below a grabbable size");
+
+    for (const kind of ["box", "ellipse", "highlight", "redact", "spotlight"])
+        eq(Model.resizeHandles({ kind, x: 0, y: 0, w: 50, h: 50, width: 4 }).length, 8, kind);
+    eq(Model.resizeHandles({ kind: "step", x: 0, y: 0, w: 30, h: 30, width: 4 }).length, 4,
+       "a step badge would stop being round, so corners only");
 
     // An arrow end moves on its own; the other stays where it was.
     const tail = Model.resizeAnnotation({ kind: "arrow", x: 0, y: 0, w: 100, h: 50 }, "tail", 20, 10);

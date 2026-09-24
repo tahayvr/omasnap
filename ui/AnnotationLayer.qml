@@ -320,22 +320,27 @@ Item {
                 }
             }
 
-            // Corners to pull it by, or the two ends of an arrow. A fixed
-            // count, so a delegate is never rebuilt out from under a drag;
-            // a text label is sized by its text and has none.
+            // Corners and sides to pull it by, or the two ends of an arrow.
+            // A fixed count, so a delegate is never rebuilt out from under a
+            // drag; a text label is sized by its text and has none.
             Repeater {
-                model: 4
+                model: 8
                 delegate: Rectangle {
                     id: knob
                     required property int index
                     readonly property var spot: Model.resizeHandles(entry.a)[knob.index] || null
+                    readonly property bool side: knob.spot !== null && Model.isSideHandle(knob.spot.key)
+                    readonly property bool across: knob.side && (knob.spot.key === "t" || knob.spot.key === "b")
 
+                    // A side too short to hold a bar clear of its corners
+                    // is left to them.
                     visible: knob.spot !== null && anno.editable && entry.selected
                              && !anno.doc.exporting
+                             && (!knob.side || Math.abs(knob.across ? entry.a.w : entry.a.h) > anno.handle * 5)
                     x: (knob.spot ? knob.spot.x - entry.originX : 0) - width / 2
                     y: (knob.spot ? knob.spot.y - entry.originY : 0) - height / 2
-                    width: anno.handle
-                    height: anno.handle
+                    width: !knob.side ? anno.handle : knob.across ? anno.handle * 2.4 : anno.handle * 0.7
+                    height: !knob.side ? anno.handle : knob.across ? anno.handle * 0.7 : anno.handle * 2.4
                     color: Color.accent
                     border.width: anno.hairline
                     border.color: Qt.rgba(0, 0, 0, 0.55)
@@ -348,6 +353,8 @@ Item {
                             var k = knob.spot ? knob.spot.key : "";
                             if (k === "tl" || k === "br") return Qt.SizeFDiagCursor;
                             if (k === "tr" || k === "bl") return Qt.SizeBDiagCursor;
+                            if (k === "t" || k === "b") return Qt.SizeVerCursor;
+                            if (k === "l" || k === "r") return Qt.SizeHorCursor;
                             return Qt.SizeAllCursor;
                         }
 

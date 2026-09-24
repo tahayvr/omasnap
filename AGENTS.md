@@ -120,7 +120,7 @@ Imposed by the host, so none of it is negotiable from in here.
 - **A `Repeater` whose model is a freshly built array rebuilds every
   delegate.** A resize handle that writes the new geometry back into the
   model would then be destroyed mid-drag, taking its `MouseArea` and the
-  grab with it. The handles are a fixed count of four that read their own
+  grab with it. The handles are a fixed count of eight that read their own
   position out of the model instead, and hide themselves when there is none.
 - **A plain `{x, y, w, h}` assigned to a `rect` property loses its size.** A
   QML rect spells that `width`/`height`, and the mismatch is silent: the crop

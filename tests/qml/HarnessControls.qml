@@ -270,6 +270,10 @@ Window {
         win.check("the bottom right corner is grabbed", cropper.at(300, 150), 3);
         win.check("the bottom left corner is grabbed", cropper.at(100, 150), 4);
         win.check("the inside moves the selection", cropper.at(200, 100), 5);
+        win.check("the top side is grabbed", cropper.at(200, 50), 6);
+        win.check("the right side is grabbed", cropper.at(300, 100), 7);
+        win.check("the bottom side is grabbed", cropper.at(200, 150), 8);
+        win.check("the left side is grabbed", cropper.at(100, 100), 9);
         win.check("and the bare picture is left to the tool", cropper.at(20, 20), 0);
 
         // A corner drag leaves the opposite corner where it was.
@@ -297,6 +301,34 @@ Window {
         win.check("and stops at the edge of the picture", win.rectText(doc.cropRect), "200,100 200x100");
         cropper.finish();
         win.check("a move that size is still a crop", doc.cropUsable, true);
+
+        // A side moves its own edge and nothing else, whichever way the
+        // pointer strays along it.
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(200, 50);
+        cropper.dragTo(250, 30);
+        win.check("the top side moves only the top", win.rectText(doc.cropRect), "100,30 200x120");
+        cropper.dragTo(0, 180);
+        win.check("and squares up when pulled past the bottom", win.rectText(doc.cropRect), "100,150 200x30");
+        cropper.finish();
+
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(300, 100);
+        cropper.dragTo(360, 0);
+        win.check("the right side moves only the right", win.rectText(doc.cropRect), "100,50 260x100");
+        cropper.finish();
+
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(200, 150);
+        cropper.dragTo(10, 170);
+        win.check("the bottom side moves only the bottom", win.rectText(doc.cropRect), "100,50 200x120");
+        cropper.finish();
+
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(100, 100);
+        cropper.dragTo(-50, 400);
+        win.check("the left side stops at the edge of the picture", win.rectText(doc.cropRect), "0,50 300x100");
+        cropper.finish();
 
         // ---- the drawing surface hovers as well as drags ------------------
         // The crop selection used to follow the pointer with no button down,
@@ -412,9 +444,9 @@ Window {
 
         doc.selectedId = one.uid;
         var k = win.knobs(marks, []);
-        win.check("a box is held at four corners", k.length, 4);
+        win.check("a box is held at its corners and sides", k.length, 8);
         var keys = k.map(function (h) { return h.spot.key; }).sort().join(" ");
-        win.check("one at each", keys, "bl br tl tr");
+        win.check("one at each", keys, "b bl br l r t tl tr");
 
         // A handle is placed against the mark's own origin, so it travels with
         // the item while a move is dragged; measured from the model it would
@@ -427,6 +459,12 @@ Window {
         win.check("and moves with the mark as it is dragged",
                   Math.round(held.x + tl.x + tl.width / 2), 70);
         held.x -= 30;
+
+        var top = win.knobs(marks, []).filter(function (h) { return h.spot.key === "t"; })[0];
+        win.check("a side bar sits at the middle of its edge",
+                  Math.round(held.x + top.x + top.width / 2) + "," + Math.round(held.y + top.y + top.height / 2),
+                  "100,20");
+        win.check("and lies along it", top.width > top.height, true);
 
         doc.selectedId = two.uid;
         var ends = win.knobs(marks, []);

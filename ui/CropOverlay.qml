@@ -24,26 +24,38 @@ Item {
 
     visible: doc !== null && doc.tool === "crop" && !doc.exporting
 
-    // 1 to 4 are the corners clockwise from the top left and 5 the inside. 0
-    // is the bare picture, where the press belongs to the tool underneath,
-    // which starts a new selection.
+    // 1 to 4 are the corners clockwise from the top left, 5 the inside, and
+    // 6 to 9 the sides clockwise from the top. 0 is the bare picture, where
+    // the press belongs to the tool underneath, which starts a new selection.
+    // Corners win over sides, so a corner stays reachable however small the
+    // selection gets.
     function at(px, py) {
         if (!crop.doc.cropUsable) return 0;
         var r = crop.sel;
+        var x1 = r.x + r.width, y1 = r.y + r.height;
         function near(x, y) {
             return Math.abs(px - x) <= crop.grip && Math.abs(py - y) <= crop.grip;
         }
         if (near(r.x, r.y)) return 1;
-        if (near(r.x + r.width, r.y)) return 2;
-        if (near(r.x + r.width, r.y + r.height)) return 3;
-        if (near(r.x, r.y + r.height)) return 4;
-        if (px >= r.x && px <= r.x + r.width && py >= r.y && py <= r.y + r.height) return 5;
+        if (near(x1, r.y)) return 2;
+        if (near(x1, y1)) return 3;
+        if (near(r.x, y1)) return 4;
+        var alongX = px >= r.x && px <= x1, alongY = py >= r.y && py <= y1;
+        if (alongX && Math.abs(py - r.y) <= crop.grip) return 6;
+        if (alongY && Math.abs(px - x1) <= crop.grip) return 7;
+        if (alongX && Math.abs(py - y1) <= crop.grip) return 8;
+        if (alongY && Math.abs(px - r.x) <= crop.grip) return 9;
+        if (alongX && alongY) return 5;
         return 0;
     }
 
-    // The corner a drag leaves where it is: the one diagonally opposite.
-    function anchorX(mode) { return (mode === 2 || mode === 3) ? crop.sel.x : crop.sel.x + crop.sel.width; }
-    function anchorY(mode) { return (mode === 3 || mode === 4) ? crop.sel.y : crop.sel.y + crop.sel.height; }
+    // The edges a drag leaves where they are: those opposite the handle.
+    function anchorX(mode) {
+        return (mode === 2 || mode === 3 || mode === 7) ? crop.sel.x : crop.sel.x + crop.sel.width;
+    }
+    function anchorY(mode) {
+        return (mode === 3 || mode === 4 || mode === 8) ? crop.sel.y : crop.sel.y + crop.sel.height;
+    }
 
     // The drag itself, kept out of the mouse handlers so the harness can put
     // it through its paces without a pointer.
@@ -55,6 +67,7 @@ Item {
         // walk along with the selection the moment a drag crossed it.
         grab.anchorX = crop.anchorX(grab.mode);
         grab.anchorY = crop.anchorY(grab.mode);
+        grab.start = crop.sel;
         return grab.mode;
     }
 
@@ -68,10 +81,17 @@ Item {
                 crop.sel.width, crop.sel.height);
             return;
         }
-        // The corner opposite the one in hand stays put, and the normaliser
-        // squares up a drag pulled past it.
-        var ax = grab.anchorX, ay = grab.anchorY;
-        var r = Model.cropRect(ax, ay, px - ax, py - ay, w, h);
+        // The edges opposite the handle stay put, and the normaliser squares
+        // up a drag pulled past them. A side moves one edge only, so the
+        // other axis keeps the span it had when the drag began.
+        var ax = grab.anchorX, ay = grab.anchorY, s = grab.start;
+        var r;
+        if (grab.mode === 6 || grab.mode === 8)
+            r = Model.cropRect(s.x, ay, s.width, py - ay, w, h);
+        else if (grab.mode === 7 || grab.mode === 9)
+            r = Model.cropRect(ax, s.y, px - ax, s.height, w, h);
+        else
+            r = Model.cropRect(ax, ay, px - ax, py - ay, w, h);
         crop.doc.cropRect = Qt.rect(r.x, r.y, r.w, r.h);
     }
 
@@ -151,6 +171,25 @@ Item {
                 border.color: Qt.rgba(0, 0, 0, 0.55)
             }
         }
+
+        // A bar at the middle of each side, clockwise from the top, left off
+        // a side too short to hold one clear of its corners.
+        Repeater {
+            model: 4
+            Rectangle {
+                required property int index
+                readonly property bool across: index === 0 || index === 2
+                readonly property real length: crop.handle * 2.4
+                width: across ? length : crop.handle * 0.7
+                height: across ? crop.handle * 0.7 : length
+                x: (index === 1 ? frame.width : index === 3 ? 0 : frame.width / 2) - width / 2
+                y: (index === 2 ? frame.height : index === 0 ? 0 : frame.height / 2) - height / 2
+                visible: (across ? frame.width : frame.height) > crop.handle * 5
+                color: Color.accent
+                border.width: crop.hairline
+                border.color: Qt.rgba(0, 0, 0, 0.55)
+            }
+        }
     }
 
     // No wider than the selection and the reach around it, so the picture
@@ -169,14 +208,17 @@ Item {
         property int mode: 0
         property real holdX: 0        // where inside the selection it was taken
         property real holdY: 0
-        property real anchorX: 0      // the corner this drag leaves alone
+        property real anchorX: 0      // the edges this drag leaves alone
         property real anchorY: 0
+        property rect start           // the selection as the drag found it
 
         cursorShape: {
             var m = grab.mode !== 0 ? grab.mode
                   : crop.at(grab.mouseX + grab.x, grab.mouseY + grab.y);
             if (m === 1 || m === 3) return Qt.SizeFDiagCursor;
             if (m === 2 || m === 4) return Qt.SizeBDiagCursor;
+            if (m === 6 || m === 8) return Qt.SizeVerCursor;
+            if (m === 7 || m === 9) return Qt.SizeHorCursor;
             if (m === 5) return Qt.SizeAllCursor;
             return Qt.CrossCursor;
         }
