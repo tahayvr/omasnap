@@ -259,6 +259,48 @@ Window {
         });
         win.check("every mesh swatch carries its own points", badMesh.length, 0);
 
+        // ---- presets -------------------------------------------------------
+        doc.presets = [];
+        doc.reset();
+        win.check("the card starts on Default, unchanged", doc.activePreset + " " + doc.presetModified, "default false");
+        doc.inkColor = "#00ff00";
+        doc.tool = "arrow";
+        win.check("the ink and the tool are not part of the look", doc.presetModified, false);
+        doc.padding = 12;
+        doc.bgMode = "solid";
+        doc.bgSolid = "#123456";
+        win.check("a change to the look shows against the preset", doc.presetModified, true);
+
+        inspector.startNaming();
+        win.check("+ opens the name field", inspector.naming, true);
+        var made = doc.savePresetAs("  Social   post ");
+        win.check("saving names it tidily", doc.activePresetEntry.name, "Social post");
+        win.check("and puts it in use, unchanged", doc.activePreset === made && !doc.presetModified, true);
+
+        doc.radius = 9;
+        win.check("a later change shows again", doc.presetModified, true);
+        doc.updatePreset();
+        win.check("Update writes it to the preset", doc.presets[0].style.radius + " " + doc.presetModified, "9 false");
+
+        doc.savePresetAs("social POST");
+        win.check("the same name updates rather than duplicating", doc.presets.length, 1);
+
+        doc.applyPreset("default");
+        win.check("Default puts the defaults back", doc.padding + " " + doc.bgMode, "5 auto");
+        win.check("and leaves the ink alone", String(doc.inkColor), "#00ff00");
+        doc.applyPreset(made);
+        win.check("a saved preset comes back whole",
+                  doc.padding + " " + doc.bgMode + " " + String(doc.bgSolid) + " " + doc.radius, "12 solid #123456 9");
+
+        inspector.deletePreset();
+        win.check("delete wants a second click", doc.presets.length, 1);
+        inspector.deletePreset();
+        win.check("and then deletes", doc.presets.length + " " + doc.activePreset, "0 default");
+        win.check("leaving the card as it was", doc.padding, 12);
+        doc.reset();
+        win.check("reset is Default again", doc.padding + " " + doc.presetModified, "5 false");
+        doc.tool = "select";
+
         // ---- custom colors -------------------------------------------------
         doc.customColors = [];
         doc.bgMode = "solid";

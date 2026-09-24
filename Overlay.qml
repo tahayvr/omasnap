@@ -150,7 +150,7 @@ Item {
         if (shell && typeof shell.hide === "function") shell.hide(pluginId);
     }
 
-    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText
+    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText, preset
     // (see README, Scripting).
     function edit(path) {
         if (!path) return "no path";
@@ -228,6 +228,7 @@ Item {
             kind: doc.kind, opened: opened, capturing: capturing, picking: picking, busy: editor.busy, hasContent: doc.hasContent,
             shotPath: doc.shotPath, shotWidth: doc.shotWidth, shotHeight: doc.shotHeight,
             outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
+            preset: doc.activePresetEntry.name, presetModified: doc.presetModified,
             bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, inset: doc.inset,
             frame: doc.frame, shotEdge: doc.shotEdge,
             cropped: doc.cropped, cropRect: [doc.cropRect.x, doc.cropRect.y,
@@ -515,6 +516,55 @@ Item {
         target: doc
         function onCustomColorsChanged() { if (root.colorsReady) colorsSave.restart(); }
         function onUserGradientsChanged() { if (root.colorsReady) colorsSave.restart(); }
+    }
+
+    // Presets have a file of their own beside the colors, read and written
+    // the same way. The one in use is saved with them and put back on load,
+    // so a preset picked once is the look every capture starts from.
+    readonly property string presetsFile: root.colorsFile.replace(/colors\.json$/, "presets.json")
+    property bool presetsReady: false
+
+    function readPresets(json) {
+        var o;
+        try { o = JSON.parse(json); } catch (e) { return; }
+        if (!o || typeof o !== "object" || !Array.isArray(o.presets)) return;
+        var list = [];
+        for (var i = 0; i < o.presets.length; i++) list = Model.savePreset(list, o.presets[i]);
+        doc.presets = list;
+        if (o.active && o.active !== Model.DEFAULT_PRESET) doc.applyPreset(String(o.active));
+    }
+
+    FileView {
+        id: presetsView
+        path: root.presetsFile
+        printErrors: false
+        onLoaded: {
+            root.readPresets(presetsView.text());
+            root.presetsReady = true;
+        }
+        onLoadFailed: root.presetsReady = true
+    }
+
+    Timer {
+        id: presetsSave
+        interval: 500
+        onTriggered: presetsView.setText(JSON.stringify({
+            active: doc.activePreset,
+            presets: doc.presets
+        }, null, 2) + "\n")
+    }
+
+    Connections {
+        target: doc
+        function onPresetsChanged() { if (root.presetsReady) presetsSave.restart(); }
+        function onActivePresetChanged() { if (root.presetsReady) presetsSave.restart(); }
+    }
+
+    // preset <name>: put a saved preset on the card, by name or id, or
+    // "default". The command line splits on spaces, so a name with one is
+    // typed with a dash or an underscore instead (Model.presetKey).
+    function preset(name) {
+        return doc.applyPreset(String(name || "")) ? "ok" : "unknown preset";
     }
 
     function redact() {

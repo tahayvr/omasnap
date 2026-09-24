@@ -6,6 +6,16 @@
   <a href="https://omarchy.org"><img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/3ee85c9ea63c83845b992f8acb086c4a69cca12a/badges/v1/built-for-omarchy.svg" alt="Built for Omarchy"></a>
 </p>
 
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#keys">Keys</a> ·
+  <a href="#scripting">Scripting</a> ·
+  <a href="#dependencies">Dependencies</a> ·
+  <a href="#licence">Licence</a>
+</p>
+
 Make a screenshot worth posting. Postcard is an [Omarchy](https://omarchy.org)
 shell plugin: grab a region and it adds padding, a background,
 rounded corners and a shadow, lets you annotate, and hides anything in
@@ -62,6 +72,15 @@ the picture that should not be public.
   GitHub and Solarized
 
 ![Postcard code card preview](assets/showcase/screenshot-full-code.jpg)
+
+**Presets**
+
+- Save the whole look (background, framing, corners, shadow, export settings and
+  code card style) as a named preset and switch between them from the top of the
+  panel; annotations are never part of one
+- The preset you pick stays in use after a restart, so it is where every capture
+  starts
+- Kept in `~/.config/postcard/presets.json`
 
 **Output**
 
@@ -121,7 +140,9 @@ clipboard if nothing is highlighted.
 
 ### Scripting
 
-Every call returns `ok`, or a short reason such as `busy` or `no shot`:
+Every call returns `ok`, or a short reason such as `busy` or `no shot`. The shell
+requires an argument after the function name, so a function that takes nothing
+gets an empty `''`:
 
 ```sh
 omarchy-shell shell call tahayvr.postcard edit ~/Pictures/Screenshots/shot.png
@@ -131,6 +152,7 @@ omarchy-shell shell hide tahayvr.postcard                      # cancel a pendin
 omarchy-shell shell call tahayvr.postcard code ''               # code card from the selection (or pass the text)
 omarchy-shell shell call tahayvr.postcard pick ''               # system file picker
 omarchy-shell shell call tahayvr.postcard set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
+omarchy-shell shell call tahayvr.postcard preset social-post   # "Social Post": a dash for each space; or default
 omarchy-shell shell call tahayvr.postcard annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
 omarchy-shell shell call tahayvr.postcard crop '{"x":80,"y":40,"w":900,"h":600}'   # or '' for the selection
 omarchy-shell shell call tahayvr.postcard uncrop ''            # back to the whole picture
