@@ -19,6 +19,7 @@ Item {
     property bool opened: false
     property bool capturing: false
     property bool picking: false        // the system file dialog is up
+    property bool eyedropping: false    // hyprpicker is up
 
     readonly property string pluginId: manifest && manifest.id ? manifest.id : "tahayvr.postcard"
     readonly property string pluginDir: decodeURIComponent(
@@ -138,6 +139,8 @@ Item {
         hideTimer.stop();
         countdown.stop();
         CaptureDelay.remaining = 0;
+        eyedropTimer.stop();
+        if (!eyedropProc.running) eyedropping = false;
         if (!captureProc.running) capturing = false;
         doc.selectedId = "";
     }
@@ -159,7 +162,7 @@ Item {
     }
 
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
-    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "inset", "balance", "ratio",
+    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "bgCustomStops", "bgCustomAngle", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
         "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "spotShape", "spotDim",
         "codeLang", "codeTheme", "codeFont", "codeNumbers"]
@@ -404,7 +407,7 @@ Item {
     }
 
     function capture(mode, delay) {
-        if (capturing || captureProc.running || picking || editor.busy) return "busy";
+        if (capturing || captureProc.running || picking || eyedropping || editor.busy) return "busy";
         var request = Model.captureRequest(mode, delay);
         if (request.error) return request.error;
         opened = true;
@@ -414,6 +417,93 @@ Item {
         if (request.seconds > 0) countdown.restart();
         else hideTimer.restart();
         return "ok";
+    }
+
+    // The overlay steps aside like it does for a capture, so the pick is from
+    // what is behind it rather than from the editor itself.
+    property var eyedropDone: null
+    function eyedrop(done) {
+        if (eyedropping || eyedropProc.running) return "busy";
+        eyedropDone = done;
+        eyedropping = true;
+        eyedropTimer.restart();
+        return "ok";
+    }
+
+    Timer {
+        id: eyedropTimer
+        interval: 140      // let the layer surface actually leave the screen
+        onTriggered: eyedropProc.running = true
+    }
+
+    Process {
+        id: eyedropProc
+        command: ["bash", root.pluginDir + "bin/postcard-eyedrop"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var hex = Model.normaliseHex(text.trim());
+                var done = root.eyedropDone;
+                root.eyedropDone = null;
+                root.eyedropping = false;
+                if (hex && done) done(hex);
+                root.focusEditor();
+            }
+        }
+    }
+
+    // The user's own colors and gradients outlive the shell, unlike the rest
+    // of the styling: written here and read back on load. Never under the
+    // plugin directory, where any write reloads it.
+    readonly property string colorsFile: {
+        var d = Quickshell.env("XDG_CONFIG_HOME");
+        return (d && d.length ? d : Quickshell.env("HOME") + "/.config") + "/postcard/colors.json";
+    }
+    // Nothing is written until the file has been read, or the defaults would
+    // overwrite what was saved last time.
+    property bool colorsReady: false
+
+    function readColors(json) {
+        var o;
+        try { o = JSON.parse(json); } catch (e) { return; }
+        if (!o || typeof o !== "object") return;
+        if (Array.isArray(o.customColors)) {
+            var kept = [];
+            for (var i = o.customColors.length - 1; i >= 0; i--)
+                kept = Model.rememberColor(kept, o.customColors[i]);
+            doc.customColors = kept;
+        }
+        if (Array.isArray(o.gradients)) {
+            var saved = [];
+            for (var j = o.gradients.length - 1; j >= 0; j--)
+                saved = Model.saveGradient(saved, o.gradients[j]);
+            doc.userGradients = saved;
+        }
+    }
+
+    FileView {
+        id: colorsView
+        path: root.colorsFile
+        printErrors: false
+        onLoaded: {
+            root.readColors(colorsView.text());
+            root.colorsReady = true;
+        }
+        onLoadFailed: root.colorsReady = true
+    }
+
+    Timer {
+        id: colorsSave
+        interval: 500
+        onTriggered: colorsView.setText(JSON.stringify({
+            customColors: doc.customColors,
+            gradients: doc.userGradients
+        }, null, 2) + "\n")
+    }
+
+    Connections {
+        target: doc
+        function onCustomColorsChanged() { if (root.colorsReady) colorsSave.restart(); }
+        function onUserGradientsChanged() { if (root.colorsReady) colorsSave.restart(); }
     }
 
     function redact() {
@@ -821,7 +911,7 @@ Item {
 
     PanelWindow {
         id: window
-        visible: root.opened && !root.capturing && !root.picking
+        visible: root.opened && !root.capturing && !root.picking && !root.eyedropping
         color: "transparent"
 
         anchors { top: true; bottom: true; left: true; right: true }
@@ -859,6 +949,7 @@ Item {
                 saveDir: root.shotDir
                 radius: 0
 
+                onEyedropRequested: function (done) { root.eyedrop(done); }
                 onCaptureRequested: function (mode) { root.capture(mode, mode === "fullscreen" ? CaptureDelay.seconds : 0); }
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()

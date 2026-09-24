@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# postcard-eyedrop
+# Print the color clicked on screen as #rrggbb. Prints nothing if the user
+# cancelled.
+set -uo pipefail
+exec </dev/null
+
+hyprpicker -f hex -l -b -q -r 2>/dev/null | grep -E '^#[0-9a-f]{6}$' | tail -n1
+exit 0

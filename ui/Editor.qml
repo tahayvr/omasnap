@@ -21,6 +21,7 @@ Rectangle {
     signal closeRequested()
     signal autoRedactRequested()
     signal copyTextRequested()
+    signal eyedropRequested(var done)
     signal cropRequested()
     signal uncropRequested()
 
@@ -350,6 +351,7 @@ Rectangle {
         width: Style.space(300)
         visible: doc.hasContent
         onCopyTextRequested: editor.copyTextRequested()
+        onEyedropRequested: function (done) { editor.eyedropRequested(done); }
     }
 
     Rectangle {

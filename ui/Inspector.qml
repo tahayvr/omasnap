@@ -11,6 +11,116 @@ Flickable {
     property var systemThemes: []
 
     signal copyTextRequested()
+    signal eyedropRequested(var done)
+
+    // What the color picker is editing: "solid", "stop0" to "stop3" for the
+    // custom gradient, or "" when it is closed.
+    property string pickerTarget: ""
+    // The first choice made after the picker opens is a new recent color;
+    // those after it replace that one, so one visit leaves one color.
+    property bool pickerFresh: true
+
+    function openPicker(target) {
+        insp.pickerTarget = insp.pickerTarget === target ? "" : target;
+        insp.pickerFresh = true;
+    }
+
+    function pickedValue(target) {
+        if (target === "solid") return String(doc.bgSolid);
+        var i = parseInt(target.slice(4));
+        return target.indexOf("stop") === 0 && i < doc.bgCustomStops.length ? doc.bgCustomStops[i] : "";
+    }
+
+    function applyPicked(target, hex) {
+        if (target === "solid") {
+            doc.bgSolid = hex;
+        } else if (target.indexOf("stop") === 0) {
+            var i = parseInt(target.slice(4));
+            if (i >= doc.bgCustomStops.length) return;
+            var stops = doc.bgCustomStops.slice();
+            stops[i] = hex;
+            doc.bgCustomStops = stops;
+            insp.keepGradient();
+        }
+    }
+
+    // A gradient is saved whole, so its colors are not also kept one by one.
+    function commitPicked(target, hex) {
+        insp.applyPicked(target, hex);
+        if (target !== "solid") return;
+        doc.customColors = Model.rememberColor(doc.customColors, hex, !insp.pickerFresh);
+        insp.pickerFresh = false;
+    }
+
+    // Writes the gradient on show back to the saved one it came from.
+    function keepGradient() {
+        if (doc.bgCustomId === "") return;
+        doc.userGradients = Model.saveGradient(doc.userGradients,
+            { id: doc.bgCustomId, stops: doc.bgCustomStops, angle: doc.bgCustomAngle });
+    }
+
+    function setAngle(v) {
+        doc.bgCustomAngle = Math.round(v);
+        insp.keepGradient();
+    }
+
+    function showGradient(g) {
+        doc.bgCustomStops = g.stops.slice();
+        doc.bgCustomAngle = g.angle;
+        doc.bgCustomId = g.id;
+        doc.bgGradient = "custom";
+    }
+
+    // Starts from the gradient on show, which is usually the one about to be
+    // adjusted, and opens it for editing.
+    function newGradient() {
+        var seed = Model.gradientSeed(doc.bgGradient, doc.bgCustomStops, doc.bgCustomAngle);
+        var g = Model.cleanGradient({ id: Model.newGradientId(), stops: seed.stops, angle: seed.angle });
+        doc.userGradients = Model.saveGradient(doc.userGradients, g);
+        insp.showGradient(g);
+    }
+
+    // The card keeps it, as it keeps a deleted solid color; it just stops
+    // being saved anywhere.
+    function forgetGradient(id) {
+        doc.userGradients = Model.forgetGradient(doc.userGradients, id);
+        if (doc.bgCustomId === id) doc.bgCustomId = "";
+    }
+
+    // Forgetting one that was just picked would otherwise let the next pick
+    // in the same visit replace the color after it instead.
+    function forgetColor(hex) {
+        doc.customColors = Model.forgetColor(doc.customColors, hex);
+        insp.pickerFresh = true;
+    }
+
+    function addStop() {
+        var stops = doc.bgCustomStops.slice();
+        if (stops.length >= Model.CUSTOM_MAX_STOPS) return;
+        stops.push(stops[stops.length - 1]);
+        doc.bgCustomStops = stops;
+        insp.keepGradient();
+        insp.pickerTarget = "stop" + (stops.length - 1);
+        insp.pickerFresh = true;
+    }
+
+    // The stop being edited if there is one, otherwise the last.
+    function removeStop() {
+        var stops = doc.bgCustomStops.slice();
+        if (stops.length <= Model.CUSTOM_MIN_STOPS) return;
+        var i = insp.pickerTarget.indexOf("stop") === 0 ? parseInt(insp.pickerTarget.slice(4)) : stops.length - 1;
+        stops.splice(i, 1);
+        doc.bgCustomStops = stops;
+        insp.keepGradient();
+        insp.pickerTarget = "";
+    }
+
+    Connections {
+        target: insp.doc
+        function onBgModeChanged() { insp.pickerTarget = ""; }
+        function onBgGradientChanged() { if (insp.pickerTarget !== "solid") insp.pickerTarget = ""; }
+        function onBgCustomIdChanged() { if (insp.pickerTarget !== "solid") insp.pickerTarget = ""; }
+    }
 
     contentWidth: width
     contentHeight: col.implicitHeight + Ui.pad * 2
@@ -172,6 +282,95 @@ Flickable {
                 }
             }
 
+            // Kept apart from the presets, which cannot be removed.
+            Column {
+                width: parent.width
+                spacing: Ui.gap
+                visible: doc.bgMode === "gradient"
+
+                Text {
+                    text: "Your gradients"
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: Ui.gap
+                    Repeater {
+                        model: doc.userGradients
+                        UserSwatch {
+                            required property var modelData
+                            stops: modelData.stops
+                            active: doc.bgGradient === "custom" && doc.bgCustomId === modelData.id
+                            onPicked: insp.showGradient(modelData)
+                            onRemoved: insp.forgetGradient(modelData.id)
+                        }
+                    }
+                    IconButton {
+                        glyph: "+"
+                        tip: "Save a gradient of your own, starting from this one"
+                        implicitHeight: Ui.swatch
+                        implicitWidth: Ui.swatch
+                        onClicked: insp.newGradient()
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: Ui.row
+                visible: doc.bgMode === "gradient" && doc.bgGradient === "custom"
+
+                // Its own caption, or its + reads as a second "new gradient".
+                Text {
+                    text: "Colors"
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: Ui.gap
+                    Repeater {
+                        model: doc.bgCustomStops
+                        Swatch {
+                            required property var modelData
+                            required property int index
+                            swatchColor: modelData
+                            active: insp.pickerTarget === "stop" + index
+                            onPicked: insp.openPicker("stop" + index)
+                        }
+                    }
+                    IconButton {
+                        glyph: "+"
+                        tip: "Add a color"
+                        visible: doc.bgCustomStops.length < Model.CUSTOM_MAX_STOPS
+                        implicitHeight: Ui.swatch
+                        implicitWidth: Ui.swatch
+                        onClicked: insp.addStop()
+                    }
+                    IconButton {
+                        glyph: "\u2212"
+                        tip: insp.pickerTarget.indexOf("stop") === 0 ? "Remove this color" : "Remove the last color"
+                        visible: doc.bgCustomStops.length > Model.CUSTOM_MIN_STOPS
+                        implicitHeight: Ui.swatch
+                        implicitWidth: Ui.swatch
+                        onClicked: insp.removeStop()
+                    }
+                }
+
+                LabeledSlider {
+                    label: "Angle"
+                    value: doc.bgCustomAngle
+                    from: 0; to: 359
+                    suffix: "\u00b0"
+                    onMoved: function (v) { insp.setAngle(v); }
+                }
+            }
+
             Flow {
                 width: parent.width
                 spacing: Ui.gap
@@ -185,6 +384,62 @@ Flickable {
                         active: Qt.colorEqual(doc.bgSolid, modelData)
                         onPicked: doc.bgSolid = modelData
                     }
+                }
+            }
+
+            // Kept apart from the presets, which cannot be removed.
+            Column {
+                width: parent.width
+                spacing: Ui.gap
+                visible: doc.bgMode === "solid"
+
+                Text {
+                    text: "Your colors"
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: Ui.gap
+                    Repeater {
+                        model: doc.customColors
+                        UserSwatch {
+                            required property var modelData
+                            swatchColor: modelData
+                            active: Qt.colorEqual(doc.bgSolid, modelData)
+                            onPicked: doc.bgSolid = modelData
+                            onRemoved: insp.forgetColor(modelData)
+                        }
+                    }
+                    IconButton {
+                        glyph: "+"
+                        tip: "Pick your own color"
+                        active: insp.pickerTarget === "solid"
+                        implicitHeight: Ui.swatch
+                        implicitWidth: Ui.swatch
+                        onClicked: insp.openPicker("solid")
+                    }
+                }
+            }
+
+            ColorPicker {
+                visible: insp.pickerTarget !== ""
+                value: insp.pickedValue(insp.pickerTarget)
+                // The solid row already shows them all.
+                recent: insp.pickerTarget === "solid" ? [] : doc.customColors
+                onForgotten: function (hex) { insp.forgetColor(hex); }
+                onEdited: function (hex) { insp.applyPicked(insp.pickerTarget, hex); }
+                onCommitted: function (hex) { insp.commitPicked(insp.pickerTarget, hex); }
+                onEyedropRequested: {
+                    // Held, so the pick lands where it was asked for even if
+                    // the picker moved on while the screen was up.
+                    var target = insp.pickerTarget;
+                    insp.eyedropRequested(function (hex) {
+                        insp.pickerFresh = true;
+                        insp.commitPicked(target, hex);
+                    });
                 }
             }
         }

@@ -27,6 +27,8 @@ the picture that should not be public.
 
 - Auto from the screenshot, gradients, flat colors, your Omarchy theme, your wallpaper,
   or none for a transparent PNG
+- Your own colors and gradients: a picker with a screen eyedropper, and saved
+  gradients of two to four colors at any angle, kept across restarts
 
 ![Backgrounds](assets/showcase/backgrounds.png)
 
