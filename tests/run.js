@@ -790,5 +790,88 @@ test("a delay that is not 0 to 60 whole seconds is refused, not rounded", () => 
     eq(Model.captureRequest('{"mode":'), { error: "bad json" });
 });
 
+test("hex is read however it is typed, and refused when it is not hex", () => {
+    eq(Model.normaliseHex("#ABC"), "#aabbcc");
+    eq(Model.normaliseHex(" 1e222a "), "#1e222a");
+    eq(Model.normaliseHex("#1E222A"), "#1e222a");
+    for (const bad of ["", "#12345", "#ggg", "red", "#1e222a00", null])
+        eq(Model.normaliseHex(bad), "", String(bad));
+});
+
+test("hsv and hex go round trip", () => {
+    for (const hex of ["#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#1e222a", "#b0577f", "#e3c391"]) {
+        const c = Model.hexToHsv(hex);
+        eq(Model.hsvToHex(c.h, c.s, c.v), hex, hex);
+    }
+    eq(Model.hsvToHex(360, 1, 1), "#ff0000", "hue wraps");
+    eq(Model.hexToHsv("#808080", 210).h, 210, "a gray keeps the hue it was given");
+    eq(Model.hexToHsv("nonsense", 40), { h: 40, s: 0, v: 0 });
+});
+
+test("recent custom colors are newest first, unique and few", () => {
+    let list = Model.rememberColor([], "#AABBCC");
+    eq(list, ["#aabbcc"]);
+    list = Model.rememberColor(list, "#112233");
+    eq(list, ["#112233", "#aabbcc"]);
+    eq(Model.rememberColor(list, "#aabbcc"), ["#aabbcc", "#112233"], "a repeat moves to the front");
+    eq(Model.rememberColor(list, "#445566", true), ["#445566", "#aabbcc"],
+       "within one visit a new choice replaces the last");
+    eq(Model.rememberColor(list, "nope"), list, "nothing that is not a color");
+    let many = [];
+    for (let i = 0; i < 12; i++) many = Model.rememberColor(many, "#0000" + (10 + i));
+    eq(many.length, Model.CUSTOM_COLORS_KEPT);
+    eq(many[0], "#000021");
+});
+
+test("a custom color can be forgotten however it is spelled", () => {
+    eq(Model.forgetColor(["#aabbcc", "#112233"], "#AABBCC"), ["#112233"]);
+    eq(Model.forgetColor(["#aabbcc"], "#445566"), ["#aabbcc"], "one not there changes nothing");
+    eq(Model.forgetColor(null, "#aabbcc"), []);
+});
+
+test("the custom gradient is read from the document, and falls back safely", () => {
+    const g = Model.gradientFor("custom", ["#111111", "#222222", "#333333"], 90);
+    eq(g.key, "custom"); eq(g.angle, 90); eq(g.stops, ["#111111", "#222222", "#333333"]);
+    eq(Model.gradientFor("custom", ["#111111"], undefined).stops, Model.CUSTOM_STOPS,
+       "one stop is no gradient");
+    eq(Model.gradientFor("custom", [], NaN).angle, Model.CUSTOM_ANGLE);
+    eq(Model.gradientFor("custom", ["#1", "#2", "#3", "#4", "#5"], 0).stops.length, Model.CUSTOM_MAX_STOPS);
+    eq(Model.gradientFor("ember", null, 0).key, "ember", "a preset is untouched");
+    eq(Model.gradientStops(Model.gradientFor("custom", ["#111111", "#222222"], 0).stops).length,
+       Model.GRADIENT_STOPS, "and fills the stage's fixed slots");
+});
+
+test("saved gradients are edited in place, new ones go first", () => {
+    let list = Model.saveGradient([], { id: "a", stops: ["#111111", "#222222"], angle: 90 });
+    list = Model.saveGradient(list, { id: "b", stops: ["#333333", "#444444"], angle: 45 });
+    eq(list.map(g => g.id), ["b", "a"], "newest first");
+    list = Model.saveGradient(list, { id: "a", stops: ["#555555", "#666666", "#777777"], angle: 10 });
+    eq(list.map(g => g.id), ["b", "a"], "an edit keeps its place");
+    eq(list[1].stops, ["#555555", "#666666", "#777777"]);
+    eq(Model.forgetGradient(list, "b").map(g => g.id), ["a"]);
+    eq(Model.saveGradient(list, { id: "c", stops: ["#111111"] }), list, "one stop is not saved");
+    let many = [];
+    for (let i = 0; i < 20; i++) many = Model.saveGradient(many, { id: "g" + i, stops: ["#000000", "#ffffff"], angle: 0 });
+    eq(many.length, Model.USER_GRADIENTS_KEPT);
+});
+
+test("a saved gradient read back off disk is cleaned up", () => {
+    const g = Model.cleanGradient({ id: 7, stops: ["#ABC", "nope", "#112233", "#1", "#223344", "#334455", "#445566"], angle: 400.4 });
+    eq(g.id, "7");
+    eq(g.stops, ["#aabbcc", "#112233", "#223344", "#334455"], "bad stops dropped, four kept");
+    eq(g.angle, 359);
+    eq(Model.cleanGradient({ stops: ["#aabbcc", "nope"] }), null);
+    eq(Model.cleanGradient("nope"), null);
+    ok(Model.cleanGradient({ stops: ["#000000", "#ffffff"] }).id.length > 0, "an id is made up if missing");
+});
+
+test("a new gradient starts from the one on show", () => {
+    eq(Model.gradientSeed("ember", [], 0), { stops: ["#7a2e2e", "#e0764a"], angle: 120 });
+    eq(Model.gradientSeed("custom", ["#010101", "#020202", "#030303"], 33),
+       { stops: ["#010101", "#020202", "#030303"], angle: 33 });
+    eq(Model.gradientSeed("bloom", [], 0), { stops: Model.CUSTOM_STOPS, angle: Model.CUSTOM_ANGLE },
+       "a mesh has no stops to start from");
+});
+
 console.log(passed + " passed, " + failed + " failed");
 process.exit(failed ? 1 : 0);

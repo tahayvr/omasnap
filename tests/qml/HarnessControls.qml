@@ -259,6 +259,66 @@ Window {
         });
         win.check("every mesh swatch carries its own points", badMesh.length, 0);
 
+        // ---- custom colors -------------------------------------------------
+        doc.customColors = [];
+        doc.bgMode = "solid";
+        inspector.openPicker("solid");
+        win.check("the picker opens on the solid color", inspector.pickerTarget, "solid");
+        inspector.commitPicked("solid", "#123456");
+        win.check("a pick becomes the background", String(doc.bgSolid), "#123456");
+        win.check("and a recent color", doc.customColors.join(" "), "#123456");
+        inspector.commitPicked("solid", "#654321");
+        win.check("a second pick in one visit replaces it", doc.customColors.join(" "), "#654321");
+        inspector.openPicker("solid");
+        inspector.openPicker("solid");
+        inspector.commitPicked("solid", "#abcdef");
+        win.check("a fresh visit adds one", doc.customColors.join(" "), "#abcdef #654321");
+        inspector.forgetColor("#abcdef");
+        win.check("a color of your own can be removed", doc.customColors.join(" "), "#654321");
+        win.check("and a background in that color stays as it is", String(doc.bgSolid), "#abcdef");
+
+        doc.bgMode = "gradient";
+        win.check("changing mode closes the picker", inspector.pickerTarget, "");
+        doc.customColors = [];
+        doc.userGradients = [];
+        doc.bgGradient = "ember";
+        inspector.newGradient();
+        win.check("a new gradient is saved", doc.userGradients.length, 1);
+        win.check("starting from the one on show", doc.bgCustomStops.join(" "), "#7a2e2e #e0764a");
+        win.check("and is put on the card", doc.bgGradient + " " + (doc.bgCustomId === doc.userGradients[0].id), "custom true");
+        inspector.addStop();
+        win.check("adding a stop opens the picker on it", inspector.pickerTarget, "stop2");
+        inspector.commitPicked("stop2", "#333333");
+        win.check("and edits that stop alone", doc.bgCustomStops.join(" "), "#7a2e2e #e0764a #333333");
+        win.check("the saved gradient follows", doc.userGradients[0].stops.join(" "), "#7a2e2e #e0764a #333333");
+        win.check("its colors are not kept one by one", doc.customColors.length, 0);
+        inspector.setAngle(33);
+        win.check("nor is its angle lost", doc.userGradients[0].angle, 33);
+        inspector.openPicker("stop0");
+        inspector.removeStop();
+        win.check("removing takes the stop being edited", doc.userGradients[0].stops.join(" "), "#e0764a #333333");
+        inspector.removeStop();
+        win.check("but never below two", doc.bgCustomStops.length, 2);
+
+        var kept = doc.userGradients[0].id;
+        doc.bgGradient = "dusk";
+        inspector.newGradient();
+        win.check("a second one goes in front", doc.userGradients.length + " " + (doc.userGradients[1].id === kept), "2 true");
+        inspector.showGradient(doc.userGradients[1]);
+        win.check("a saved one is put back on the card", doc.bgCustomStops.join(" ") + " " + doc.bgCustomAngle,
+                  "#e0764a #333333 33");
+        inspector.forgetGradient(kept);
+        win.check("deleting it leaves one saved", doc.userGradients.length, 1);
+        win.check("but the card keeps it", doc.bgGradient + " " + doc.bgCustomStops.join(" "), "custom #e0764a #333333");
+        inspector.commitPicked("stop0", "#010101");
+        win.check("and editing it no longer touches what is saved",
+                  doc.userGradients[0].stops.indexOf("#010101"), -1);
+        doc.customColors = [];
+        doc.userGradients = [];
+        doc.bgCustomId = "";
+        doc.bgMode = "auto";
+        doc.bgGradient = "dusk";
+
         // ---- crop handles --------------------------------------------------
         doc.shotWidth = 400;
         doc.shotHeight = 200;
@@ -481,7 +541,7 @@ Window {
         (function walk(item) {
             for (var i = 0; i < item.children.length; i++) {
                 var c = item.children[i];
-                if (c.hasOwnProperty("swatchColor") && c.hasOwnProperty("index")) pal.push(c);
+                if (c.hasOwnProperty("swatchColor") && c.hasOwnProperty("index") && c.visible) pal.push(c);
                 walk(c);
             }
         })(inspector);

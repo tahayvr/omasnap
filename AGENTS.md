@@ -195,6 +195,14 @@ Imposed by the host, so none of it is negotiable from in here.
   IP guards reject dates, dotted quads, loopback and version strings. Extend
   `PATTERNS`/`CLASSES` in `lib/Redact.js` *and* add a case to `tests/run.js`.
 - Scratch files go to `$XDG_RUNTIME_DIR`, never the plugin directory.
+- **The user's own colors and gradients are the one piece of styling kept on
+  disk**, in `~/.config/postcard/colors.json`, written by a `FileView` in
+  `Overlay.qml`. Nothing is written until the file has been read, or the
+  defaults would overwrite it; `reset()` leaves these alone. The gradient on
+  the card is held by value (`bgCustomStops`, `bgCustomAngle`) with
+  `bgCustomId` naming the saved one it came from, so deleting a saved
+  gradient leaves the card as it was, the same as deleting a solid color. The eyedropper hides the overlay the way a capture does
+  (`eyedropping`), so it picks from what is behind the editor.
 
 ## House style
 

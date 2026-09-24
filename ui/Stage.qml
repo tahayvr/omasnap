@@ -31,7 +31,7 @@ Item {
     height: Math.max(1, geo.frameH * unit)
 
     readonly property var bgPreset: doc.bgMode === "gradient"
-                                    ? Model.gradientByKey(doc.bgGradient) : null
+                                    ? Model.gradientFor(doc.bgGradient, doc.bgCustomStops, doc.bgCustomAngle) : null
     readonly property bool meshBg: Model.gradientIsMesh(bgPreset)
     // Auto shades one color both ways: the screenshot's dominant color, or a
     // code card's own background, which has no palette to sample.
@@ -53,7 +53,7 @@ Item {
     // stops at runtime would mean re-creating them on every theme change.
     readonly property var bgStops: {
         if (doc.bgMode === "gradient")
-            return Model.gradientStops(Model.gradientByKey(doc.bgGradient).stops);
+            return Model.gradientStops(stage.bgPreset.stops);
         if (doc.bgMode === "auto" && stage.autoSource !== "")
             return Model.gradientStops(Model.autoGradient(stage.autoSource));
         return Model.gradientStops([String(stage.bgA)]);

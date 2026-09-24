@@ -36,6 +36,16 @@ QtObject {
     property string bgGradient: "dusk"
     property string desktopBg: ""          // the wallpaper, bin/postcard-wallpaper
     property int bgAngle: 135
+    // The "custom" gradient on show, held by value so it stays on the card
+    // even if the saved gradient it came from is deleted; bgCustomId names
+    // that saved gradient, so edits reach it too.
+    property var bgCustomStops: Model.CUSTOM_STOPS
+    property int bgCustomAngle: Model.CUSTOM_ANGLE
+    property string bgCustomId: ""
+    // The user's own, kept on disk by the overlay rather than reset with the
+    // rest of the styling: solid colors and gradients, newest first.
+    property var customColors: []
+    property var userGradients: []
     property var autoPalette: []            // backdrop colors, bin/postcard-palette
     property var shotPalette: []            // the same colors as they appear in the shot
     property string shotEdge: ""            // the shot's edge color, bin/postcard-edge
