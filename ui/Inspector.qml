@@ -16,6 +16,12 @@ Flickable {
     // What the color picker is editing: "solid", "stop0" to "stop3" for the
     // custom gradient, or "" when it is closed.
     property string pickerTarget: ""
+
+    // The swatch grids are as wide as the buttons above them: a fixed count of
+    // columns with each cell sized to fill the row. Fixed cells stopped a few
+    // pixels short of the edge, by a different amount in every grid.
+    readonly property real swatchCell: (col.width - Ui.gap * 8) / 9
+    readonly property real tileCell: (col.width - Ui.gap * 4) / 5
     // The first choice made after the picker opens is a new recent color;
     // those after it replace that one, so one visit leaves one color.
     property bool pickerFresh: true
@@ -214,15 +220,18 @@ Flickable {
                 font.pixelSize: Style.font.caption
             }
 
-            Flow {
+            Grid {
                 width: parent.width
                 spacing: Ui.gap
+                columns: 9
                 visible: doc.kind === "shot" && doc.bgMode === "auto" && doc.autoPalette.length > 0
                 Repeater {
                     model: doc.autoPalette
                     Swatch {
                         required property var modelData
                         required property int index
+                        width: insp.swatchCell
+                        height: insp.swatchCell
                         swatchColor: modelData
                         active: index === 0
                         onPicked: {
@@ -234,16 +243,17 @@ Flickable {
                 }
             }
 
-            Flow {
+            Grid {
                 width: parent.width
                 spacing: Ui.gap
+                columns: 5
                 visible: doc.bgMode === "gradient"
                 Repeater {
                     model: Model.GRADIENTS
                     Rectangle {
                         id: swatch
                         required property var modelData
-                        width: Ui.tile
+                        width: insp.tileCell
                         height: Ui.swatch
                         border.width: doc.bgGradient === modelData.key ? 2 : (ma.containsMouse ? 1 : 0)
                         border.color: doc.bgGradient === modelData.key ? Color.foreground : Ui.textMuted
@@ -295,13 +305,16 @@ Flickable {
                     font.pixelSize: Style.font.caption
                 }
 
-                Flow {
+                Grid {
                     width: parent.width
                     spacing: Ui.gap
+                    columns: 5
                     Repeater {
                         model: doc.userGradients
                         UserSwatch {
                             required property var modelData
+                            width: insp.tileCell
+                            height: Ui.swatch
                             stops: modelData.stops
                             active: doc.bgGradient === "custom" && doc.bgCustomId === modelData.id
                             onPicked: insp.showGradient(modelData)
@@ -312,7 +325,7 @@ Flickable {
                         glyph: "+"
                         tip: "Save a gradient of your own, starting from this one"
                         implicitHeight: Ui.swatch
-                        implicitWidth: Ui.swatch
+                        implicitWidth: insp.tileCell
                         onClicked: insp.newGradient()
                     }
                 }
@@ -331,14 +344,17 @@ Flickable {
                     font.pixelSize: Style.font.caption
                 }
 
-                Flow {
+                Grid {
                     width: parent.width
                     spacing: Ui.gap
+                    columns: 9
                     Repeater {
                         model: doc.bgCustomStops
                         Swatch {
                             required property var modelData
                             required property int index
+                            width: insp.swatchCell
+                            height: insp.swatchCell
                             swatchColor: modelData
                             active: insp.pickerTarget === "stop" + index
                             onPicked: insp.openPicker("stop" + index)
@@ -348,16 +364,16 @@ Flickable {
                         glyph: "+"
                         tip: "Add a color"
                         visible: doc.bgCustomStops.length < Model.CUSTOM_MAX_STOPS
-                        implicitHeight: Ui.swatch
-                        implicitWidth: Ui.swatch
+                        implicitHeight: insp.swatchCell
+                        implicitWidth: insp.swatchCell
                         onClicked: insp.addStop()
                     }
                     IconButton {
                         glyph: "\u2212"
                         tip: insp.pickerTarget.indexOf("stop") === 0 ? "Remove this color" : "Remove the last color"
                         visible: doc.bgCustomStops.length > Model.CUSTOM_MIN_STOPS
-                        implicitHeight: Ui.swatch
-                        implicitWidth: Ui.swatch
+                        implicitHeight: insp.swatchCell
+                        implicitWidth: insp.swatchCell
                         onClicked: insp.removeStop()
                     }
                 }
@@ -371,15 +387,18 @@ Flickable {
                 }
             }
 
-            Flow {
+            Grid {
                 width: parent.width
                 spacing: Ui.gap
+                columns: 9
                 visible: doc.bgMode === "solid"
                 Repeater {
                     model: ["#0d0d12", "#1e222a", "#2d333f", "#f2f2f2", "#e8e2d5",
                             "#1b3a4b", "#3c1f4a", "#4a2b1f", "#20402c"]
                     Swatch {
                         required property var modelData
+                        width: insp.swatchCell
+                        height: insp.swatchCell
                         swatchColor: modelData
                         active: Qt.colorEqual(doc.bgSolid, modelData)
                         onPicked: doc.bgSolid = modelData
@@ -400,13 +419,16 @@ Flickable {
                     font.pixelSize: Style.font.caption
                 }
 
-                Flow {
+                Grid {
                     width: parent.width
                     spacing: Ui.gap
+                    columns: 9
                     Repeater {
                         model: doc.customColors
                         UserSwatch {
                             required property var modelData
+                            width: insp.swatchCell
+                            height: insp.swatchCell
                             swatchColor: modelData
                             active: Qt.colorEqual(doc.bgSolid, modelData)
                             onPicked: doc.bgSolid = modelData
@@ -417,8 +439,8 @@ Flickable {
                         glyph: "+"
                         tip: "Pick your own color"
                         active: insp.pickerTarget === "solid"
-                        implicitHeight: Ui.swatch
-                        implicitWidth: Ui.swatch
+                        implicitHeight: insp.swatchCell
+                        implicitWidth: insp.swatchCell
                         onClicked: insp.openPicker("solid")
                     }
                 }

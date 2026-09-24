@@ -21,6 +21,7 @@ Item {
     HoverHandler { id: hover }
 
     Swatch {
+        anchors.fill: parent
         visible: !root.isGradient
         swatchColor: root.swatchColor
         active: root.active

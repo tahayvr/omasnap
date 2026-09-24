@@ -201,14 +201,18 @@ Column {
         font.pixelSize: Style.font.caption
     }
 
-    Flow {
+    // Nine across like the inspector's swatches, sized to fill the row.
+    Grid {
         width: parent.width
         spacing: Ui.gap
+        columns: 9
         visible: root.recent.length > 0
         Repeater {
             model: root.recent
             UserSwatch {
                 required property var modelData
+                width: (root.width - Ui.gap * 8) / 9
+                height: width
                 swatchColor: modelData
                 active: Model.normaliseHex(root.value) === Model.normaliseHex(modelData)
                 onPicked: root.take(modelData)
