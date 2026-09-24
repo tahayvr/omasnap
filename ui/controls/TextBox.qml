@@ -6,6 +6,11 @@ Rectangle {
     property alias text: input.text
     property string placeholder: ""
     signal done()
+    // Sent just before done() on Escape, for a field where leaving without
+    // saving is not the same as finishing.
+    signal cancelled()
+
+    function focusInput() { input.forceActiveFocus(); }
 
     width: parent ? parent.width : 0
     height: Ui.control
@@ -26,7 +31,7 @@ Rectangle {
         selectByMouse: true
         Keys.onReturnPressed: root.done()
         Keys.onEnterPressed: root.done()
-        Keys.onEscapePressed: root.done()
+        Keys.onEscapePressed: { root.cancelled(); root.done(); }
 
         Text {
             anchors.fill: parent

@@ -925,5 +925,50 @@ test("a magnifier is resized from its corners and stays round", () => {
     ok(!Model.hitAnnotation(mag, 2, 2, 1), "not the corner of its box");
 });
 
+test("a style is the look of the card, not the marks or the tools", () => {
+    const doc = Object.assign({}, Model.DEFAULT_STYLE, {
+        padding: 8, bgSolid: "#ABCDEF", inkColor: "#ff0000", tool: "arrow", frameTitle: "x"
+    });
+    const s = Model.styleOf(doc);
+    eq(s.padding, 8);
+    eq(s.bgSolid, "#abcdef", "a color comes out as its hex");
+    ok(!("inkColor" in s) && !("tool" in s) && !("frameTitle" in s), "tools and content stay out");
+    eq(Object.keys(s).sort(), Model.STYLE_KEYS.slice().sort());
+    ok(Model.sameStyle(Model.DEFAULT_STYLE, Object.assign({}, Model.DEFAULT_STYLE, { inkColor: "#000000" })),
+       "a change of ink is not a change of style");
+    ok(!Model.sameStyle(Model.DEFAULT_STYLE, Object.assign({}, Model.DEFAULT_STYLE, { radius: 4 })));
+});
+
+test("a preset read back off disk keeps only what makes sense", () => {
+    const s = Model.cleanStyle({ padding: 12, radius: "big", bgSolid: "nope", bgMode: "solid",
+                                 bgCustomStops: ["#111111"], format: "jpg", surprise: 1 });
+    eq(s.padding, 12);
+    eq(s.radius, Model.DEFAULT_STYLE.radius, "a number that is not a number is ignored");
+    eq(s.bgSolid, Model.DEFAULT_STYLE.bgSolid);
+    eq(s.bgMode, "solid");
+    eq(s.bgCustomStops, Model.CUSTOM_STOPS, "one stop is not a gradient");
+    ok(!("surprise" in s));
+    eq(Model.cleanStyle({}).shadow, Model.DEFAULT_STYLE.shadow, "a setting it predates gets the default");
+    eq(Model.cleanPreset({ name: "   " }), null, "a preset needs a name");
+    eq(Model.cleanPreset({ id: "default", name: "Mine" }), null, "and cannot take the built-in's place");
+    eq(Model.cleanPreset({ name: "  Social   post " }).name, "Social post");
+});
+
+test("presets keep their order, and are found by id or by name", () => {
+    let list = Model.savePreset([], { id: "a", name: "Docs", style: { padding: 2 } });
+    list = Model.savePreset(list, { id: "b", name: "Social", style: { padding: 9 } });
+    list = Model.savePreset(list, { id: "a", name: "Docs", style: { padding: 3 } });
+    eq(list.map(p => p.id), ["a", "b"], "an edit stays where it is");
+    eq(list[0].style.padding, 3);
+    eq(Model.findPreset(list, "social").id, "b", "by name, any case");
+    const spaced = Model.savePreset([], { id: "s", name: "Social Post" });
+    for (const typed of ["social-post", "Social_Post", "social\\u0020post", "SOCIAL--POST"])
+        eq(Model.findPreset(spaced, typed) && Model.findPreset(spaced, typed).id, "s", typed);
+    eq(Model.findPreset(list, "a").name, "Docs", "by id");
+    eq(Model.findPreset(list, "Default").id, Model.DEFAULT_PRESET);
+    eq(Model.findPreset(list, "nope"), null);
+    eq(Model.forgetPreset(list, "a").map(p => p.id), ["b"]);
+});
+
 console.log(passed + " passed, " + failed + " failed");
 process.exit(failed ? 1 : 0);

@@ -65,6 +65,41 @@ Flickable {
             { id: doc.bgCustomId, stops: doc.bgCustomStops, angle: doc.bgCustomAngle });
     }
 
+    // Naming a new preset opens a field under the picker rather than a
+    // dialog, like everything else in the inspector.
+    property bool naming: false
+
+    function startNaming() {
+        insp.naming = !insp.naming;
+        if (!insp.naming) return;
+        presetName.text = "";
+        Qt.callLater(presetName.focusInput);
+    }
+
+    function commitName() {
+        if (!insp.naming) return;
+        if (doc.savePresetAs(presetName.text) !== "") insp.naming = false;
+    }
+
+    // Deleting takes a second click while the button says so.
+    property bool deleteArmed: false
+    Timer {
+        id: disarm
+        interval: 3000
+        onTriggered: insp.deleteArmed = false
+    }
+
+    function deletePreset() {
+        if (!insp.deleteArmed) {
+            insp.deleteArmed = true;
+            disarm.restart();
+            return;
+        }
+        insp.deleteArmed = false;
+        disarm.stop();
+        doc.deletePreset(doc.activePreset);
+    }
+
     function setAngle(v) {
         doc.bgCustomAngle = Math.round(v);
         insp.keepGradient();
@@ -153,6 +188,97 @@ Flickable {
         y: Ui.pad
         width: insp.width - Ui.pad * 2
         spacing: Ui.section
+
+        Section {
+            title: "Preset"
+
+            Row {
+                width: parent.width
+                spacing: Ui.gap
+
+                Dropdown {
+                    width: parent.width - (Ui.control + Ui.gap) * (presetDelete.visible ? 2 : 1)
+                    current: doc.activePreset
+                    options: [{ key: Model.DEFAULT_PRESET, label: "Default" }].concat(
+                        doc.presets.map(function (p) { return { key: p.id, label: p.name }; }))
+                    onPicked: function (k) {
+                        insp.naming = false;
+                        doc.applyPreset(k);
+                    }
+                }
+                IconButton {
+                    glyph: "+"
+                    tip: "Save this look as a new preset"
+                    active: insp.naming
+                    implicitWidth: Ui.control
+                    implicitHeight: Ui.control
+                    onClicked: insp.startNaming()
+                }
+                IconButton {
+                    id: presetDelete
+                    glyph: "\uf1f8"
+                    tip: insp.deleteArmed ? "Click again to delete this preset" : "Delete this preset"
+                    visible: doc.activePreset !== Model.DEFAULT_PRESET
+                    primary: insp.deleteArmed
+                    implicitWidth: Ui.control
+                    implicitHeight: Ui.control
+                    onClicked: insp.deletePreset()
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Ui.gap
+                visible: insp.naming
+
+                TextBox {
+                    id: presetName
+                    width: parent.width - presetSave.width - Ui.gap
+                    placeholder: "Preset name"
+                    onCancelled: insp.naming = false
+                    onDone: insp.commitName()
+                }
+                IconButton {
+                    id: presetSave
+                    label: "Save"
+                    primary: presetName.text.trim() !== ""
+                    enabled: presetName.text.trim() !== ""
+                    implicitHeight: Ui.control
+                    onClicked: insp.commitName()
+                }
+            }
+
+            // Said plainly, since picking another preset would lose it.
+            Item {
+                width: parent.width
+                height: Ui.control
+                visible: doc.presetModified && !insp.naming
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.right: presetUpdate.visible ? presetUpdate.left : parent.right
+                    anchors.rightMargin: Ui.gap
+                    anchors.verticalCenter: parent.verticalCenter
+                    elide: Text.ElideRight
+                    text: doc.activePreset === Model.DEFAULT_PRESET
+                          ? "Changed. + saves it as a preset."
+                          : "Changed since " + doc.activePresetEntry.name
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+                IconButton {
+                    id: presetUpdate
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: doc.activePreset !== Model.DEFAULT_PRESET
+                    label: "Update"
+                    tip: "Save these changes to " + doc.activePresetEntry.name
+                    implicitHeight: Ui.control
+                    onClicked: doc.updatePreset()
+                }
+            }
+        }
 
         Section {
             title: "Code"
