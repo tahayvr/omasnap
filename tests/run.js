@@ -873,5 +873,57 @@ test("a new gradient starts from the one on show", () => {
        "a mesh has no stops to start from");
 });
 
+test("a magnifier is drawn over what it shows, then set beside it", () => {
+    const m = Model.magnifyFromDrag(100, 100, 140, 120, 2);
+    eq([m.sx, m.sy], [120, 110], "the middle of the drag");
+    eq([m.x, m.y, m.w, m.h], [80, 70, 80, 80], "the lens over it, twice the size");
+    const src = Model.magnifySource({ x: m.x, y: m.y, w: m.w, h: m.h, sx: m.sx, sy: m.sy, zoom: 2 });
+    eq(src, { x: 120, y: 110, r: 20 });
+    eq(Model.magnifySource({ x: 0, y: 0, w: 120, h: 120, sx: 5, sy: 5, zoom: 7 }).r, 30,
+       "an unknown zoom is read as the default");
+
+    const lens = Model.placeMagnifier(200, 300, 20, 2, 1000, 600);
+    ok(lens.x > 200 && lens.y + lens.h < 300, "up and to the right when there is room");
+    eq(lens.w, 80);
+    const corner = Model.placeMagnifier(980, 20, 20, 2, 1000, 600);
+    ok(corner.x + corner.w < 980 && corner.y > 20, "down and to the left in the top right corner");
+    const cramped = Model.placeMagnifier(50, 50, 40, 4, 200, 200);
+    eq(cramped.w, 320, "too big for anywhere still keeps its size");
+});
+
+test("a magnifier keeps whole pixels, and a new zoom keeps its lens", () => {
+    const m = Model.magnifyFromDrag(100.4, 100.2, 141, 120.6, 3);
+    eq([m.sx, m.sy], [121, 110], "the middle on a pixel");
+    eq(m.w % 6, 0, "the lens a whole number of source pixels across");
+    const lens = { kind: "magnify", x: 0, y: 0, w: 80, h: 80, sx: 50, sy: 50, zoom: 2, width: 3 };
+    eq(Model.resizeAnnotation(lens, "br", 83, 83).w % 4, 0, "resized in steps of whole source pixels");
+    const z = Model.magnifyRezoom(lens, 4);
+    eq(z.zoom, 4); eq(z.w, 80); eq([z.x, z.y], [0, 0]);
+    eq(Model.magnifySource({ x: z.x, y: z.y, w: z.w, h: z.h, sx: 50, sy: 50, zoom: 4 }).r, 10,
+       "showing less at more zoom");
+});
+
+test("a crop keeps a magnifier by the area it shows, not its lens", () => {
+    const m = { kind: "magnify", x: 500, y: 500, w: 80, h: 80, sx: 20, sy: 20, zoom: 2 };
+    ok(Model.overlapsRect(m, 0, 0, 100, 100), "its area is kept though the lens is cut away");
+    ok(!Model.overlapsRect({ kind: "magnify", x: 0, y: 0, w: 80, h: 80, sx: 500, sy: 500, zoom: 2 },
+                           0, 0, 100, 100), "and dropped when its area is cut away");
+});
+
+test("the line joins the lens and what it shows, edge to edge", () => {
+    const l = Model.magnifyLink(0, 0, 10, 30, 0, 5);
+    eq(l, { x1: 10, y1: 0, x2: 25, y2: 0 });
+    eq(Model.magnifyLink(0, 0, 10, 12, 0, 5), null, "no line when they touch");
+});
+
+test("a magnifier is resized from its corners and stays round", () => {
+    const mag = { kind: "magnify", x: 0, y: 0, w: 80, h: 80, sx: 200, sy: 200, zoom: 2, width: 3 };
+    eq(Model.resizeHandles(mag).length, 4, "corners only");
+    const big = Model.resizeAnnotation(mag, "br", 150, 100);
+    eq(big.w, big.h, "square, so the lens stays a circle");
+    ok(Model.hitAnnotation(mag, 40, 40, 4), "inside the lens");
+    ok(!Model.hitAnnotation(mag, 2, 2, 1), "not the corner of its box");
+});
+
 console.log(passed + " passed, " + failed + " failed");
 process.exit(failed ? 1 : 0);

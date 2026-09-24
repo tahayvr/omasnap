@@ -277,6 +277,39 @@ Item {
         CodeBlock { doc: stage.doc }
     }
 
+    // What a magnifier looks through: the shot with every hidden area already
+    // pixelated, so a lens over one shows the blocks and not what they cover.
+    // Drawn 1:1 in shot pixels; the texture size is set, or it would follow
+    // the screen's scale and resample.
+    Item {
+        id: lensSource
+        visible: false
+        width: Math.max(1, stage.geo.shotW)
+        height: Math.max(1, stage.geo.shotH)
+
+        ShaderEffectSource {
+            anchors.fill: parent
+            sourceItem: stage.codeKind ? codeSource : pixelSource
+            textureSize: Qt.size(lensSource.width, lensSource.height)
+            smooth: false
+        }
+
+        Repeater {
+            model: stage.doc.annotations
+            delegate: Pixelate {
+                required property var model
+                visible: model.kind === "redact"
+                x: Math.min(model.x, model.x + model.w)
+                y: Math.min(model.y, model.y + model.h)
+                width: Math.max(1, Math.abs(model.w))
+                height: Math.max(1, Math.abs(model.h))
+                source: stage.codeKind ? codeSource : pixelSource
+                area: Qt.rect(x, y, width, height)
+                block: model.strength
+            }
+        }
+    }
+
     // Over the picture and under the annotations: an arrow drawn on a dimmed
     // area stays as bright as one drawn on the spotlight.
     Spotlight {
@@ -296,6 +329,7 @@ Item {
     AnnotationLayer {
         doc: stage.doc
         pixelSource: stage.codeKind ? codeSource : pixelSource
+        magnifySource: lensSource
         interactive: stage.interactive && !stage.doc.exporting
         viewScale: stage.viewScale * stage.unit
         x: (stage.geo.cardX + stage.geo.inset) * stage.unit

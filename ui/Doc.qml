@@ -68,6 +68,7 @@ QtObject {
     property color inkColor: "#ff5f56"
     property real inkWidth: 4
     property string arrowStyle: "straight"
+    property int magnifyZoom: Model.MAGNIFY_ZOOM
     property int stepCounter: 0
     property string selectedId: ""
 
@@ -149,13 +150,26 @@ QtObject {
         if (a && a.kind === "arrow") updateAnnotation(a.uid, { style: key });
     }
 
-    // A crop moves the picture out from under everything drawn on it.
+    // Like the arrow style, the zoom is for the next magnifier and the one
+    // in hand.
+    function setMagnifyZoom(z) {
+        magnifyZoom = Model.magnifyZoom(z);
+        var a = selectedAnnotation();
+        if (a && a.kind === "magnify") updateAnnotation(a.uid, Model.magnifyRezoom(a, magnifyZoom));
+    }
+
+    // A crop moves the picture out from under everything drawn on it, a
+    // magnifier's area as well as its lens.
     function shiftAnnotations(dx, dy) {
         if (dx === 0 && dy === 0) return;
         for (var i = 0; i < annotations.count; i++) {
             var a = annotations.get(i);
             annotations.setProperty(i, "x", a.x + dx);
             annotations.setProperty(i, "y", a.y + dy);
+            if (a.kind === "magnify") {
+                annotations.setProperty(i, "sx", a.sx + dx);
+                annotations.setProperty(i, "sy", a.sy + dy);
+            }
         }
         annotationsEdited();
     }
@@ -273,6 +287,7 @@ QtObject {
         bgMode = "auto"; bgSolid = "#1e222a"; bgGradient = "dusk";
         spotShape = "rect"; spotDim = 55;
         inkColor = "#ff5f56"; inkWidth = 4; arrowStyle = "straight";
+        magnifyZoom = Model.MAGNIFY_ZOOM;
         exportScale = 1; format = "png"; quality = 92;
         codeTheme = "omarchy"; codeFont = 16; codeNumbers = false;
     }

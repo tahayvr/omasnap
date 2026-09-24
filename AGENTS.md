@@ -88,7 +88,17 @@ Imposed by the host, so none of it is negotiable from in here.
   has to call `annotationsEdited()` for the dim to keep up.
 - Redaction samples a hidden full-size `Image` through a `ShaderEffectSource`
   with a tiny `textureSize` and `smooth: false`, so each block is one sample
-  with nothing to sharpen back out.
+  with nothing to sharpen back out. The pixelation is `ui/Pixelate.qml`.
+- **A magnifier samples `lensSource` in `Stage.qml`, never the raw shot**: a
+  hidden copy with every hidden area already pixelated, so a lens over one
+  shows the blocks and not what they cover. Its box is the lens; `sx`/`sy`
+  and `zoom` say what it shows, and `shiftAnnotations` moves those too.
+- **A `ShapePath.fillItem` fed a `ShaderEffectSource` did not map it onto the
+  shape.** The lens came out as a thin strip of the zoomed area with the rest
+  clamped to one color; the scale followed the layer's transform. The shot's
+  own `Shape` fill is an `Image` and is unaffected. The lens is drawn by
+  `assets/shaders/lens.frag` instead, which stretches the texture exactly
+  and cuts the circle. The harness stripes are 2px each, not 1px.
 
 ## QML traps, all paid for once already
 

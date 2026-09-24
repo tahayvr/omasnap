@@ -319,6 +319,40 @@ Window {
         doc.bgMode = "auto";
         doc.bgGradient = "dusk";
 
+        // ---- magnifier -----------------------------------------------------
+        doc.clearAnnotations();
+        doc.shotWidth = 800;
+        doc.shotHeight = 400;
+        var mag = Model.newAnnotation("magnify", 0, 0);
+        var drawn = Model.magnifyFromDrag(380, 180, 420, 220, 2);
+        for (var mk in drawn) mag[mk] = drawn[mk];
+        mag.zoom = 2;
+        doc.addAnnotation(mag);
+        editor.finishMagnifier(mag.uid);
+        var placed = doc.selectedAnnotation();
+        var link = Model.magnifyLink(placed.x + placed.w / 2, placed.y + placed.h / 2, placed.w / 2,
+                                     placed.sx, placed.sy, placed.w / 2 / placed.zoom);
+        win.check("letting go sets the lens beside what it shows", link !== null, true);
+        win.check("still showing the middle of the drag", placed.sx + "," + placed.sy, "400,200");
+
+        doc.setMagnifyZoom(4);
+        placed = doc.selectedAnnotation();
+        win.check("the zoom buttons change the one in hand", placed.zoom + " " + placed.w, "4 80");
+        win.check("and the next one", doc.magnifyZoom, 4);
+        doc.setMagnifyZoom(2);
+
+        doc.shiftAnnotations(-100, -50);
+        placed = doc.selectedAnnotation();
+        win.check("a crop moves what it shows along with the picture", placed.sx + "," + placed.sy, "300,150");
+
+        var stray = Model.newAnnotation("magnify", 0, 0);
+        var small = Model.magnifyFromDrag(100, 100, 104, 103, 2);
+        for (var sk in small) stray[sk] = small[sk];
+        doc.addAnnotation(stray);
+        editor.finishMagnifier(stray.uid);
+        win.check("a stray drag leaves no magnifier", doc.indexOfId(stray.uid), -1);
+        doc.clearAnnotations();
+
         // ---- crop handles --------------------------------------------------
         doc.shotWidth = 400;
         doc.shotHeight = 200;

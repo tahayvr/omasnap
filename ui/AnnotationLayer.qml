@@ -11,6 +11,8 @@ Item {
 
     property var doc: null
     property Item pixelSource: null
+    // The shot with hidden areas already pixelated, for a magnifier to show.
+    property Item magnifySource: null
     // The live editor, as against the export or the bar widget's preview.
     property bool interactive: false
     // With the move tool every mark is there to be taken. With a tool that
@@ -85,6 +87,7 @@ Item {
                     case "highlight": return highlightComp;
                     case "text":      return textComp;
                     case "step":      return stepComp;
+                    case "magnify":   return magnifyComp;
                     // The dim is one layer under every annotation, so a
                     // spotlight has nothing of its own to draw here.
                     case "spotlight": return null;
@@ -199,26 +202,107 @@ Item {
                 }
             }
 
-            // Each block is one sample of the source: destroyed, not blurred.
             Component {
                 id: redactComp
+                Pixelate {
+                    source: anno.pixelSource
+                    area: Qt.rect(entry.x, entry.y, entry.width, entry.height)
+                    block: entry.a.strength
+                }
+            }
+
+            // The lens is this item's box; the area it shows and the line to it
+            // are drawn outside it. Measured from where the lens is now rather
+            // than where the model has it, so while the lens is dragged the
+            // area stays put and the line follows.
+            Component {
+                id: magnifyComp
                 Item {
-                    clip: true
+                    id: mag
+                    readonly property real lensR: entry.width / 2
+                    readonly property real power: Model.magnifyZoom(entry.a.zoom)
+                    readonly property real srcR: mag.lensR / mag.power
+                    readonly property real srcX: entry.a.sx - entry.x
+                    readonly property real srcY: entry.a.sy - entry.y
+                    readonly property var link: Model.magnifyLink(mag.lensR, mag.lensR, mag.lensR,
+                                                                  mag.srcX, mag.srcY, mag.srcR)
+
+                    Shape {
+                        preferredRendererType: Shape.CurveRenderer
+                        // A ShapePath cannot be hidden, so a line that is not
+                        // wanted is stroked with nothing.
+                        ShapePath {
+                            strokeColor: mag.link ? entry.ink : "transparent"
+                            strokeWidth: entry.stroke
+                            capStyle: ShapePath.RoundCap
+                            fillColor: "transparent"
+                            startX: mag.link ? mag.link.x1 : 0
+                            startY: mag.link ? mag.link.y1 : 0
+                            PathLine {
+                                x: mag.link ? mag.link.x2 : 0
+                                y: mag.link ? mag.link.y2 : 0
+                            }
+                        }
+                        ShapePath {
+                            strokeColor: entry.ink
+                            strokeWidth: entry.stroke
+                            fillColor: "transparent"
+                            PathAngleArc {
+                                centerX: mag.srcX
+                                centerY: mag.srcY
+                                radiusX: Math.max(1, mag.srcR)
+                                radiusY: Math.max(1, mag.srcR)
+                                startAngle: 0
+                                sweepAngle: 360
+                            }
+                        }
+                    }
+
+                    // One texel per shot pixel, scaled up unsmoothed: each
+                    // pixel becomes a clean block rather than a blur.
                     ShaderEffectSource {
-                        anchors.fill: parent
-                        visible: anno.pixelSource !== null
-                        sourceItem: anno.pixelSource
-                        sourceRect: Qt.rect(entry.x, entry.y, entry.width, entry.height)
-                        textureSize: Qt.size(
-                            Math.max(1, Math.round(entry.width / Math.max(2, entry.a.strength))),
-                            Math.max(1, Math.round(entry.height / Math.max(2, entry.a.strength))))
+                        id: lensTexture
+                        visible: false
+                        width: entry.width
+                        height: entry.height
+                        sourceItem: anno.magnifySource
+                        sourceRect: Qt.rect(entry.a.sx - mag.srcR, entry.a.sy - mag.srcR,
+                                            mag.srcR * 2, mag.srcR * 2)
+                        textureSize: Qt.size(Math.max(1, Math.round(mag.srcR * 2)),
+                                             Math.max(1, Math.round(mag.srcR * 2)))
                         smooth: false
                         live: true
                     }
-                    Rectangle {
+
+                    // assets/shaders/lens.frag stretches the texture over the
+                    // lens and cuts the circle. A Shape filled with it mapped
+                    // the texture at a scale that followed the layer's
+                    // transform, and a layer mask would resample it.
+                    ShaderEffect {
                         anchors.fill: parent
-                        visible: anno.pixelSource === null
-                        color: "#1a1a1a"
+                        visible: anno.magnifySource !== null
+                        property variant source: lensTexture
+                        // About a pixel and a half of fade at the rim.
+                        property real edge: Math.min(0.5, 1.5 / Math.max(1, mag.lensR))
+                        fragmentShader: Qt.resolvedUrl("../assets/shaders/lens.frag.qsb")
+                    }
+
+                    Shape {
+                        anchors.fill: parent
+                        preferredRendererType: Shape.CurveRenderer
+                        ShapePath {
+                            strokeColor: entry.ink
+                            strokeWidth: entry.stroke
+                            fillColor: anno.magnifySource ? "transparent" : "#1a1a1a"
+                            PathAngleArc {
+                                centerX: mag.lensR
+                                centerY: mag.lensR
+                                radiusX: Math.max(1, mag.lensR - entry.stroke / 2)
+                                radiusY: Math.max(1, mag.lensR - entry.stroke / 2)
+                                startAngle: 0
+                                sweepAngle: 360
+                            }
+                        }
                     }
                 }
             }
@@ -318,6 +402,38 @@ Item {
                     entry.commit();
                     entry.rebind();
                 }
+            }
+
+            // A magnifier's area moves on its own, the lens staying where it is.
+            MouseArea {
+                id: sourceGrab
+                readonly property real r: entry.a.kind === "magnify"
+                                          ? Model.magnifySource(entry.a).r : 0
+                visible: entry.a.kind === "magnify"
+                enabled: visible && entry.grabbable
+                x: entry.a.sx - entry.x - sourceGrab.r - anno.slop
+                y: entry.a.sy - entry.y - sourceGrab.r - anno.slop
+                width: (sourceGrab.r + anno.slop) * 2
+                height: (sourceGrab.r + anno.slop) * 2
+                cursorShape: Qt.SizeAllCursor
+                property real offX: 0
+                property real offY: 0
+
+                onPressed: function (e) {
+                    var p = mapToItem(anno, e.x, e.y);
+                    sourceGrab.offX = p.x - entry.a.sx;
+                    sourceGrab.offY = p.y - entry.a.sy;
+                    anno.doc.selectedId = entry.a.uid;
+                }
+                onPositionChanged: function (e) {
+                    if (!pressed) return;
+                    var p = mapToItem(anno, e.x, e.y);
+                    anno.doc.updateAnnotation(entry.a.uid, {
+                        sx: Math.round(Model.clamp(p.x - sourceGrab.offX, 0, anno.doc.shotWidth)),
+                        sy: Math.round(Model.clamp(p.y - sourceGrab.offY, 0, anno.doc.shotHeight))
+                    });
+                }
+                onReleased: anno.doc.annotationsEdited()
             }
 
             // Corners and sides to pull it by, or the two ends of an arrow.
