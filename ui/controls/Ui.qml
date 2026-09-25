@@ -13,6 +13,7 @@ QtObject {
     readonly property int section: Style.space(22)      // between sections
     readonly property int pad: Style.space(16)          // panel padding
     readonly property int padX: Style.space(12)         // text inset inside a control
+    readonly property int popover: Style.space(268)     // a color picker opened from the header
 
     readonly property color hairline: tint(0.12)
     readonly property color fill: tint(0.06)

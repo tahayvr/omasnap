@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC
 import qs.Commons
 import "controls"
 import "../lib/Model.js" as Model
@@ -19,6 +20,7 @@ Loader {
     signal autoRedactRequested()
     signal cropRequested()
     signal uncropRequested()
+    signal eyedropRequested(var done)
 
     readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step", "magnify"]
 
@@ -44,6 +46,23 @@ Loader {
         doc.inkColor = c;
         doc.styleSelection("color", String(c));
     }
+    // As in the inspector: every pick in one visit to the picker replaces the
+    // color that visit saved, so dragging across the field keeps one color,
+    // not every color it passed over.
+    property bool pickerFresh: true
+
+    function keepInk(hex) {
+        opts.setInk(hex);
+        doc.inkColors = Model.rememberColor(doc.inkColors, hex, !opts.pickerFresh,
+                                            Model.INK_COLORS_KEPT);
+        opts.pickerFresh = false;
+    }
+
+    function forgetInk(hex) {
+        doc.inkColors = Model.forgetColor(doc.inkColors, hex);
+        opts.pickerFresh = true;
+    }
+
     function setStroke(v) {
         doc.inkWidth = v;
         doc.styleSelection("width", v);
@@ -140,6 +159,61 @@ Loader {
                     swatchColor: Color.accent
                     active: Qt.colorEqual(opts.ink, Color.accent)
                     onPicked: opts.setInk(Color.accent)
+                }
+
+                Repeater {
+                    model: opts.doc.inkColors
+                    UserSwatch {
+                        required property var modelData
+                        swatchColor: modelData
+                        active: Qt.colorEqual(opts.ink, modelData)
+                        onPicked: opts.setInk(modelData)
+                        onRemoved: opts.forgetInk(modelData)
+                    }
+                }
+
+                IconButton {
+                    id: addInk
+                    glyph: "+"
+                    tip: "Pick your own color"
+                    active: inkPopup.opened
+                    implicitWidth: Ui.swatch
+                    implicitHeight: Ui.swatch
+                    onClicked: {
+                        if (inkPopup.opened) { inkPopup.close(); return; }
+                        opts.pickerFresh = true;
+                        inkPopup.open();
+                    }
+
+                    QQC.Popup {
+                        id: inkPopup
+                        x: Math.round((addInk.width - width) / 2)
+                        y: addInk.height + Ui.gap
+                        width: Ui.popover
+                        padding: Ui.pad
+                        // Escape closes the picker rather than the editor.
+                        focus: true
+                        closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
+
+                        background: Rectangle {
+                            color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
+                            border.width: 1
+                            border.color: Ui.borderActive
+                        }
+
+                        ColorPicker {
+                            width: inkPopup.availableWidth
+                            value: String(opts.ink)
+                            onEdited: function (hex) { opts.setInk(hex); }
+                            onCommitted: function (hex) { opts.keepInk(hex); }
+                            onEyedropRequested: {
+                                opts.eyedropRequested(function (hex) {
+                                    opts.pickerFresh = true;
+                                    opts.keepInk(hex);
+                                });
+                            }
+                        }
+                    }
                 }
             }
 

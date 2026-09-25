@@ -489,6 +489,12 @@ Item {
                 kept = Model.rememberColor(kept, o.customColors[i]);
             doc.customColors = kept;
         }
+        if (Array.isArray(o.inkColors)) {
+            var inks = [];
+            for (var k = o.inkColors.length - 1; k >= 0; k--)
+                inks = Model.rememberColor(inks, o.inkColors[k], false, Model.INK_COLORS_KEPT);
+            doc.inkColors = inks;
+        }
         if (Array.isArray(o.gradients)) {
             var saved = [];
             for (var j = o.gradients.length - 1; j >= 0; j--)
@@ -513,6 +519,7 @@ Item {
         interval: 500
         onTriggered: colorsView.setText(JSON.stringify({
             customColors: doc.customColors,
+            inkColors: doc.inkColors,
             gradients: doc.userGradients
         }, null, 2) + "\n")
     }
@@ -520,6 +527,7 @@ Item {
     Connections {
         target: doc
         function onCustomColorsChanged() { if (root.colorsReady) colorsSave.restart(); }
+        function onInkColorsChanged() { if (root.colorsReady) colorsSave.restart(); }
         function onUserGradientsChanged() { if (root.colorsReady) colorsSave.restart(); }
     }
 
