@@ -37,6 +37,8 @@ Loader {
     readonly property real stroke: opts.picked ? opts.picked.width : doc.inkWidth
     readonly property string arrowStyle: (opts.picked && opts.picked.style && opts.picked.style !== "")
                                          ? opts.picked.style : doc.arrowStyle
+    readonly property string textFont: (opts.picked && opts.picked.kind === "text" && opts.picked.font)
+                                       ? opts.picked.font : doc.textFont
     readonly property int zoom: opts.picked && opts.picked.kind === "magnify"
                                 ? opts.picked.zoom : doc.magnifyZoom
 
@@ -125,6 +127,22 @@ Loader {
         id: inkComp
         Row {
             spacing: Ui.row
+
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Ui.gap
+                visible: opts.subject === "text"
+                Repeater {
+                    model: Model.TEXT_FONTS
+                    IconButton {
+                        required property var modelData
+                        label: modelData.label
+                        tip: modelData.family
+                        active: opts.textFont === modelData.key
+                        onClicked: opts.doc.setTextFont(modelData.key)
+                    }
+                }
+            }
 
             // Only arrows have more than one shape to draw.
             Row {

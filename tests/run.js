@@ -148,6 +148,13 @@ test("a text label scales from the corner opposite the one in hand", () => {
     eq(Model.defaultTextSize(400, 300), 16);
 });
 
+test("a label's font is one of the two Omarchy ships", () => {
+    eq(Model.textFamily("mono"), "JetBrainsMono Nerd Font");
+    eq(Model.textFamily("sans"), "iA Writer Quattro S");
+    eq(Model.textFamily(""), "JetBrainsMono Nerd Font", "a label from before fonts stays mono");
+    eq(Model.newAnnotation("text", 0, 0).font, "");
+});
+
 test("a copied annotation keeps every role and nothing else", () => {
     const a = Model.newAnnotation("magnify", 3, 4);
     a.sx = 9; a.text = "hi";
