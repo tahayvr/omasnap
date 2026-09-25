@@ -2,6 +2,8 @@
 # postcard-capture [region|windows|fullscreen|smart]
 # Take a screenshot and print the path of the file omarchy wrote.
 # Prints nothing if the user cancelled.
+# The shot is only raw material for the editor, so it goes to the scratch
+# directory, not the user's screenshot folder; the export is what lands there.
 set -uo pipefail
 
 # slurp reads boxes from stdin whenever stdin is not a terminal, and the shell
@@ -15,8 +17,15 @@ case "$mode" in
   *) mode="region" ;;
 esac
 
-# omarchy resolves the screenshot directory the same way postcard-dir does,
-# creates it, and prints the path it saved to.
-path="$(omarchy capture screenshot "$mode" save 2>/dev/null | grep '^/' | tail -n1)"
-[ -n "$path" ] && [ -f "$path" ] && printf '%s\n' "$path"
+# omarchy saves into OMARCHY_SCREENSHOT_DIR and prints the path. The directory
+# must exist first, or omarchy announces creating it with a notification.
+dir="${XDG_RUNTIME_DIR:-/tmp}/postcard-captures"
+mkdir -p "$dir"
+path="$(OMARCHY_SCREENSHOT_DIR="$dir" omarchy capture screenshot "$mode" save 2>/dev/null | grep '^/' | tail -n1)"
+[ -n "$path" ] && [ -f "$path" ] || exit 0
+
+# Only the newest shot can be open, and a crop reads its source again, so
+# earlier captures go only once a new one has replaced them.
+find "$dir" -maxdepth 1 -type f -name '*.png' ! -path "$path" -delete
+printf '%s\n' "$path"
 exit 0
