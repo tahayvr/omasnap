@@ -81,6 +81,9 @@ QtObject {
     property int magnifyZoom: Model.MAGNIFY_ZOOM
     property int stepCounter: 0
     property string selectedId: ""
+    // What undo took away, newest last. Any other change to the marks
+    // empties it, since a redo would then land on a different picture.
+    property var redoStack: []
 
     property var redactClasses: ["email", "secret", "card", "net", "phone"]
 
@@ -147,6 +150,7 @@ QtObject {
     }
 
     function addAnnotation(obj) {
+        redoStack = [];
         annotations.append(obj);
         selectedId = obj.uid;
         annotationsEdited();
@@ -172,6 +176,7 @@ QtObject {
     // magnifier's area as well as its lens.
     function shiftAnnotations(dx, dy) {
         if (dx === 0 && dy === 0) return;
+        redoStack = [];
         for (var i = 0; i < annotations.count; i++) {
             var a = annotations.get(i);
             annotations.setProperty(i, "x", a.x + dx);
@@ -197,6 +202,7 @@ QtObject {
 
     // What a crop cuts away takes the marks that were only on it.
     function dropOutside(w, h) {
+        redoStack = [];
         var gone = 0;
         for (var i = annotations.count - 1; i >= 0; i--) {
             var a = annotations.get(i);
@@ -254,6 +260,7 @@ QtObject {
     }
 
     function clearAnnotations() {
+        redoStack = [];
         selectedId = "";
         annotations.clear();
         stepCounter = 0;
@@ -262,9 +269,26 @@ QtObject {
 
     function undo() {
         if (annotations.count === 0) return;
+        var last = Model.plainAnnotation(annotations.get(annotations.count - 1));
+        // Deselecting drops a text mark nothing was typed into, and when that
+        // is the last mark, dropping it is the whole undo. Removing by
+        // position after it would have taken the mark before it as well.
         selectedId = "";
-        annotations.remove(annotations.count - 1);
+        var i = indexOfId(last.uid);
+        if (i < 0) return;
+        annotations.remove(i);
+        redoStack = redoStack.concat([last]);
         renumberSteps();
+        annotationsEdited();
+    }
+
+    function redo() {
+        if (redoStack.length === 0) return;
+        var a = redoStack[redoStack.length - 1];
+        redoStack = redoStack.slice(0, -1);
+        annotations.append(a);
+        renumberSteps();
+        selectedId = a.uid;
         annotationsEdited();
     }
 

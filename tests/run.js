@@ -134,6 +134,14 @@ test("annotations carry every role the delegates read", () => {
     ok(a.uid.length >= 6 && a.uid !== Model.newAnnotation("box", 0, 0).uid, "unique ids");
 });
 
+test("a copied annotation keeps every role and nothing else", () => {
+    const a = Model.newAnnotation("magnify", 3, 4);
+    a.sx = 9; a.text = "hi";
+    const row = Object.assign({ objectName: "", extra: 1 }, a);
+    const c = Model.plainAnnotation(row);
+    eq(JSON.stringify(c), JSON.stringify(a));
+});
+
 test("grab size pads the stage to whole device pixels", () => {
     eq(Model.grabStep(1.6), 5);
     eq(Model.grabStep(1.25), 4);

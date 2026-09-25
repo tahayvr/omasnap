@@ -8,6 +8,7 @@ Item {
     signal status(string text)
 
     readonly property int annotationCount: rail.doc ? rail.doc.annotations.count : 0
+    readonly property int redoCount: rail.doc ? rail.doc.redoStack.length : 0
 
     readonly property var tools: [
         { key: "select",    glyph: "↖", name: "Move",      hint: "V" },
@@ -67,7 +68,7 @@ Item {
         anchors.bottomMargin: Ui.row
         spacing: Ui.gap
 
-        // Both are no-ops on an unannotated shot, so they say so instead of
+        // Each is a no-op with nothing to act on, so they say so instead of
         // looking like a button that does nothing.
         IconButton {
             glyph: "↶"
@@ -77,6 +78,16 @@ Item {
             onClicked: {
                 rail.doc.undo();
                 rail.status("Undid the last annotation");
+            }
+        }
+        IconButton {
+            glyph: "↷"
+            flat: true
+            enabled: rail.redoCount > 0
+            tip: "Redo (Ctrl+Shift+Z)"
+            onClicked: {
+                rail.doc.redo();
+                rail.status("Redid the annotation");
             }
         }
         IconButton {

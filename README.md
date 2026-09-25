@@ -132,6 +132,7 @@ clipboard if nothing is highlighted.
 | `Ctrl+C` / `Ctrl+S`                              | copy / save                                                             |
 | `Ctrl+Shift+S`                                   | Save as, through the system file dialog                                 |
 | `Ctrl+Z`                                         | undo                                                                    |
+| `Ctrl+Shift+Z` / `Ctrl+Y`                        | redo                                                                    |
 | `Ctrl+N`                                         | Grab another region                                                     |
 | `Ctrl+K`                                         | Code card from the selected text                                        |
 | `Delete`                                         | Remove the selected annotation                                          |

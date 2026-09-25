@@ -215,6 +215,7 @@ Item {
                 a.x = lens.x; a.y = lens.y; a.w = lens.w; a.h = lens.h;
             }
             doc.annotations.append(a);
+            doc.redoStack = [];
             added++;
         }
         doc.selectedId = "";
@@ -948,7 +949,10 @@ Item {
             case Qt.Key_S:
                 if (event.modifiers & Qt.ShiftModifier) root.saveAs(); else root.save();
                 return true;
-            case Qt.Key_Z: doc.undo(); return true;
+            case Qt.Key_Z:
+                if (event.modifiers & Qt.ShiftModifier) doc.redo(); else doc.undo();
+                return true;
+            case Qt.Key_Y: doc.redo(); return true;
             case Qt.Key_N: root.capture("region"); return true;
             case Qt.Key_K: root.code(); return true;
             }
