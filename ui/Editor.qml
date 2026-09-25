@@ -124,6 +124,7 @@ Rectangle {
             onAutoRedactRequested: editor.autoRedactRequested()
             onCropRequested: editor.cropRequested()
             onUncropRequested: editor.uncropRequested()
+            onEyedropRequested: function (done) { editor.eyedropRequested(done); }
         }
 
         Row {

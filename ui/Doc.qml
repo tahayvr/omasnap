@@ -45,6 +45,9 @@ QtObject {
     // The user's own, kept on disk by the overlay rather than reset with the
     // rest of the styling: solid colors and gradients, newest first.
     property var customColors: []
+    // Annotation inks of the user's own, kept apart from the background
+    // colors: inks are bright where backgrounds are mostly muted.
+    property var inkColors: []
     property var userGradients: []
 
     // Saved looks, kept on disk by the overlay like the colors; the one in
