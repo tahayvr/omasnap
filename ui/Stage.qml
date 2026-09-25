@@ -207,6 +207,57 @@ Item {
         }
     }
 
+    // The watermark, under the card's bottom-right corner (Model.watermarkBox).
+    readonly property var markBox: Model.watermarkBox(stage.geo, doc.watermarkSize)
+    // What it sits on, for light or dark ink: the card when tucked inside
+    // it, the background otherwise.
+    readonly property var markInk: {
+        if (stage.markBox.inside)
+            return Model.watermarkInk(stage.codeKind ? [String(doc.codeBg)]
+                                      : doc.shotPalette.length ? [String(doc.shotPalette[0])] : []);
+        if (doc.bgMode === "none" || stage.desktopBg) return null;
+        if (stage.meshBg) return Model.watermarkInk([stage.bgPreset.base]);
+        return Model.watermarkInk(stage.bgStops.map(function (s) { return String(s.color); }));
+    }
+
+    Row {
+        id: watermark
+        z: 3
+        visible: doc.hasWatermark
+        anchors.right: parent.right
+        anchors.rightMargin: (stage.geo.frameW - stage.markBox.right) * stage.unit
+        y: stage.markBox.top * stage.unit
+        height: stage.markBox.rowH * stage.unit
+        spacing: stage.markBox.size * 0.45 * stage.unit
+        opacity: 0.9
+
+        Image {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: doc.watermarkLogo !== "" && status === Image.Ready
+            source: doc.watermarkLogo !== "" ? "file://" + doc.watermarkLogo : ""
+            height: stage.markBox.rowH * stage.unit
+            width: implicitHeight > 0 ? height * implicitWidth / implicitHeight : 0
+            fillMode: Image.PreserveAspectFit
+            sourceSize.height: stage.markBox.rowH * 2
+            smooth: true
+            mipmap: true
+        }
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: doc.watermarkText !== ""
+            text: doc.watermarkText
+            textFormat: Text.PlainText
+            color: stage.markInk ? stage.markInk : "#ffffff"
+            // Over a wallpaper or nothing at all there is no telling what is
+            // underneath, so a light mark gets an outline to stand on.
+            style: stage.markInk ? Text.Normal : Text.Outline
+            styleColor: Qt.rgba(0, 0, 0, 0.45)
+            font.family: Model.textFamily("mono")
+            font.weight: Font.DemiBold
+            font.pixelSize: Math.max(1, Math.round(stage.markBox.size * stage.unit))
+        }
+    }
+
     // Code card: text is inset by its padding, so a rounded Rectangle needs
     // no clipping.
     Rectangle {

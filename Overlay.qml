@@ -165,7 +165,8 @@ Item {
     readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "bgCustomStops", "bgCustomAngle", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
         "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "textFont", "spotShape", "spotDim",
-        "codeLang", "codeTheme", "codeFont", "codeNumbers", "saveCopies"]
+        "codeLang", "codeTheme", "codeFont", "codeNumbers", "saveCopies",
+        "watermarkText", "watermarkLogo", "watermarkSize"]
     function set(json) {
         var o;
         try { o = JSON.parse(json); } catch (e) { return "bad json"; }
@@ -1197,6 +1198,7 @@ Item {
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()
                 onDragOutRequested: root.dragOut()
+                onLogoRequested: root.pickLogo()
                 onSaveRequested: root.save()
                 onSaveAsRequested: root.saveAs()
                 onOpenRequested: root.pick()
@@ -1229,6 +1231,27 @@ Item {
                                 doc.format, String(doc.quality),
                                 String(doc.outWidth), String(doc.outHeight), doc.saveCopies ? "1" : "0"];
                 deliver.running = true;
+            }
+        }
+    }
+
+    // The overlay steps aside for the dialog, as it does to open a picture.
+    function pickLogo() {
+        if (logoPicker.running) return "busy";
+        picking = true;
+        logoPicker.running = true;
+        return "ok";
+    }
+
+    Process {
+        id: logoPicker
+        command: ["bash", root.pluginDir + "bin/postcard-logo", root.shotDir]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var p = text.trim();
+                root.picking = false;
+                if (p.indexOf("/") === 0) doc.watermarkLogo = p;
+                root.focusEditor();
             }
         }
     }

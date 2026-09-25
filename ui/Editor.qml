@@ -16,6 +16,7 @@ Rectangle {
     signal codeRequested()
     signal copyRequested()
     signal dragOutRequested()
+    signal logoRequested()
     signal saveRequested()
     signal saveAsRequested()
     signal openRequested()
@@ -481,6 +482,7 @@ Rectangle {
         width: Style.space(300)
         visible: doc.hasContent && !editor.settingsOpen
         onCopyTextRequested: editor.copyTextRequested()
+        onLogoRequested: editor.logoRequested()
         onEyedropRequested: function (done) { editor.eyedropRequested(done); }
     }
 

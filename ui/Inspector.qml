@@ -11,6 +11,7 @@ Flickable {
     property var systemThemes: []
 
     signal copyTextRequested()
+    signal logoRequested()
     signal eyedropRequested(var done)
 
     // What the color picker is editing: "solid", "stop0" to "stop3" for the
@@ -666,6 +667,51 @@ Flickable {
             hint: "Lifts the shot slightly so it does not read as sitting low"
             checked: doc.balance
             onToggled: function (v) { doc.balance = v; }
+        }
+
+        Section {
+            title: "Watermark"
+
+            TextBox {
+                id: markText
+                placeholder: "@handle"
+                text: doc.watermarkText
+                onTextChanged: if (text !== doc.watermarkText) doc.watermarkText = text
+                // Typing breaks the text binding for good, so a preset that
+                // brings its own handle has to be put back by hand.
+                Connections {
+                    target: doc
+                    function onWatermarkTextChanged() {
+                        if (markText.text !== doc.watermarkText) markText.text = doc.watermarkText;
+                    }
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Ui.gap
+                IconButton {
+                    width: parent.width - (logoOff.visible ? logoOff.width + Ui.gap : 0)
+                    glyph: "\uf03e"
+                    label: doc.watermarkLogo !== "" ? "Change logo" : "Add a logo"
+                    onClicked: insp.logoRequested()
+                }
+                IconButton {
+                    id: logoOff
+                    visible: doc.watermarkLogo !== ""
+                    glyph: "\u2715"
+                    tip: "Remove the logo"
+                    onClicked: doc.watermarkLogo = ""
+                }
+            }
+
+            LabeledSlider {
+                visible: doc.hasWatermark
+                label: "Size"
+                value: doc.watermarkSize
+                from: 50; to: 200; decimals: 0; suffix: "%"
+                onMoved: function (v) { doc.watermarkSize = Math.round(v); }
+            }
         }
 
         Section {

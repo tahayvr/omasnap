@@ -183,6 +183,34 @@ test("a pasted mark is a copy of its own, set off from the original", () => {
     eq(Model.plural(3, "mark"), "3 marks");
 });
 
+test("a watermark sits under the card's corner, or in it when there is no room", () => {
+    const geo = { frameW: 1000, frameH: 800, cardX: 100, cardY: 100, cardW: 800, cardH: 500 };
+    const m = Model.watermarkBox(geo, 100);
+    eq(m.size, Math.round(800 * 0.022), "sized by the card");
+    ok(!m.inside, "in the padding");
+    eq(m.right, 900, "lined up with the card's right edge");
+    eq(m.top, 600 + m.gap, "just under it");
+    eq(Model.watermarkBox(geo, 200).size, Math.round(800 * 0.022 * 2), "scaled by the setting");
+    const tight = Model.watermarkBox({ frameW: 800, frameH: 500, cardX: 0, cardY: 0, cardW: 800, cardH: 500 }, 100);
+    ok(tight.inside, "no padding, so inside the card");
+    eq(tight.right, 800 - tight.gap);
+    eq(tight.top + tight.rowH + tight.gap, 500, "clear of the card's bottom edge");
+    eq(Model.watermarkBox({ frameW: 10, frameH: 10, cardX: 0, cardY: 0, cardW: 10, cardH: 10 }, 50).size, 10,
+       "never too small to read");
+});
+
+test("a watermark's ink suits what is under it", () => {
+    eq(Model.watermarkInk(["#101010", "#202020"]), "#ffffff", "light on dark");
+    eq(Model.watermarkInk(["#f0f0f0"]), "#1b1b1b", "dark on light");
+    eq(Model.watermarkInk(["#ff000000"]) !== null, true, "a QML colour with alpha still reads");
+    eq(Model.watermarkInk([]), null, "nothing known underneath");
+    eq(Model.watermarkInk(["nope"]), null);
+    for (const k of ["watermarkText", "watermarkLogo", "watermarkSize"])
+        ok(Model.STYLE_KEYS.indexOf(k) !== -1, k + " is saved with a style");
+    eq(Model.cleanStyle({ watermarkText: "@me", watermarkSize: "big" }).watermarkText, "@me");
+    eq(Model.cleanStyle({ watermarkSize: "big" }).watermarkSize, 100, "a bad size falls back");
+});
+
 test("a copied annotation keeps every role and nothing else", () => {
     const a = Model.newAnnotation("magnify", 3, 4);
     a.sx = 9; a.text = "hi";

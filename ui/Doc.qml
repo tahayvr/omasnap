@@ -75,6 +75,14 @@ QtObject {
     property real radius: 3                 // percent of the card's shorter edge
     property real shadow: 45                // one control: spread, drop, opacity
     property string frame: "none"           // none | titlebar
+
+    // A handle and/or a logo under the card's bottom-right corner. The logo
+    // is a copy kept in ~/.config/postcard/logos, so a preset that names it
+    // does not break when the original moves.
+    property string watermarkText: ""
+    property string watermarkLogo: ""
+    property real watermarkSize: 100        // percent of the size that suits the card
+    readonly property bool hasWatermark: watermarkText !== "" || watermarkLogo !== ""
     property string frameTitle: ""
 
     property int exportScale: 1
