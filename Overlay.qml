@@ -579,11 +579,20 @@ Item {
     readonly property string settingsFile: root.colorsFile.replace(/colors\.json$/, "settings.json")
     property bool settingsReady: false
 
+    // Set when settings.json came from a newer Postcard: it is read, and
+    // left as it is.
+    property bool settingsTooNew: false
+
     function readSettings(json) {
         var o = null;
         try { o = JSON.parse(json); } catch (e) {}
-        var s = Model.cleanSettings(o);
-        for (var k in s) doc[k] = s[k];
+        var m = Model.migrateSettings(o);
+        for (var k in m.settings) doc[k] = m.settings[k];
+        root.settingsTooNew = m.tooNew;
+        if (m.tooNew)
+            console.warn("postcard: settings.json is version " + m.from + ", newer than this Postcard; not writing to it");
+        // An older file is brought up to date on disk straight away.
+        return o !== null && m.from < Model.SETTINGS_VERSION;
     }
 
     FileView {
@@ -591,8 +600,9 @@ Item {
         path: root.settingsFile
         printErrors: false
         onLoaded: {
-            root.readSettings(settingsView.text());
+            var migrated = root.readSettings(settingsView.text());
             root.settingsReady = true;
+            if (migrated) settingsSave.restart();
         }
         onLoadFailed: root.settingsReady = true
     }
@@ -601,9 +611,10 @@ Item {
         id: settingsSave
         interval: 500
         onTriggered: {
-            var out = {};
-            for (var k in Model.DEFAULT_SETTINGS) out[k] = doc[k];
-            settingsView.setText(JSON.stringify(out, null, 2) + "\n");
+            if (root.settingsTooNew) return;
+            var values = {};
+            for (var k in Model.DEFAULT_SETTINGS) values[k] = doc[k];
+            settingsView.setText(JSON.stringify(Model.settingsFile(values), null, 2) + "\n");
         }
     }
 
