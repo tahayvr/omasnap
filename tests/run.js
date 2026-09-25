@@ -168,6 +168,21 @@ test("a selection box takes whatever it touches", () => {
     ok(!Model.inSelectionBox(lens, 10, 10, 20, 20), "not by the area it shows");
 });
 
+test("a pasted mark is a copy of its own, set off from the original", () => {
+    const a = Model.newAnnotation("magnify", 10, 20);
+    a.sx = 5; a.sy = 6; a.text = "x";
+    const c = Model.duplicateAnnotation(a, 15, 15);
+    ok(c.uid !== a.uid, "a uid of its own");
+    eq(c.x, 25); eq(c.y, 35);
+    eq(c.sx, 5, "a magnifier still shows the same area");
+    eq(c.text, "x");
+    eq(a.x, 10, "the original is untouched");
+    eq(Model.pasteStep(800, 500), 12);
+    eq(Model.pasteStep(3840, 2160), 48);
+    eq(Model.plural(1, "mark"), "1 mark");
+    eq(Model.plural(3, "mark"), "3 marks");
+});
+
 test("a copied annotation keeps every role and nothing else", () => {
     const a = Model.newAnnotation("magnify", 3, 4);
     a.sx = 9; a.text = "hi";

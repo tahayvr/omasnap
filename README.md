@@ -130,6 +130,7 @@ clipboard if nothing is highlighted.
 | ------------------------------------------------ | ----------------------------------------------------------------------- |
 | `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B`, `L`, `M`, `C` | move, arrow, box, ellipse, text, step, highlight, hide, spotlight, magnify, crop |
 | `Ctrl+C` / `Ctrl+S`                              | copy / save                                                             |
+| `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+D`           | With annotations selected: copy, cut, paste, duplicate them             |
 | `Ctrl+Shift+S`                                   | Save as, through the system file dialog                                 |
 | `Ctrl+Z`                                         | undo                                                                    |
 | `Ctrl+Shift+Z` / `Ctrl+Y`                        | redo                                                                    |

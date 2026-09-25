@@ -544,6 +544,29 @@ Window {
         doc.selectAll();
         win.check("select all", doc.selectedIds.join(), trio[1]);
 
+        // ---- copy and paste --------------------------------------------------
+        doc.clearAnnotations();
+        var src = Model.newAnnotation("box", 10, 10); src.w = 40; src.h = 40;
+        var num = Model.newAnnotation("step", 100, 10); num.w = 30; num.h = 30;
+        doc.stepCounter = 1; num.index = 1;
+        doc.annotations.append(src);
+        doc.annotations.append(num);
+        doc.annotationsEdited();
+        doc.selectAll();
+        win.check("a selection is copied", doc.copySelection(), 2);
+        win.check("and pasted", doc.paste(), 2);
+        win.check("beside the original", doc.annotations.get(2).x, 10 + Model.pasteStep(doc.shotWidth, doc.shotHeight));
+        win.check("a pasted step carries on the count", doc.annotations.get(3).index, 2);
+        win.check("the pasted marks are what is selected", doc.selectedIds.length, 2);
+        doc.paste();
+        win.check("a second paste steps further", doc.annotations.get(4).x,
+                  10 + 2 * Model.pasteStep(doc.shotWidth, doc.shotHeight));
+        doc.selectedId = doc.annotations.get(0).uid;
+        win.check("duplicate copies what is selected", doc.duplicateSelection(), 1);
+        win.check("without touching the clipboard", doc.markClipboard.length, 2);
+        doc.clearContent();
+        win.check("a new picture clears it", doc.markClipboard.length, 0);
+
         // ---- a step sequence closes up -------------------------------------
         doc.clearAnnotations();
         var steps = [];

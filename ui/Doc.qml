@@ -104,6 +104,10 @@ QtObject {
     // What undo took away, newest last. Any other change to the marks
     // empties it, since a redo would then land on a different picture.
     property var redoStack: []
+    // Marks copied with Ctrl+C, as plain values. They belong to this picture,
+    // so a new one clears them. Each paste lands a step further along.
+    property var markClipboard: []
+    property int pasteCount: 0
 
     property var redactClasses: ["email", "secret", "card", "net", "phone"]
 
@@ -228,6 +232,37 @@ QtObject {
             annotations.setProperty(i, "y", a.y + dy);
         }
         annotationsEdited();
+    }
+
+    // A label nothing was typed into is not worth a copy.
+    function copySelection() {
+        var rows = selectedRows().filter(function (a) { return !(a.kind === "text" && a.text === ""); });
+        if (rows.length === 0) return 0;
+        markClipboard = rows.map(Model.plainAnnotation);
+        pasteCount = 0;
+        return rows.length;
+    }
+
+    function paste() {
+        return placeCopies(markClipboard, ++pasteCount);
+    }
+
+    // Copies of the selection beside it, leaving the clipboard alone.
+    function duplicateSelection() {
+        var rows = selectedRows().filter(function (a) { return !(a.kind === "text" && a.text === ""); });
+        return placeCopies(rows.map(Model.plainAnnotation), 1);
+    }
+
+    function placeCopies(marks, steps) {
+        if (marks.length === 0) return 0;
+        var d = Model.pasteStep(shotWidth, shotHeight) * steps;
+        var made = marks.map(function (a) { return Model.duplicateAnnotation(a, d, d); });
+        redoStack = [];
+        made.forEach(function (a) { annotations.append(a); });
+        renumberSteps();
+        selectMany(made.map(function (a) { return a.uid; }), made[made.length - 1].uid);
+        annotationsEdited();
+        return made.length;
     }
 
     function removeSelection() {
@@ -416,6 +451,8 @@ QtObject {
         shotPalette = [];
         shotEdge = "";
         textSize = 0;
+        markClipboard = [];
+        pasteCount = 0;
     }
 
     // Every styling setting back to its default; content and title stay.

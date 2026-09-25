@@ -1043,7 +1043,21 @@ Item {
 
         if (event.modifiers & Qt.ControlModifier) {
             switch (event.key) {
-            case Qt.Key_C: root.copy(); return true;
+            // With marks selected the clipboard keys are about them; with
+            // none, Ctrl+C copies the picture as it always has.
+            case Qt.Key_C:
+                if (doc.selectedIds.length === 0) { root.copy(); return true; }
+                var copied = doc.copySelection();
+                editor.statusText = copied ? "Copied " + Model.plural(copied, "mark") : "Nothing to copy";
+                return true;
+            case Qt.Key_X:
+                var cut = doc.copySelection();
+                if (cut) { doc.removeSelection(); editor.statusText = "Cut " + Model.plural(cut, "mark"); }
+                return true;
+            case Qt.Key_V:
+                if (doc.paste() === 0) editor.statusText = "No marks copied";
+                return true;
+            case Qt.Key_D: doc.duplicateSelection(); return true;
             case Qt.Key_S:
                 if (event.modifiers & Qt.ShiftModifier) root.saveAs(); else root.save();
                 return true;
