@@ -12,8 +12,6 @@ Flickable {
 
     signal copyTextRequested()
     signal logoRequested()
-    // how: region | windows | fullscreen | file
-    signal addShotRequested(string how)
     // action: left | right | uncrop | remove, on the shot with this id
     signal shotRequested(string action, string id)
     signal eyedropRequested(var done)
@@ -324,38 +322,13 @@ Flickable {
             }
         }
 
+        // How the shots on the card are laid out; they are added from the
+        // header, so this only appears once there is more than one.
         Section {
             title: "Shots"
-            visible: doc.kind === "shot"
-
-            Text {
-                width: parent.width
-                visible: doc.shotCount < 2
-                text: "Add another shot to put them side by side"
-                wrapMode: Text.WordWrap
-                color: Ui.textMuted
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-            }
-
-            Row {
-                width: parent.width
-                spacing: Ui.gap
-                Repeater {
-                    model: [{ key: "region", label: "Region" }, { key: "windows", label: "Window" },
-                            { key: "fullscreen", label: "Screen" }, { key: "file", label: "File" }]
-                    IconButton {
-                        required property var modelData
-                        width: (parent.width - Ui.gap * 3) / 4
-                        label: modelData.label
-                        tip: modelData.key === "file" ? "Add a picture from a file" : "Capture another shot beside this one"
-                        onClicked: insp.addShotRequested(modelData.key)
-                    }
-                }
-            }
+            visible: doc.kind === "shot" && doc.shotCount > 1
 
             Segmented {
-                visible: doc.shotCount > 1
                 current: doc.layoutDir
                 minWidth: Math.floor((width - Ui.gap) / 2)
                 options: [{ key: "row", label: "Side by side" }, { key: "column", label: "Stacked" }]
@@ -363,7 +336,6 @@ Flickable {
             }
 
             Toggle {
-                visible: doc.shotCount > 1
                 label: "Match sizes"
                 hint: doc.layoutDir === "row" ? "Scale larger shots down to the same height"
                                               : "Scale larger shots down to the same width"
@@ -372,7 +344,7 @@ Flickable {
             }
 
             Segmented {
-                visible: doc.shotCount > 1 && !doc.matchSizes
+                visible: !doc.matchSizes
                 current: doc.slotAlign
                 minWidth: Math.floor((width - Ui.gap * 2) / 3)
                 options: doc.layoutDir === "row"
@@ -382,7 +354,6 @@ Flickable {
             }
 
             LabeledSlider {
-                visible: doc.shotCount > 1
                 label: "Gap"
                 value: doc.slotGap
                 from: 0; to: Model.SLOT_GAP_MAX; decimals: 1; suffix: "%"
@@ -394,7 +365,6 @@ Flickable {
             Column {
                 width: parent.width
                 spacing: Ui.gap
-                visible: doc.shotCount > 1
                 Repeater {
                     model: doc.slots
                     Row {

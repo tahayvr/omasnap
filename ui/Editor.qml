@@ -487,7 +487,6 @@ Rectangle {
         visible: doc.hasContent && !editor.settingsOpen
         onCopyTextRequested: editor.copyTextRequested()
         onLogoRequested: editor.logoRequested()
-        onAddShotRequested: function (how) { editor.addShotRequested(how); }
         onShotRequested: function (action, id) { editor.shotRequested(action, id); }
         onEyedropRequested: function (done) { editor.eyedropRequested(done); }
     }
