@@ -135,8 +135,9 @@ clipboard if nothing is highlighted.
 | `Ctrl+Shift+Z` / `Ctrl+Y`                        | redo                                                                    |
 | `Ctrl+N`                                         | Grab another region                                                     |
 | `Ctrl+K`                                         | Code card from the selected text                                        |
-| `Delete`                                         | Remove the selected annotation                                          |
-| Arrow keys, `Shift`+arrows                       | Move the selected annotation 1px, or 10px                               |
+| `Delete`                                         | Remove the selected annotations                                         |
+| `Shift`+click, or drag a box with the move tool  | Select several annotations; `Ctrl+A` selects them all                    |
+| Arrow keys, `Shift`+arrows                       | Move the selected annotations 1px, or 10px                              |
 | `Enter`                                          | Finish typing a text label                                              |
 | `Esc`                                            | Deselect, then close                                                    |
 

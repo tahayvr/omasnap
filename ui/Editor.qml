@@ -253,10 +253,48 @@ Rectangle {
             height: stage.height * viewport.fit
             visible: doc.hasContent
 
+            // With the move tool, a press on nothing clears the selection and
+            // a drag from there draws a box that selects whatever it touches;
+            // with Shift it adds to what is already selected.
             MouseArea {
+                id: marquee
                 anchors.fill: parent
                 enabled: doc.tool === "select"
-                onClicked: doc.selectedId = ""
+                property point from: Qt.point(0, 0)
+                property bool adding: false
+                property bool boxing: false
+
+                onPressed: function (e) {
+                    marquee.from = Qt.point(e.x, e.y);
+                    marquee.adding = (e.modifiers & Qt.ShiftModifier) !== 0;
+                    marquee.boxing = false;
+                    if (!marquee.adding) doc.selectedId = "";
+                }
+                onPositionChanged: function (e) {
+                    if (!pressed) return;
+                    if (Math.abs(e.x - marquee.from.x) + Math.abs(e.y - marquee.from.y) > 4)
+                        marquee.boxing = true;
+                    band.x = Math.min(e.x, marquee.from.x);
+                    band.y = Math.min(e.y, marquee.from.y);
+                    band.width = Math.abs(e.x - marquee.from.x);
+                    band.height = Math.abs(e.y - marquee.from.y);
+                }
+                onReleased: {
+                    if (!marquee.boxing) return;
+                    marquee.boxing = false;
+                    var a = draw.toShot(band.x, band.y);
+                    var b = draw.toShot(band.x + band.width, band.y + band.height);
+                    doc.selectInBox(a.x, a.y, b.x - a.x, b.y - a.y, marquee.adding);
+                }
+            }
+
+            Rectangle {
+                id: band
+                z: 2
+                visible: marquee.boxing
+                color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.12)
+                border.width: 1
+                border.color: Color.accent
             }
 
             // What the export grabs, rather than the stage itself: padded up

@@ -511,6 +511,39 @@ Window {
         win.check("with nothing selected there is nothing to restyle",
                   doc.styleSelection("color", "#ff0000"), false);
 
+        // ---- several marks at once -----------------------------------------
+        doc.clearAnnotations();
+        var trio = [];
+        for (var t = 0; t < 3; t++) {
+            var m3 = Model.newAnnotation("box", t * 100, 10);
+            m3.w = 40; m3.h = 40;
+            doc.annotations.append(m3);
+            trio.push(m3.uid);
+        }
+        doc.annotationsEdited();
+        doc.selectedId = trio[0];
+        doc.toggleSelected(trio[2]);
+        win.check("shift adds a mark to the selection", doc.selectedIds.length, 2);
+        win.check("and puts it in hand", doc.selectedId, trio[2]);
+        doc.toggleSelected(trio[2]);
+        win.check("and again takes it out", doc.selectedIds.join(), trio[0]);
+        doc.selectedId = trio[1];
+        win.check("a plain pick selects that mark alone", doc.selectedIds.join(), trio[1]);
+        doc.selectInBox(0, 0, 150, 60, false);
+        win.check("a box takes what it touches", doc.selectedIds.length, 2);
+        doc.selectInBox(190, 0, 20, 20, true);
+        win.check("and with shift adds to it", doc.selectedIds.length, 3);
+        doc.moveSelection(5, 7, "");
+        win.check("a group moves together", doc.annotations.get(2).x + "," + doc.annotations.get(2).y, "205,17");
+        doc.styleSelection("color", "#123456");
+        win.check("and is restyled together", String(doc.annotations.get(0).color), "#123456");
+        doc.selectMany([trio[0], trio[2]], trio[0]);
+        win.check("and goes together", doc.removeSelection(), 2);
+        win.check("leaving the rest", doc.annotations.get(0).uid, trio[1]);
+        win.check("and nothing selected", doc.selectedIds.length + doc.selectedId.length, 0);
+        doc.selectAll();
+        win.check("select all", doc.selectedIds.join(), trio[1]);
+
         // ---- a step sequence closes up -------------------------------------
         doc.clearAnnotations();
         var steps = [];

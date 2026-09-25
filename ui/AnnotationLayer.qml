@@ -44,7 +44,13 @@ Item {
             required property var model
 
             readonly property var a: model
-            readonly property bool selected: anno.doc.selectedId === a.uid
+            readonly property bool selected: anno.doc.selectedIds.indexOf(a.uid) !== -1
+            // Handles are for one mark at a time.
+            readonly property bool alone: entry.selected && anno.doc.selectedIds.length === 1
+            // Carried along while another selected mark is dragged.
+            readonly property point follow: (entry.selected && anno.doc.groupLeader !== ""
+                                             && anno.doc.groupLeader !== a.uid)
+                                            ? anno.doc.groupShift : Qt.point(0, 0)
             readonly property bool grabbable: anno.editable && (anno.moving || entry.selected)
             readonly property color ink: (a.color && a.color !== "")
                                          ? a.color : anno.doc.inkColor
@@ -57,8 +63,8 @@ Item {
             readonly property real originX: Math.min(a.x, a.x + a.w)
             readonly property real originY: Math.min(a.y, a.y + a.h)
 
-            x: Math.min(a.x, a.x + a.w)
-            y: Math.min(a.y, a.y + a.h)
+            x: Math.min(a.x, a.x + a.w) + entry.follow.x
+            y: Math.min(a.y, a.y + a.h) + entry.follow.y
             width: sizedByContent ? Math.max(1, body.implicitWidth) : Math.max(1, Math.abs(a.w))
             height: sizedByContent ? Math.max(1, body.implicitHeight) : Math.max(1, Math.abs(a.h))
 
@@ -72,8 +78,8 @@ Item {
 
             // Restores what the drag overwrote.
             function rebind() {
-                entry.x = Qt.binding(function () { return Math.min(entry.a.x, entry.a.x + entry.a.w); });
-                entry.y = Qt.binding(function () { return Math.min(entry.a.y, entry.a.y + entry.a.h); });
+                entry.x = Qt.binding(function () { return Math.min(entry.a.x, entry.a.x + entry.a.w) + entry.follow.x; });
+                entry.y = Qt.binding(function () { return Math.min(entry.a.y, entry.a.y + entry.a.h) + entry.follow.y; });
             }
 
             Loader {
@@ -378,7 +384,10 @@ Item {
                 // underneath would have shown.
                 cursorShape: (hold.onMark && entry.grabbable) ? Qt.SizeAllCursor
                            : anno.moving ? Qt.ArrowCursor : Qt.CrossCursor
-                drag.target: entry
+                // Shift-clicking adds a mark to the selection or takes it out,
+                // and does not move anything.
+                property bool toggling: false
+                drag.target: hold.toggling ? null : entry
                 drag.threshold: 2
 
                 // A box, an ellipse and an arrow are mostly empty space.
@@ -394,12 +403,31 @@ Item {
                         e.accepted = false;
                         return;
                     }
-                    anno.doc.selectedId = entry.a.uid;
+                    hold.toggling = anno.moving && (e.modifiers & Qt.ShiftModifier);
+                    if (hold.toggling) {
+                        anno.doc.toggleSelected(entry.a.uid);
+                        return;
+                    }
+                    // Taking hold of one of a group moves the group.
+                    if (entry.selected) anno.doc.selectMany(anno.doc.selectedIds, entry.a.uid);
+                    else anno.doc.selectedId = entry.a.uid;
+                    if (anno.doc.selectedIds.length > 1) anno.doc.groupLeader = entry.a.uid;
                 }
                 // The dim is drawn from the model, so a spotlight has to write
                 // its move back as it happens or the hole lags behind the drag.
-                onPositionChanged: if (entry.a.kind === "spotlight") entry.commit()
+                onPositionChanged: {
+                    if (hold.toggling) return;
+                    if (anno.doc.groupLeader === entry.a.uid)
+                        anno.doc.groupShift = Qt.point(entry.x - entry.originX, entry.y - entry.originY);
+                    if (entry.a.kind === "spotlight") entry.commit();
+                }
                 onReleased: {
+                    if (hold.toggling) { hold.toggling = false; return; }
+                    if (anno.doc.groupLeader === entry.a.uid) {
+                        anno.doc.moveSelection(entry.x - entry.originX, entry.y - entry.originY, entry.a.uid);
+                        anno.doc.groupLeader = "";
+                        anno.doc.groupShift = Qt.point(0, 0);
+                    }
                     entry.commit();
                     entry.rebind();
                 }
@@ -452,7 +480,7 @@ Item {
 
                     // A side too short to hold a bar clear of its corners
                     // is left to them.
-                    visible: knob.spot !== null && anno.editable && entry.selected
+                    visible: knob.spot !== null && anno.editable && entry.alone
                              && !anno.doc.exporting
                              && (!knob.side || Math.abs(knob.across ? entry.a.w : entry.a.h) > anno.handle * 5)
                     x: (knob.spot ? knob.spot.x - entry.originX : 0) - width / 2

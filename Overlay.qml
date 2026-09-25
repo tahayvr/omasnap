@@ -972,6 +972,7 @@ Item {
     }
 
     function editSelectedText(event) {
+        if (doc.selectedIds.length !== 1) return false;
         var i = doc.indexOfId(doc.selectedId);
         if (i < 0) return false;
         var a = doc.annotations.get(i);
@@ -999,13 +1000,11 @@ Item {
         return false;
     }
 
-    // Arrow keys move the selected mark a shot pixel at a time, ten with
+    // Arrow keys move the selected marks a shot pixel at a time, ten with
     // Shift. Like a drag, a magnifier's lens moves and what it shows stays.
     function nudgeSelected(event) {
-        if (doc.selectedId === "") return false;
+        if (doc.selectedIds.length === 0) return false;
         if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return false;
-        var a = doc.selectedAnnotation();
-        if (!a) return false;
         var step = (event.modifiers & Qt.ShiftModifier) ? 10 : 1;
         var dx = 0, dy = 0;
         switch (event.key) {
@@ -1015,7 +1014,7 @@ Item {
         case Qt.Key_Down:  dy = step;  break;
         default: return false;
         }
-        doc.updateAnnotation(a.uid, { x: a.x + dx, y: a.y + dy });
+        doc.moveSelection(dx, dy, "");
         return true;
     }
 
@@ -1037,9 +1036,7 @@ Item {
         if (editSelectedText(event)) return true;
 
         if (event.key === Qt.Key_Delete || event.key === Qt.Key_Backspace) {
-            if (doc.selectedId === "") return false;
-            doc.removeAnnotation(doc.selectedId);
-            return true;
+            return doc.removeSelection() > 0;
         }
 
         if (nudgeSelected(event)) return true;
@@ -1050,6 +1047,7 @@ Item {
             case Qt.Key_S:
                 if (event.modifiers & Qt.ShiftModifier) root.saveAs(); else root.save();
                 return true;
+            case Qt.Key_A: doc.selectAll(); return true;
             case Qt.Key_Z:
                 if (event.modifiers & Qt.ShiftModifier) doc.redo(); else doc.undo();
                 return true;

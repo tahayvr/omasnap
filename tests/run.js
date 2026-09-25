@@ -155,6 +155,19 @@ test("a label's font is one of the two Omarchy ships", () => {
     eq(Model.newAnnotation("text", 0, 0).font, "");
 });
 
+test("a selection box takes whatever it touches", () => {
+    const box = { kind: "box", x: 10, y: 10, w: 50, h: 50 };
+    ok(Model.inSelectionBox(box, 50, 50, 100, 100), "overlapping a corner is enough");
+    ok(!Model.inSelectionBox(box, 70, 70, 10, 10), "clear of it is not");
+    ok(Model.inSelectionBox({ kind: "box", x: 60, y: 60, w: -50, h: -50 }, 0, 0, 12, 12),
+       "drawn backwards, it is where it shows");
+    ok(Model.inSelectionBox({ kind: "text", x: 30, y: 30, w: 0, h: 0 }, 25, 25, 10, 10),
+       "a label is taken at its corner");
+    const lens = { kind: "magnify", x: 200, y: 200, w: 40, h: 40, sx: 20, sy: 20 };
+    ok(Model.inSelectionBox(lens, 190, 190, 20, 20), "a magnifier by its lens");
+    ok(!Model.inSelectionBox(lens, 10, 10, 20, 20), "not by the area it shows");
+});
+
 test("a copied annotation keeps every role and nothing else", () => {
     const a = Model.newAnnotation("magnify", 3, 4);
     a.sx = 9; a.text = "hi";

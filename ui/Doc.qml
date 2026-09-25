@@ -91,7 +91,16 @@ QtObject {
     // The size a label was last pulled to, so the next one matches; 0 until
     // then, and a size that suits one shot may not suit the next.
     property int textSize: 0
+    // selectedId is the mark in hand: the one with handles, and the one the
+    // tool bar shows. selectedIds is everything selected, that one included.
+    // Assigning selectedId selects that mark alone; selectMany keeps a set.
     property string selectedId: ""
+    property var selectedIds: []
+    property bool _keepingSet: false
+    // A group follows the one mark being dragged by this much, and only
+    // takes the move into the model on release.
+    property string groupLeader: ""
+    property point groupShift: Qt.point(0, 0)
     // What undo took away, newest last. Any other change to the marks
     // empties it, since a redo would then land on a different picture.
     property var redoStack: []
@@ -148,6 +157,7 @@ QtObject {
     property string _previousSelectedId: ""
 
     onSelectedIdChanged: {
+        if (!_keepingSet) selectedIds = selectedId !== "" ? [selectedId] : [];
         var prev = _previousSelectedId;
         _previousSelectedId = selectedId;
         if (prev === "" || prev === selectedId) return;
@@ -155,9 +165,80 @@ QtObject {
         if (i < 0) return;
         var a = annotations.get(i);
         if (a.kind === "text" && a.text === "") {
+            selectedIds = selectedIds.filter(function (u) { return u !== prev; });
             annotations.remove(i);
             annotationsEdited();
         }
+    }
+
+    function isSelected(uid) {
+        return selectedIds.indexOf(uid) !== -1;
+    }
+
+    // A set of marks, with `primary` in hand, or the last of them if it is
+    // not one.
+    function selectMany(uids, primary) {
+        var kept = uids.filter(function (u, n) {
+            return indexOfId(u) !== -1 && uids.indexOf(u) === n;
+        });
+        _keepingSet = true;
+        selectedIds = kept;
+        selectedId = kept.length === 0 ? ""
+                   : kept.indexOf(primary) !== -1 ? primary : kept[kept.length - 1];
+        _keepingSet = false;
+    }
+
+    function toggleSelected(uid) {
+        var s = selectedIds.slice();
+        var n = s.indexOf(uid);
+        if (n === -1) { s.push(uid); selectMany(s, uid); }
+        else { s.splice(n, 1); selectMany(s, selectedId === uid ? "" : selectedId); }
+    }
+
+    function selectAll() {
+        var s = [];
+        for (var i = 0; i < annotations.count; i++) s.push(annotations.get(i).uid);
+        selectMany(s, selectedId);
+    }
+
+    function selectInBox(x, y, w, h, adding) {
+        var s = adding ? selectedIds.slice() : [];
+        for (var i = 0; i < annotations.count; i++) {
+            var a = annotations.get(i);
+            if (Model.inSelectionBox(a, x, y, w, h)) s.push(a.uid);
+        }
+        selectMany(s, selectedId);
+    }
+
+    // Every selected row, as live rows, in the order they were drawn.
+    function selectedRows() {
+        var out = [];
+        for (var i = 0; i < annotations.count; i++)
+            if (isSelected(annotations.get(i).uid)) out.push(annotations.get(i));
+        return out;
+    }
+
+    // Like a drag, a magnifier's lens moves and what it shows stays.
+    function moveSelection(dx, dy, except) {
+        if (dx === 0 && dy === 0) return;
+        for (var i = 0; i < annotations.count; i++) {
+            var a = annotations.get(i);
+            if (a.uid === except || !isSelected(a.uid)) continue;
+            annotations.setProperty(i, "x", a.x + dx);
+            annotations.setProperty(i, "y", a.y + dy);
+        }
+        annotationsEdited();
+    }
+
+    function removeSelection() {
+        var gone = selectedIds.slice();
+        if (gone.length === 0) return 0;
+        selectedId = "";
+        for (var i = annotations.count - 1; i >= 0; i--)
+            if (gone.indexOf(annotations.get(i).uid) !== -1) annotations.remove(i);
+        renumberSteps();
+        annotationsEdited();
+        return gone.length;
     }
 
     function addAnnotation(obj) {
@@ -171,23 +252,26 @@ QtObject {
     // selected the moment it is finished, so the choice reads as live.
     function setArrowStyle(key) {
         arrowStyle = key;
-        var a = selectedAnnotation();
-        if (a && a.kind === "arrow") updateAnnotation(a.uid, { style: key });
+        selectedRows().forEach(function (a) {
+            if (a.kind === "arrow") updateAnnotation(a.uid, { style: key });
+        });
     }
 
     // The font for the next label and for the one in hand, like the arrow style.
     function setTextFont(key) {
         textFont = key;
-        var a = selectedAnnotation();
-        if (a && a.kind === "text") updateAnnotation(a.uid, { font: key });
+        selectedRows().forEach(function (a) {
+            if (a.kind === "text") updateAnnotation(a.uid, { font: key });
+        });
     }
 
     // Like the arrow style, the zoom is for the next magnifier and the one
     // in hand.
     function setMagnifyZoom(z) {
         magnifyZoom = Model.magnifyZoom(z);
-        var a = selectedAnnotation();
-        if (a && a.kind === "magnify") updateAnnotation(a.uid, Model.magnifyRezoom(a, magnifyZoom));
+        selectedRows().forEach(function (a) {
+            if (a.kind === "magnify") updateAnnotation(a.uid, Model.magnifyRezoom(a, magnifyZoom));
+        });
     }
 
     // A crop moves the picture out from under everything drawn on it, a
@@ -207,15 +291,14 @@ QtObject {
         annotationsEdited();
     }
 
-    // The tool bar edits whatever is in hand: the selected mark if there is
-    // one, and always the setting the next mark will be made with.
+    // The tool bar edits whatever is in hand: every selected mark, and
+    // always the setting the next mark will be made with.
     function styleSelection(prop, value) {
-        var a = selectedAnnotation();
-        if (!a) return false;
+        var rows = selectedRows();
         var patch = {};
         patch[prop] = value;
-        updateAnnotation(a.uid, patch);
-        return true;
+        rows.forEach(function (a) { updateAnnotation(a.uid, patch); });
+        return rows.length > 0;
     }
 
     // What a crop cuts away takes the marks that were only on it.
@@ -226,6 +309,8 @@ QtObject {
             var a = annotations.get(i);
             if (Model.overlapsRect(a, 0, 0, w, h)) continue;
             if (selectedId === a.uid) selectedId = "";
+            else if (isSelected(a.uid))
+                selectMany(selectedIds.filter(function (u) { return u !== a.uid; }), selectedId);
             annotations.remove(i);
             gone++;
         }
@@ -258,6 +343,8 @@ QtObject {
         var i = indexOfId(uid);
         if (i < 0) return;
         if (selectedId === uid) selectedId = "";
+        else if (isSelected(uid))
+            selectMany(selectedIds.filter(function (u) { return u !== uid; }), selectedId);
         annotations.remove(i);
         renumberSteps();
         annotationsEdited();
