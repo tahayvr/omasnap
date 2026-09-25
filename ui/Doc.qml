@@ -48,6 +48,10 @@ QtObject {
     // Annotation inks of the user's own, kept apart from the background
     // colors: inks are bright where backgrounds are mostly muted.
     property var inkColors: []
+
+    // Preferences, from Model.DEFAULT_SETTINGS; the overlay keeps them in
+    // settings.json.
+    property bool saveCopies: true
     property var userGradients: []
 
     // Saved looks, kept on disk by the overlay like the colors; the one in

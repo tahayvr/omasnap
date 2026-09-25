@@ -778,6 +778,13 @@ test("every export format saves under its own extension", () => {
     eq(Model.withExtension("/home/a/shot.png", "webp"), "/home/a/shot.webp");
 });
 
+test("settings come back off disk as the kind of value they should be", () => {
+    eq(Model.cleanSettings(null).saveCopies, true, "no file keeps today's behaviour");
+    eq(Model.cleanSettings({ saveCopies: false }).saveCopies, false);
+    eq(Model.cleanSettings({ saveCopies: "no" }).saveCopies, true, "a damaged value falls back");
+    eq(Object.keys(Model.cleanSettings({ stray: 1 })).join(), "saveCopies", "nothing unknown is kept");
+});
+
 test("a chosen save path is given the extension the format needs", () => {
     // magick reads the encoder off the extension, so a typed name without
     // one, or with the other format's, has to be corrected.

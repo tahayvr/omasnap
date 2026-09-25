@@ -165,7 +165,7 @@ Item {
     readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "bgCustomStops", "bgCustomAngle", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
         "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "textFont", "spotShape", "spotDim",
-        "codeLang", "codeTheme", "codeFont", "codeNumbers"]
+        "codeLang", "codeTheme", "codeFont", "codeNumbers", "saveCopies"]
     function set(json) {
         var o;
         try { o = JSON.parse(json); } catch (e) { return "bad json"; }
@@ -574,6 +574,44 @@ Item {
         function onActivePresetChanged() { if (root.presetsReady) presetsSave.restart(); }
     }
 
+    // Preferences have a file of their own too, read and written like the
+    // presets. Model.DEFAULT_SETTINGS names every key.
+    readonly property string settingsFile: root.colorsFile.replace(/colors\.json$/, "settings.json")
+    property bool settingsReady: false
+
+    function readSettings(json) {
+        var o = null;
+        try { o = JSON.parse(json); } catch (e) {}
+        var s = Model.cleanSettings(o);
+        for (var k in s) doc[k] = s[k];
+    }
+
+    FileView {
+        id: settingsView
+        path: root.settingsFile
+        printErrors: false
+        onLoaded: {
+            root.readSettings(settingsView.text());
+            root.settingsReady = true;
+        }
+        onLoadFailed: root.settingsReady = true
+    }
+
+    Timer {
+        id: settingsSave
+        interval: 500
+        onTriggered: {
+            var out = {};
+            for (var k in Model.DEFAULT_SETTINGS) out[k] = doc[k];
+            settingsView.setText(JSON.stringify(out, null, 2) + "\n");
+        }
+    }
+
+    Connections {
+        target: doc
+        function onSaveCopiesChanged() { if (root.settingsReady) settingsSave.restart(); }
+    }
+
     // preset <name>: put a saved preset on the card, by name or id, or
     // "default". The command line splits on spaces, so a name with one is
     // typed with a dash or an underscore instead (Model.presetKey).
@@ -869,7 +907,7 @@ Item {
     function save() {
         return exportTo(root.scratchDir + "/postcard-out.png", function (p) {
             deliver.args = ["save", p, outputPath(), doc.format, String(doc.quality),
-                            String(doc.outWidth), String(doc.outHeight)];
+                            String(doc.outWidth), String(doc.outHeight), doc.saveCopies ? "1" : "0"];
             deliver.running = true;
         });
     }
@@ -961,6 +999,7 @@ Item {
     function handleKey(event) {
         if (event.key === Qt.Key_Escape) {
             if (doc.cropUsable) doc.cropRect = Qt.rect(0, 0, 0, 0);
+            else if (editor.settingsOpen) editor.settingsOpen = false;
             else if (doc.selectedId !== "") doc.selectedId = "";
             else root.dismiss();
             return true;
@@ -1088,7 +1127,7 @@ Item {
                 deliver.args = ["save", saver.rendered,
                                 Model.withExtension(dest, Model.exportExtension(doc.format)),
                                 doc.format, String(doc.quality),
-                                String(doc.outWidth), String(doc.outHeight)];
+                                String(doc.outWidth), String(doc.outHeight), doc.saveCopies ? "1" : "0"];
                 deliver.running = true;
             }
         }
