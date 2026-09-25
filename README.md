@@ -135,6 +135,7 @@ clipboard if nothing is highlighted.
 | `Ctrl+N`                                         | Grab another region                                                     |
 | `Ctrl+K`                                         | Code card from the selected text                                        |
 | `Delete`                                         | Remove the selected annotation                                          |
+| Arrow keys, `Shift`+arrows                       | Move the selected annotation 1px, or 10px                               |
 | `Enter`                                          | Finish typing a text label                                              |
 | `Esc`                                            | Deselect, then close                                                    |
 
