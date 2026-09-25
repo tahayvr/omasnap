@@ -770,6 +770,14 @@ test("the spotlight dim is one path with a hole per spotlight", () => {
     ok(oval.indexOf("M0,30A50,30 0 0 1 100,30A50,30 0 0 1 0,30Z") !== -1, "two half arcs");
 });
 
+test("every export format saves under its own extension", () => {
+    eq(Model.exportExtension("png"), "png");
+    eq(Model.exportExtension("jpg"), "jpg");
+    eq(Model.exportExtension("webp"), "webp");
+    eq(Model.exportExtension("tiff"), "png", "an unknown format is saved as the PNG it was rendered as");
+    eq(Model.withExtension("/home/a/shot.png", "webp"), "/home/a/shot.webp");
+});
+
 test("a chosen save path is given the extension the format needs", () => {
     // magick reads the encoder off the extension, so a typed name without
     // one, or with the other format's, has to be corrected.

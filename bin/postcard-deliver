@@ -28,10 +28,26 @@ crop=()
 [ -n "$width" ] && [ -n "$height" ] && crop=(-crop "${width}x${height}+0+0" +repage)
 
 encode() { # encode <in> <out>
-  if [ "$format" = "jpg" ]; then
-    magick "$1" "${crop[@]}" -background white -flatten -quality "$quality" "$2"
+  case "$format" in
+    jpg) magick "$1" "${crop[@]}" -background white -flatten -quality "$quality" "$2" ;;
+    # WebP keeps transparency; at full quality it is lossless.
+    webp)
+      if [ "$quality" -ge 100 ]; then
+        magick "$1" "${crop[@]}" -define webp:lossless=true "$2"
+      else
+        magick "$1" "${crop[@]}" -quality "$quality" "$2"
+      fi ;;
+    *) magick "$1" "${crop[@]}" "$2" ;;
+  esac
+}
+
+# Browsers and chat apps will not paste image/webp, so a WebP export puts a
+# PNG of the render on the clipboard rather than the file.
+clip() { # clip <encoded file>
+  if [ "$format" = "webp" ]; then
+    magick "$src" "${crop[@]}" png:- | wl-copy --type image/png
   else
-    magick "$1" "${crop[@]}" "$2"
+    wl-copy --type "$mime" < "$1"
   fi
 }
 
@@ -39,7 +55,7 @@ case "$action" in
   copy)
     tmp="${src%.png}.out.${format}"
     encode "$src" "$tmp"
-    wl-copy --type "$mime" < "$tmp"
+    clip "$tmp"
     rm -f "$tmp"
     echo "Copied to the clipboard"
     ;;
@@ -47,7 +63,7 @@ case "$action" in
     [ -n "$dest" ] || { echo "No destination"; exit 1; }
     mkdir -p "$(dirname "$dest")"
     encode "$src" "$dest"
-    wl-copy --type "$mime" < "$dest"
+    clip "$dest"
     # Best effort: the file is already written, so a notification outage must
     # not report the save as failed.
     omarchy-notification-send "Saved $(basename "$dest")" --image "$dest" >/dev/null 2>&1 || true

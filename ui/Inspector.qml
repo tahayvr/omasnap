@@ -681,16 +681,17 @@ Flickable {
                     onPicked: function (k) { doc.exportScale = parseInt(k, 10); }
                 }
                 Segmented {
-                    minWidth: Style.space(52); width: minWidth * 2 + Ui.gap
+                    minWidth: Style.space(52); width: minWidth * 3 + Ui.gap * 2
                     current: doc.format
-                    options: [{ key: "png", label: "PNG" }, { key: "jpg", label: "JPEG" }]
+                    options: [{ key: "png", label: "PNG" }, { key: "jpg", label: "JPEG" },
+                              { key: "webp", label: "WebP" }]
                     onPicked: function (k) { doc.format = k; }
                 }
             }
 
             LabeledSlider {
-                visible: doc.format === "jpg"
-                label: "Quality"
+                visible: doc.format === "jpg" || doc.format === "webp"
+                label: doc.format === "webp" && doc.quality >= 100 ? "Quality · lossless" : "Quality"
                 value: doc.quality
                 from: 40; to: 100; decimals: 0
                 onMoved: function (v) { doc.quality = v; }

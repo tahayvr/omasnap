@@ -859,7 +859,7 @@ Item {
     }
 
     function outputName() {
-        return "postcard-" + Model.stamp() + "." + (doc.format === "jpg" ? "jpg" : "png");
+        return "postcard-" + Model.stamp() + "." + Model.exportExtension(doc.format);
     }
 
     function outputPath() {
@@ -1086,7 +1086,7 @@ Item {
                     return;
                 }
                 deliver.args = ["save", saver.rendered,
-                                Model.withExtension(dest, doc.format === "jpg" ? "jpg" : "png"),
+                                Model.withExtension(dest, Model.exportExtension(doc.format)),
                                 doc.format, String(doc.quality),
                                 String(doc.outWidth), String(doc.outHeight)];
                 deliver.running = true;
