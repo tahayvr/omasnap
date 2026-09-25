@@ -75,7 +75,10 @@ Rectangle {
 
     readonly property Item exportTarget: grabRoot
     readonly property string repoUrl: "https://github.com/tahayvr/postcard"
-    readonly property bool draggingOut: dragOut.Drag.active
+    // True from the moment the picture is ready until the drag ends: the
+    // backdrop goes first, and the drag starts once it has.
+    property bool draggingOut: false
+    readonly property bool dragActive: dragOut.Drag.active
 
     // Called once the picture is on disk. A drag can only start while the
     // button is still held: Wayland ties it to that press.
@@ -87,7 +90,17 @@ Rectangle {
         var url = "file://" + path;
         dragOut.Drag.mimeData = { "text/uri-list": url + "\r\n" };
         dragOut.Drag.imageSource = url;
-        dragOut.Drag.active = true;
+        editor.draggingOut = true;
+        dragStart.restart();
+    }
+
+    Timer {
+        id: dragStart
+        interval: 150
+        onTriggered: {
+            if (!dragOut.held) { editor.draggingOut = false; return; }
+            dragOut.Drag.active = true;
+        }
     }
 
     color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
@@ -473,9 +486,9 @@ Rectangle {
                 // The picture itself would be the size of the export.
                 Drag.imageSourceSize: Qt.size(Style.space(200),
                                               Style.space(200) * doc.outHeight / Math.max(1, doc.outWidth))
-                Drag.onDragFinished: function (action) {
-                    if (action === Qt.CopyAction) editor.statusText = "Dropped";
-                }
+                // Not told whether it was taken: Qt reports no action even
+                // for a drop another window accepted.
+                Drag.onDragFinished: editor.draggingOut = false
             }
             IconButton {
                 glyph: "\u2398"
