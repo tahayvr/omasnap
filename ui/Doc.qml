@@ -101,9 +101,24 @@ QtObject {
     // takes the move into the model on release.
     property string groupLeader: ""
     property point groupShift: Qt.point(0, 0)
-    // What undo took away, newest last. Any other change to the marks
-    // empties it, since a redo would then land on a different picture.
-    property var redoStack: []
+    // Undo and redo step through snapshots of every mark, taken once the
+    // marks have been still for a moment (settle) and nothing is held down:
+    // a drag or a burst of typing is one step, and every way of changing a
+    // mark is covered without each keeping its own record. The history is
+    // the picture's: a new one, or a crop, starts it again.
+    property var history: []
+    property int historyAt: -1
+    property bool historyPending: false
+    property bool _restoring: false
+    // A press under way on the picture; a snapshot waits for it to end.
+    property bool pressing: false
+    readonly property bool canUndo: historyAt > 0 || historyPending
+    readonly property bool canRedo: !historyPending && historyAt < history.length - 1
+    Component.onCompleted: resetHistory()
+    property Timer settle: Timer {
+        interval: 450
+        onTriggered: doc.settleHistory()
+    }
     // Marks copied with Ctrl+C, as plain values. They belong to this picture,
     // so a new one clears them. Each paste lands a step further along.
     property var markClipboard: []
@@ -156,6 +171,10 @@ QtObject {
             if (annotations.get(i).kind === "spotlight") n++;
         spotlightCount = n;
         annotationRevision++;
+        if (!_restoring) {
+            historyPending = true;
+            settle.restart();
+        }
     }
 
     property string _previousSelectedId: ""
@@ -257,7 +276,6 @@ QtObject {
         if (marks.length === 0) return 0;
         var d = Model.pasteStep(shotWidth, shotHeight) * steps;
         var made = marks.map(function (a) { return Model.duplicateAnnotation(a, d, d); });
-        redoStack = [];
         made.forEach(function (a) { annotations.append(a); });
         renumberSteps();
         selectMany(made.map(function (a) { return a.uid; }), made[made.length - 1].uid);
@@ -277,7 +295,6 @@ QtObject {
     }
 
     function addAnnotation(obj) {
-        redoStack = [];
         annotations.append(obj);
         selectedId = obj.uid;
         annotationsEdited();
@@ -313,7 +330,6 @@ QtObject {
     // magnifier's area as well as its lens.
     function shiftAnnotations(dx, dy) {
         if (dx === 0 && dy === 0) return;
-        redoStack = [];
         for (var i = 0; i < annotations.count; i++) {
             var a = annotations.get(i);
             annotations.setProperty(i, "x", a.x + dx);
@@ -338,7 +354,6 @@ QtObject {
 
     // What a crop cuts away takes the marks that were only on it.
     function dropOutside(w, h) {
-        redoStack = [];
         var gone = 0;
         for (var i = annotations.count - 1; i >= 0; i--) {
             var a = annotations.get(i);
@@ -400,36 +415,80 @@ QtObject {
     }
 
     function clearAnnotations() {
-        redoStack = [];
         selectedId = "";
         annotations.clear();
         stepCounter = 0;
         annotationsEdited();
     }
 
-    function undo() {
-        if (annotations.count === 0) return;
-        var last = Model.plainAnnotation(annotations.get(annotations.count - 1));
-        // Deselecting drops a text mark nothing was typed into, and when that
-        // is the last mark, dropping it is the whole undo. Removing by
-        // position after it would have taken the mark before it as well.
+    // The marks as plain values. A label nothing was typed into is left
+    // out: it is not there until it says something.
+    function snapshot() {
+        var out = [];
+        for (var i = 0; i < annotations.count; i++) {
+            var a = annotations.get(i);
+            if (a.kind === "text" && a.text === "") continue;
+            out.push(Model.plainAnnotation(a));
+        }
+        return JSON.stringify(out);
+    }
+
+    // Records the marks as they are, if they have changed since the last
+    // step. Anything after the current step is gone once something new
+    // happens, as redo would land on a different picture.
+    function checkpoint() {
+        settle.stop();
+        historyPending = false;
+        var s = snapshot();
+        if (historyAt >= 0 && history[historyAt] === s) return;
+        var h = history.slice(0, historyAt + 1);
+        h.push(s);
+        if (h.length > Model.HISTORY_KEPT) h = h.slice(h.length - Model.HISTORY_KEPT);
+        history = h;
+        historyAt = h.length - 1;
+    }
+
+    function settleHistory() {
+        if (pressing) { settle.restart(); return; }
+        checkpoint();
+    }
+
+    // The picture as it is now is where undo stops.
+    function resetHistory() {
+        settle.stop();
+        historyPending = false;
+        history = [snapshot()];
+        historyAt = 0;
+    }
+
+    function restore(s) {
+        _restoring = true;
         selectedId = "";
-        var i = indexOfId(last.uid);
-        if (i < 0) return;
-        annotations.remove(i);
-        redoStack = redoStack.concat([last]);
+        groupLeader = "";
+        annotations.clear();
+        JSON.parse(s).forEach(function (a) { annotations.append(a); });
         renumberSteps();
         annotationsEdited();
+        _restoring = false;
+    }
+
+    // An edit still settling counts: it is recorded first, then undone.
+    function undo() {
+        if (pressing) return false;
+        checkpoint();
+        if (historyAt <= 0) return false;
+        historyAt--;
+        restore(history[historyAt]);
+        return true;
     }
 
     function redo() {
-        if (redoStack.length === 0) return;
-        var a = redoStack[redoStack.length - 1];
-        redoStack = redoStack.slice(0, -1);
-        annotations.append(a);
-        renumberSteps();
-        selectedId = a.uid;
-        annotationsEdited();
+        if (pressing) return false;
+        checkpoint();
+        if (historyAt >= history.length - 1) return false;
+        historyAt++;
+        restore(history[historyAt]);
+        return true;
     }
 
     // Back to the empty state; styling settings are kept.
@@ -453,6 +512,7 @@ QtObject {
         textSize = 0;
         markClipboard = [];
         pasteCount = 0;
+        resetHistory();
     }
 
     // Every styling setting back to its default; content and title stay.

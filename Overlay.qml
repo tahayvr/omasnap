@@ -220,7 +220,6 @@ Item {
                 a.x = lens.x; a.y = lens.y; a.w = lens.w; a.h = lens.h;
             }
             doc.annotations.append(a);
-            doc.redoStack = [];
             added++;
         }
         doc.selectedId = "";
@@ -284,6 +283,7 @@ Item {
         text = text.replace(/\r/g, "").replace(/\n+$/, "");
         if (!text.length) return;
         doc.clearAnnotations();
+        doc.resetHistory();
         // There is nothing to cut down on a card drawn from its own text.
         if (doc.tool === "crop") doc.tool = "select";
         doc.kind = "code";
@@ -372,6 +372,7 @@ Item {
         if (!path) return;
         if (!recut) {
             doc.clearAnnotations();
+            doc.resetHistory();
             doc.shotName = path.split("/").pop();
             doc.frameTitle = doc.shotName;
             doc.cropSource = path;
@@ -877,6 +878,9 @@ Item {
         var off = doc.cropOffset;
         loadShot(doc.cropSource, true);
         doc.shiftAnnotations(off.x, off.y);
+        // Undo is about the marks; stepping back past a crop would move them
+        // off the picture they were drawn on.
+        doc.resetHistory();
         doc.cropOffset = Qt.point(0, 0);
         doc.cropped = false;
         editor.statusText = "Crop removed";
@@ -897,6 +901,7 @@ Item {
                 root.loadShot(cropProc.dest, true);
                 doc.shiftAnnotations(-cropProc.moved.x, -cropProc.moved.y);
                 var gone = doc.dropOutside(cropProc.cut.w, cropProc.cut.h);
+                doc.resetHistory();
                 doc.cropOffset = Qt.point(cropProc.cut.x, cropProc.cut.y);
                 doc.cropped = true;
                 doc.tool = "select";
