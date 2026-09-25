@@ -310,18 +310,19 @@ Item {
             Component {
                 id: textComp
                 Item {
-                    implicitWidth: label.implicitWidth + entry.stroke * 2
-                    implicitHeight: label.implicitHeight + entry.stroke
+                    readonly property real pad: label.font.pixelSize / 6
+                    implicitWidth: label.implicitWidth + pad * 2
+                    implicitHeight: label.implicitHeight + pad
                     Text {
                         id: label
-                        x: entry.stroke
-                        y: entry.stroke / 2
+                        x: parent.pad
+                        y: parent.pad / 2
                         readonly property bool placeholder: entry.a.text === ""
                         text: placeholder ? (anno.doc.exporting ? "" : "Type…") : entry.a.text
                         color: entry.ink
                         opacity: placeholder ? 0.55 : 1
                         font.family: Style.font.family
-                        font.pixelSize: Math.round(Math.max(12, entry.stroke * 6))
+                        font.pixelSize: Math.round(Model.textSize(entry.a))
                         font.bold: true
                         style: Text.Outline
                         styleColor: Qt.rgba(0, 0, 0, 0.55)
@@ -438,13 +439,14 @@ Item {
 
             // Corners and sides to pull it by, or the two ends of an arrow.
             // A fixed count, so a delegate is never rebuilt out from under a
-            // drag; a text label is sized by its text and has none.
+            // drag. A text label's corners are where its text ends, which
+            // only this delegate can measure.
             Repeater {
                 model: 8
                 delegate: Rectangle {
                     id: knob
                     required property int index
-                    readonly property var spot: Model.resizeHandles(entry.a)[knob.index] || null
+                    readonly property var spot: Model.resizeHandles(entry.a, entry.width, entry.height)[knob.index] || null
                     readonly property bool side: knob.spot !== null && Model.isSideHandle(knob.spot.key)
                     readonly property bool across: knob.side && (knob.spot.key === "t" || knob.spot.key === "b")
 
@@ -481,9 +483,14 @@ Item {
                             // By uid, and through the document, which tells
                             // everything drawn from the model that it moved.
                             anno.doc.updateAnnotation(entry.a.uid,
-                                Model.resizeAnnotation(entry.a, knob.spot.key, p.x, p.y));
+                                Model.resizeAnnotation(entry.a, knob.spot.key, p.x, p.y,
+                                                       entry.width, entry.height));
                         }
-                        onReleased: anno.doc.annotationsEdited()
+                        onReleased: {
+                            // The next label starts at the size this one was left at.
+                            if (entry.a.kind === "text") anno.doc.textSize = entry.a.fontSize;
+                            anno.doc.annotationsEdited();
+                        }
                     }
                 }
             }

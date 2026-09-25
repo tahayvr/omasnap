@@ -291,6 +291,8 @@ Rectangle {
                     if (doc.tool === "text") {
                         a.w = 0; a.h = 0;
                         a.text = "";
+                        a.fontSize = doc.textSize > 0 ? doc.textSize
+                                   : Model.defaultTextSize(doc.shotWidth, doc.shotHeight);
                         doc.addAnnotation(a);
                         activeId = "";
                         doc.tool = "select";

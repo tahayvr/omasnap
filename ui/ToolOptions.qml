@@ -160,10 +160,10 @@ Loader {
             }
 
             InlineSlider {
-                // A step badge has no stroke: it is a filled disc, sized by
-                // the handles on it.
-                visible: opts.subject !== "step"
-                label: opts.subject === "text" ? "Size" : "Stroke"
+                // Neither a step badge nor a label has a stroke; both are
+                // sized by the handles on them.
+                visible: opts.subject !== "step" && opts.subject !== "text"
+                label: "Stroke"
                 value: opts.stroke
                 from: 1; to: 16
                 onMoved: function (v) { opts.setStroke(Math.round(v)); }

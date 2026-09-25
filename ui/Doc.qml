@@ -80,6 +80,9 @@ QtObject {
     property string arrowStyle: "straight"
     property int magnifyZoom: Model.MAGNIFY_ZOOM
     property int stepCounter: 0
+    // The size a label was last pulled to, so the next one matches; 0 until
+    // then, and a size that suits one shot may not suit the next.
+    property int textSize: 0
     property string selectedId: ""
     // What undo took away, newest last. Any other change to the marks
     // empties it, since a redo would then land on a different picture.
@@ -310,6 +313,7 @@ QtObject {
         autoPalette = [];
         shotPalette = [];
         shotEdge = "";
+        textSize = 0;
     }
 
     // Every styling setting back to its default; content and title stay.

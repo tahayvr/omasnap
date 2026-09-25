@@ -134,6 +134,20 @@ test("annotations carry every role the delegates read", () => {
     ok(a.uid.length >= 6 && a.uid !== Model.newAnnotation("box", 0, 0).uid, "unique ids");
 });
 
+test("a text label scales from the corner opposite the one in hand", () => {
+    const t = { kind: "text", x: 10, y: 10, w: 0, h: 0, width: 4, fontSize: 30 };
+    const big = Model.resizeAnnotation(t, "br", 210, 90, 100, 40);
+    eq(big.fontSize, 60); eq(big.x, 10); eq(big.y, 10);
+    const tl = Model.resizeAnnotation(t, "tl", 60, 30, 100, 40);
+    eq(tl.fontSize, 15); eq(tl.x, 60); eq(tl.y, 30);
+    eq(Model.resizeAnnotation(t, "br", 210, 50, 100, 40).fontSize, 56,
+       "pulled sideways only, it still grows");
+    eq(Model.resizeAnnotation(t, "br", 11, 11, 100, 40).fontSize, Model.MIN_TEXT_SIZE);
+    eq(Model.textSize({ width: 4, fontSize: 0 }), 24, "an older label keeps its size");
+    eq(Model.defaultTextSize(3840, 2160), 64);
+    eq(Model.defaultTextSize(400, 300), 16);
+});
+
 test("a copied annotation keeps every role and nothing else", () => {
     const a = Model.newAnnotation("magnify", 3, 4);
     a.sx = 9; a.text = "hi";
@@ -579,7 +593,10 @@ test("a selected mark is pulled about by its handles", () => {
     eq(ends[1].key, "tip"); eq(ends[1].x, -50); eq(ends[1].y, 50);
 
     eq(Model.resizeHandles({ kind: "text", x: 0, y: 0, w: 0, h: 0 }).length, 0,
-       "a text label is sized by its text");
+       "a text label has no handles until it is shown");
+    const label = Model.resizeHandles({ kind: "text", x: 5, y: 5, w: 0, h: 0 }, 100, 40);
+    eq(label.length, 4, "corners only, so the text keeps its shape");
+    eq(label[2].key, "br"); eq(label[2].x, 105); eq(label[2].y, 45);
 
     // The corner opposite the one in hand stays put.
     const br = Model.resizeAnnotation(box, "br", 200, 100);

@@ -175,7 +175,7 @@ Item {
     }
 
     // annotate <json>: add annotations in screenshot pixels: one object
-    // {kind, x, y, w, h, color, width, text, index, strength, zoom}, or several as
+    // {kind, x, y, w, h, color, width, text, size, index, strength, zoom}, or several as
     // {"items": [...]} (the IPC CLI splits a bare top-level array on commas).
     function annotate(json) {
         var list;
@@ -194,6 +194,10 @@ Item {
             a.style = o.style ? String(o.style)
                     : (a.kind === "arrow" ? String(doc.arrowStyle) : "");
             a.text = o.text ? String(o.text) : "";
+            // A label sized by width, as before it had a size, keeps that size.
+            if (a.kind === "text")
+                a.fontSize = Number(o.size) || (Number(o.width) ? Model.textSize(a)
+                           : doc.textSize || Model.defaultTextSize(doc.shotWidth, doc.shotHeight));
             a.strength = Number(o.strength) || Math.max(6, Math.round(doc.geo.shotW / 90));
             if (a.kind === "step") {
                 doc.stepCounter += 1;
