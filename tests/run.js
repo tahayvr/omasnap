@@ -785,6 +785,24 @@ test("settings come back off disk as the kind of value they should be", () => {
     eq(Object.keys(Model.cleanSettings({ stray: 1 })).join(), "saveCopies", "nothing unknown is kept");
 });
 
+test("settings files carry a version and older ones are brought up to it", () => {
+    eq(Model.SETTINGS_MIGRATIONS.length, Model.SETTINGS_VERSION, "a step for every version before this one");
+    const old = Model.migrateSettings({ saveCopies: false });
+    eq(old.from, 0, "a file without a version is the first layout");
+    eq(old.settings.saveCopies, false, "and keeps what it said");
+    ok(!old.tooNew);
+    const cur = Model.migrateSettings({ version: Model.SETTINGS_VERSION, saveCopies: false });
+    eq(cur.from, Model.SETTINGS_VERSION);
+    const newer = Model.migrateSettings({ version: Model.SETTINGS_VERSION + 1, saveCopies: false });
+    ok(newer.tooNew, "a newer file is flagged, so it is not written over");
+    eq(newer.settings.saveCopies, false, "but still read");
+    eq(Model.migrateSettings(null).settings.saveCopies, true, "no file is the defaults");
+    eq(Model.migrateSettings({ version: "2" }).from, 0, "a version that is not a number is not trusted");
+    const file = Model.settingsFile({ saveCopies: false, stray: 1 });
+    eq(Object.keys(file).join(), "version,saveCopies", "version first, and nothing unknown");
+    eq(file.version, Model.SETTINGS_VERSION);
+});
+
 test("a chosen save path is given the extension the format needs", () => {
     // magick reads the encoder off the extension, so a typed name without
     // one, or with the other format's, has to be corrected.
