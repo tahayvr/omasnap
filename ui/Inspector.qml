@@ -671,22 +671,18 @@ Flickable {
         Section {
             title: "Export"
 
-            Row {
-                width: parent.width
-                spacing: Ui.row
-                Segmented {
-                    minWidth: Style.space(44); width: minWidth * 3 + Ui.gap * 2
-                    current: String(doc.exportScale)
-                    options: [{ key: "1", label: "1×" }, { key: "2", label: "2×" }, { key: "3", label: "3×" }]
-                    onPicked: function (k) { doc.exportScale = parseInt(k, 10); }
-                }
-                Segmented {
-                    minWidth: Style.space(52); width: minWidth * 3 + Ui.gap * 2
-                    current: doc.format
-                    options: [{ key: "png", label: "PNG" }, { key: "jpg", label: "JPEG" },
-                              { key: "webp", label: "WebP" }]
-                    onPicked: function (k) { doc.format = k; }
-                }
+            Segmented {
+                minWidth: Math.floor((width - Ui.gap * 2) / 3)
+                current: String(doc.exportScale)
+                options: [{ key: "1", label: "1×" }, { key: "2", label: "2×" }, { key: "3", label: "3×" }]
+                onPicked: function (k) { doc.exportScale = parseInt(k, 10); }
+            }
+            Segmented {
+                minWidth: Math.floor((width - Ui.gap * 2) / 3)
+                current: doc.format
+                options: [{ key: "png", label: "PNG" }, { key: "jpg", label: "JPEG" },
+                          { key: "webp", label: "WebP" }]
+                onPicked: function (k) { doc.format = k; }
             }
 
             LabeledSlider {
