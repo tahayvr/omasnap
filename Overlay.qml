@@ -921,6 +921,26 @@ Item {
         return false;
     }
 
+    // Arrow keys move the selected mark a shot pixel at a time, ten with
+    // Shift. Like a drag, a magnifier's lens moves and what it shows stays.
+    function nudgeSelected(event) {
+        if (doc.selectedId === "") return false;
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return false;
+        var a = doc.selectedAnnotation();
+        if (!a) return false;
+        var step = (event.modifiers & Qt.ShiftModifier) ? 10 : 1;
+        var dx = 0, dy = 0;
+        switch (event.key) {
+        case Qt.Key_Left:  dx = -step; break;
+        case Qt.Key_Right: dx = step;  break;
+        case Qt.Key_Up:    dy = -step; break;
+        case Qt.Key_Down:  dy = step;  break;
+        default: return false;
+        }
+        doc.updateAnnotation(a.uid, { x: a.x + dx, y: a.y + dy });
+        return true;
+    }
+
     function handleKey(event) {
         if (event.key === Qt.Key_Escape) {
             if (doc.cropUsable) doc.cropRect = Qt.rect(0, 0, 0, 0);
@@ -942,6 +962,8 @@ Item {
             doc.removeAnnotation(doc.selectedId);
             return true;
         }
+
+        if (nudgeSelected(event)) return true;
 
         if (event.modifiers & Qt.ControlModifier) {
             switch (event.key) {
