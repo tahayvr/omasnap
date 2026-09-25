@@ -20,7 +20,7 @@ Loader {
     signal cropRequested()
     signal uncropRequested()
 
-    readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step"]
+    readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step", "magnify"]
 
     // The mark in hand, if one is selected: the strip is then about that
     // rather than about the tool, so a mark can be restyled after the fact.
@@ -35,6 +35,8 @@ Loader {
     readonly property real stroke: opts.picked ? opts.picked.width : doc.inkWidth
     readonly property string arrowStyle: (opts.picked && opts.picked.style && opts.picked.style !== "")
                                          ? opts.picked.style : doc.arrowStyle
+    readonly property int zoom: opts.picked && opts.picked.kind === "magnify"
+                                ? opts.picked.zoom : doc.magnifyZoom
 
     // Both at once: what is in hand changes, and so does what the next mark
     // will be made with.
@@ -73,7 +75,28 @@ Loader {
             spacing: Ui.gap
             IconButton { glyph: "⬚"; label: "Region"; onClicked: opts.captureRequested("region") }
             IconButton { glyph: "◰"; label: "Window"; onClicked: opts.captureRequested("windows") }
-            IconButton { glyph: "⬜"; label: "Screen"; onClicked: opts.captureRequested("fullscreen") }
+
+            // Joined, since the delay belongs to Screen alone: region and
+            // window pickers wait for a click anyway, which closes any menu.
+            Row {
+                IconButton {
+                    glyph: "⬜"
+                    label: "Screen"
+                    tip: CaptureDelay.seconds
+                         ? "Capture the whole screen in " + CaptureDelay.seconds + " seconds"
+                         : "Capture the whole screen"
+                    onClicked: opts.captureRequested("fullscreen")
+                }
+                Rectangle { width: 1; height: Ui.button; color: Ui.hairline }
+                IconButton {
+                    glyph: "◷"
+                    label: CaptureDelay.label(CaptureDelay.seconds)
+                    rest: Ui.fillRaised
+                    active: CaptureDelay.seconds > 0
+                    tip: "Delay before the screen is captured, click to change"
+                    onClicked: CaptureDelay.cycle()
+                }
+            }
             IconButton { glyph: "‹›"; label: "Code"; tip: "Selected text as a code card"; onClicked: opts.codeRequested() }
             IconButton { glyph: ""; label: "File"; tip: "Open a file"; onClicked: opts.openRequested() }
         }
@@ -117,6 +140,22 @@ Loader {
                     swatchColor: Color.accent
                     active: Qt.colorEqual(opts.ink, Color.accent)
                     onPicked: opts.setInk(Color.accent)
+                }
+            }
+
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Ui.gap
+                visible: opts.subject === "magnify"
+                Repeater {
+                    model: Model.MAGNIFY_ZOOMS
+                    IconButton {
+                        required property var modelData
+                        label: modelData + "\u00d7"
+                        tip: "Zoom " + modelData + " times"
+                        active: opts.zoom === modelData
+                        onClicked: opts.doc.setMagnifyZoom(modelData)
+                    }
                 }
             }
 

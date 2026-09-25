@@ -259,6 +259,142 @@ Window {
         });
         win.check("every mesh swatch carries its own points", badMesh.length, 0);
 
+        // ---- presets -------------------------------------------------------
+        doc.presets = [];
+        doc.reset();
+        win.check("the card starts on Default, unchanged", doc.activePreset + " " + doc.presetModified, "default false");
+        doc.inkColor = "#00ff00";
+        doc.tool = "arrow";
+        win.check("the ink and the tool are not part of the look", doc.presetModified, false);
+        doc.padding = 12;
+        doc.bgMode = "solid";
+        doc.bgSolid = "#123456";
+        win.check("a change to the look shows against the preset", doc.presetModified, true);
+
+        inspector.startNaming();
+        win.check("+ opens the name field", inspector.naming, true);
+        var made = doc.savePresetAs("  Social   post ");
+        win.check("saving names it tidily", doc.activePresetEntry.name, "Social post");
+        win.check("and puts it in use, unchanged", doc.activePreset === made && !doc.presetModified, true);
+
+        doc.radius = 9;
+        win.check("a later change shows again", doc.presetModified, true);
+        doc.updatePreset();
+        win.check("Update writes it to the preset", doc.presets[0].style.radius + " " + doc.presetModified, "9 false");
+
+        doc.savePresetAs("social POST");
+        win.check("the same name updates rather than duplicating", doc.presets.length, 1);
+
+        doc.applyPreset("default");
+        win.check("Default puts the defaults back", doc.padding + " " + doc.bgMode, "5 auto");
+        win.check("and leaves the ink alone", String(doc.inkColor), "#00ff00");
+        doc.applyPreset(made);
+        win.check("a saved preset comes back whole",
+                  doc.padding + " " + doc.bgMode + " " + String(doc.bgSolid) + " " + doc.radius, "12 solid #123456 9");
+
+        inspector.deletePreset();
+        win.check("delete wants a second click", doc.presets.length, 1);
+        inspector.deletePreset();
+        win.check("and then deletes", doc.presets.length + " " + doc.activePreset, "0 default");
+        win.check("leaving the card as it was", doc.padding, 12);
+        doc.reset();
+        win.check("reset is Default again", doc.padding + " " + doc.presetModified, "5 false");
+        doc.tool = "select";
+
+        // ---- custom colors -------------------------------------------------
+        doc.customColors = [];
+        doc.bgMode = "solid";
+        inspector.openPicker("solid");
+        win.check("the picker opens on the solid color", inspector.pickerTarget, "solid");
+        inspector.commitPicked("solid", "#123456");
+        win.check("a pick becomes the background", String(doc.bgSolid), "#123456");
+        win.check("and a recent color", doc.customColors.join(" "), "#123456");
+        inspector.commitPicked("solid", "#654321");
+        win.check("a second pick in one visit replaces it", doc.customColors.join(" "), "#654321");
+        inspector.openPicker("solid");
+        inspector.openPicker("solid");
+        inspector.commitPicked("solid", "#abcdef");
+        win.check("a fresh visit adds one", doc.customColors.join(" "), "#abcdef #654321");
+        inspector.forgetColor("#abcdef");
+        win.check("a color of your own can be removed", doc.customColors.join(" "), "#654321");
+        win.check("and a background in that color stays as it is", String(doc.bgSolid), "#abcdef");
+
+        doc.bgMode = "gradient";
+        win.check("changing mode closes the picker", inspector.pickerTarget, "");
+        doc.customColors = [];
+        doc.userGradients = [];
+        doc.bgGradient = "ember";
+        inspector.newGradient();
+        win.check("a new gradient is saved", doc.userGradients.length, 1);
+        win.check("starting from the one on show", doc.bgCustomStops.join(" "), "#7a2e2e #e0764a");
+        win.check("and is put on the card", doc.bgGradient + " " + (doc.bgCustomId === doc.userGradients[0].id), "custom true");
+        inspector.addStop();
+        win.check("adding a stop opens the picker on it", inspector.pickerTarget, "stop2");
+        inspector.commitPicked("stop2", "#333333");
+        win.check("and edits that stop alone", doc.bgCustomStops.join(" "), "#7a2e2e #e0764a #333333");
+        win.check("the saved gradient follows", doc.userGradients[0].stops.join(" "), "#7a2e2e #e0764a #333333");
+        win.check("its colors are not kept one by one", doc.customColors.length, 0);
+        inspector.setAngle(33);
+        win.check("nor is its angle lost", doc.userGradients[0].angle, 33);
+        inspector.openPicker("stop0");
+        inspector.removeStop();
+        win.check("removing takes the stop being edited", doc.userGradients[0].stops.join(" "), "#e0764a #333333");
+        inspector.removeStop();
+        win.check("but never below two", doc.bgCustomStops.length, 2);
+
+        var kept = doc.userGradients[0].id;
+        doc.bgGradient = "dusk";
+        inspector.newGradient();
+        win.check("a second one goes in front", doc.userGradients.length + " " + (doc.userGradients[1].id === kept), "2 true");
+        inspector.showGradient(doc.userGradients[1]);
+        win.check("a saved one is put back on the card", doc.bgCustomStops.join(" ") + " " + doc.bgCustomAngle,
+                  "#e0764a #333333 33");
+        inspector.forgetGradient(kept);
+        win.check("deleting it leaves one saved", doc.userGradients.length, 1);
+        win.check("but the card keeps it", doc.bgGradient + " " + doc.bgCustomStops.join(" "), "custom #e0764a #333333");
+        inspector.commitPicked("stop0", "#010101");
+        win.check("and editing it no longer touches what is saved",
+                  doc.userGradients[0].stops.indexOf("#010101"), -1);
+        doc.customColors = [];
+        doc.userGradients = [];
+        doc.bgCustomId = "";
+        doc.bgMode = "auto";
+        doc.bgGradient = "dusk";
+
+        // ---- magnifier -----------------------------------------------------
+        doc.clearAnnotations();
+        doc.shotWidth = 800;
+        doc.shotHeight = 400;
+        var mag = Model.newAnnotation("magnify", 0, 0);
+        var drawn = Model.magnifyFromDrag(380, 180, 420, 220, 2);
+        for (var mk in drawn) mag[mk] = drawn[mk];
+        mag.zoom = 2;
+        doc.addAnnotation(mag);
+        editor.finishMagnifier(mag.uid);
+        var placed = doc.selectedAnnotation();
+        var link = Model.magnifyLink(placed.x + placed.w / 2, placed.y + placed.h / 2, placed.w / 2,
+                                     placed.sx, placed.sy, placed.w / 2 / placed.zoom);
+        win.check("letting go sets the lens beside what it shows", link !== null, true);
+        win.check("still showing the middle of the drag", placed.sx + "," + placed.sy, "400,200");
+
+        doc.setMagnifyZoom(4);
+        placed = doc.selectedAnnotation();
+        win.check("the zoom buttons change the one in hand", placed.zoom + " " + placed.w, "4 80");
+        win.check("and the next one", doc.magnifyZoom, 4);
+        doc.setMagnifyZoom(2);
+
+        doc.shiftAnnotations(-100, -50);
+        placed = doc.selectedAnnotation();
+        win.check("a crop moves what it shows along with the picture", placed.sx + "," + placed.sy, "300,150");
+
+        var stray = Model.newAnnotation("magnify", 0, 0);
+        var small = Model.magnifyFromDrag(100, 100, 104, 103, 2);
+        for (var sk in small) stray[sk] = small[sk];
+        doc.addAnnotation(stray);
+        editor.finishMagnifier(stray.uid);
+        win.check("a stray drag leaves no magnifier", doc.indexOfId(stray.uid), -1);
+        doc.clearAnnotations();
+
         // ---- crop handles --------------------------------------------------
         doc.shotWidth = 400;
         doc.shotHeight = 200;
@@ -270,6 +406,10 @@ Window {
         win.check("the bottom right corner is grabbed", cropper.at(300, 150), 3);
         win.check("the bottom left corner is grabbed", cropper.at(100, 150), 4);
         win.check("the inside moves the selection", cropper.at(200, 100), 5);
+        win.check("the top side is grabbed", cropper.at(200, 50), 6);
+        win.check("the right side is grabbed", cropper.at(300, 100), 7);
+        win.check("the bottom side is grabbed", cropper.at(200, 150), 8);
+        win.check("the left side is grabbed", cropper.at(100, 100), 9);
         win.check("and the bare picture is left to the tool", cropper.at(20, 20), 0);
 
         // A corner drag leaves the opposite corner where it was.
@@ -297,6 +437,34 @@ Window {
         win.check("and stops at the edge of the picture", win.rectText(doc.cropRect), "200,100 200x100");
         cropper.finish();
         win.check("a move that size is still a crop", doc.cropUsable, true);
+
+        // A side moves its own edge and nothing else, whichever way the
+        // pointer strays along it.
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(200, 50);
+        cropper.dragTo(250, 30);
+        win.check("the top side moves only the top", win.rectText(doc.cropRect), "100,30 200x120");
+        cropper.dragTo(0, 180);
+        win.check("and squares up when pulled past the bottom", win.rectText(doc.cropRect), "100,150 200x30");
+        cropper.finish();
+
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(300, 100);
+        cropper.dragTo(360, 0);
+        win.check("the right side moves only the right", win.rectText(doc.cropRect), "100,50 260x100");
+        cropper.finish();
+
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(200, 150);
+        cropper.dragTo(10, 170);
+        win.check("the bottom side moves only the bottom", win.rectText(doc.cropRect), "100,50 200x120");
+        cropper.finish();
+
+        doc.cropRect = Qt.rect(100, 50, 200, 100);
+        cropper.begin(100, 100);
+        cropper.dragTo(-50, 400);
+        win.check("the left side stops at the edge of the picture", win.rectText(doc.cropRect), "0,50 300x100");
+        cropper.finish();
 
         // ---- the drawing surface hovers as well as drags ------------------
         // The crop selection used to follow the pointer with no button down,
@@ -412,9 +580,9 @@ Window {
 
         doc.selectedId = one.uid;
         var k = win.knobs(marks, []);
-        win.check("a box is held at four corners", k.length, 4);
+        win.check("a box is held at its corners and sides", k.length, 8);
         var keys = k.map(function (h) { return h.spot.key; }).sort().join(" ");
-        win.check("one at each", keys, "bl br tl tr");
+        win.check("one at each", keys, "b bl br l r t tl tr");
 
         // A handle is placed against the mark's own origin, so it travels with
         // the item while a move is dragged; measured from the model it would
@@ -427,6 +595,12 @@ Window {
         win.check("and moves with the mark as it is dragged",
                   Math.round(held.x + tl.x + tl.width / 2), 70);
         held.x -= 30;
+
+        var top = win.knobs(marks, []).filter(function (h) { return h.spot.key === "t"; })[0];
+        win.check("a side bar sits at the middle of its edge",
+                  Math.round(held.x + top.x + top.width / 2) + "," + Math.round(held.y + top.y + top.height / 2),
+                  "100,20");
+        win.check("and lies along it", top.width > top.height, true);
 
         doc.selectedId = two.uid;
         var ends = win.knobs(marks, []);
@@ -443,7 +617,7 @@ Window {
         (function walk(item) {
             for (var i = 0; i < item.children.length; i++) {
                 var c = item.children[i];
-                if (c.hasOwnProperty("swatchColor") && c.hasOwnProperty("index")) pal.push(c);
+                if (c.hasOwnProperty("swatchColor") && c.hasOwnProperty("index") && c.visible) pal.push(c);
                 walk(c);
             }
         })(inspector);

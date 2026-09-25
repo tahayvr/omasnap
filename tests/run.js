@@ -556,7 +556,7 @@ test("a press picks the mark it lands on, not the box around it", () => {
 test("a selected mark is pulled about by its handles", () => {
     const box = { kind: "box", x: 10, y: 10, w: 100, h: 50, width: 4 };
     const h = Model.resizeHandles(box);
-    eq(h.length, 4);
+    eq(h.length, 8, "four corners and four sides");
     eq(h[0].key, "tl"); eq(h[0].x, 10); eq(h[0].y, 10);
     eq(h[2].key, "br"); eq(h[2].x, 110); eq(h[2].y, 60);
 
@@ -591,6 +591,25 @@ test("a selected mark is pulled about by its handles", () => {
     const step = Model.resizeAnnotation({ kind: "step", x: 0, y: 0, w: 30, h: 30, width: 4 },
                                         "br", 90, 40);
     eq(step.w, 90); eq(step.h, 90);
+
+    // A side sits at the middle of its edge and moves that edge alone, the
+    // other axis untouched however the pointer strays.
+    eq(h[4].key, "t"); eq(h[4].x, 60); eq(h[4].y, 10);
+    eq(h[5].key, "r"); eq(h[5].x, 110); eq(h[5].y, 35);
+    const top = Model.resizeAnnotation(box, "t", 500, 0);
+    eq(top.x, 10); eq(top.y, 0); eq(top.w, 100); eq(top.h, 60);
+    const right = Model.resizeAnnotation(box, "r", 200, -80);
+    eq(right.x, 10); eq(right.y, 10); eq(right.w, 190); eq(right.h, 50);
+    const bottom = Model.resizeAnnotation(box, "b", 0, 100);
+    eq(bottom.y, 10); eq(bottom.h, 90); eq(bottom.w, 100);
+    const left = Model.resizeAnnotation(box, "l", 150, 0);
+    eq(left.x, 110); eq(left.w, 40, "pulled past the right edge it turns over");
+    eq(Model.resizeAnnotation(box, "t", 0, 58).h, 8, "and never below a grabbable size");
+
+    for (const kind of ["box", "ellipse", "highlight", "redact", "spotlight"])
+        eq(Model.resizeHandles({ kind, x: 0, y: 0, w: 50, h: 50, width: 4 }).length, 8, kind);
+    eq(Model.resizeHandles({ kind: "step", x: 0, y: 0, w: 30, h: 30, width: 4 }).length, 4,
+       "a step badge would stop being round, so corners only");
 
     // An arrow end moves on its own; the other stays where it was.
     const tail = Model.resizeAnnotation({ kind: "arrow", x: 0, y: 0, w: 100, h: 50 }, "tail", 20, 10);
@@ -746,6 +765,209 @@ test("themes resolve, and anything unlisted is an installed Omarchy theme", () =
     eq(t.label, "Tokyo Night", "directory name becomes a readable label");
     eq(Code.themeByKey("catppuccin-latte").label, "Catppuccin Latte");
     eq(Code.themeByKey("nord").system, true, "bat's Nord no longer shadows Omarchy's");
+});
+
+test("a capture is immediate unless it asks for a delay", () => {
+    for (const mode of ["region", "windows", "fullscreen", "smart"])
+        eq(Model.captureRequest(mode), { mode, seconds: 0 });
+    eq(Model.captureRequest("unknown").mode, "region", "an unknown mode is a region");
+    eq(Model.captureRequest("").mode, "region");
+});
+
+test("a delay arrives either beside the mode or inside it as JSON", () => {
+    for (const seconds of [0, 3, 5, 10, 60]) {
+        eq(Model.captureRequest("windows", seconds), { mode: "windows", seconds }, "summon");
+        eq(Model.captureRequest(JSON.stringify({ mode: "fullscreen", delay: seconds })),
+           { mode: "fullscreen", seconds }, "call");
+    }
+    eq(Model.captureRequest(' {"delay":5}'), { mode: "region", seconds: 5 }, "leading space, no mode");
+});
+
+test("a delay that is not 0 to 60 whole seconds is refused, not rounded", () => {
+    for (const delay of [-1, 61, 1.5, NaN, Infinity, "5", null, true, {}, []])
+        eq(Model.captureRequest("fullscreen", delay), { error: "bad delay" }, JSON.stringify(delay));
+    eq(Model.captureRequest('{"mode":"fullscreen","delay":"5"}'), { error: "bad delay" });
+    eq(Model.captureRequest('{"mode":'), { error: "bad json" });
+});
+
+test("hex is read however it is typed, and refused when it is not hex", () => {
+    eq(Model.normaliseHex("#ABC"), "#aabbcc");
+    eq(Model.normaliseHex(" 1e222a "), "#1e222a");
+    eq(Model.normaliseHex("#1E222A"), "#1e222a");
+    for (const bad of ["", "#12345", "#ggg", "red", "#1e222a00", null])
+        eq(Model.normaliseHex(bad), "", String(bad));
+});
+
+test("hsv and hex go round trip", () => {
+    for (const hex of ["#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#1e222a", "#b0577f", "#e3c391"]) {
+        const c = Model.hexToHsv(hex);
+        eq(Model.hsvToHex(c.h, c.s, c.v), hex, hex);
+    }
+    eq(Model.hsvToHex(360, 1, 1), "#ff0000", "hue wraps");
+    eq(Model.hexToHsv("#808080", 210).h, 210, "a gray keeps the hue it was given");
+    eq(Model.hexToHsv("nonsense", 40), { h: 40, s: 0, v: 0 });
+});
+
+test("recent custom colors are newest first, unique and few", () => {
+    let list = Model.rememberColor([], "#AABBCC");
+    eq(list, ["#aabbcc"]);
+    list = Model.rememberColor(list, "#112233");
+    eq(list, ["#112233", "#aabbcc"]);
+    eq(Model.rememberColor(list, "#aabbcc"), ["#aabbcc", "#112233"], "a repeat moves to the front");
+    eq(Model.rememberColor(list, "#445566", true), ["#445566", "#aabbcc"],
+       "within one visit a new choice replaces the last");
+    eq(Model.rememberColor(list, "nope"), list, "nothing that is not a color");
+    let many = [];
+    for (let i = 0; i < 12; i++) many = Model.rememberColor(many, "#0000" + (10 + i));
+    eq(many.length, Model.CUSTOM_COLORS_KEPT);
+    eq(many[0], "#000021");
+});
+
+test("a custom color can be forgotten however it is spelled", () => {
+    eq(Model.forgetColor(["#aabbcc", "#112233"], "#AABBCC"), ["#112233"]);
+    eq(Model.forgetColor(["#aabbcc"], "#445566"), ["#aabbcc"], "one not there changes nothing");
+    eq(Model.forgetColor(null, "#aabbcc"), []);
+});
+
+test("the custom gradient is read from the document, and falls back safely", () => {
+    const g = Model.gradientFor("custom", ["#111111", "#222222", "#333333"], 90);
+    eq(g.key, "custom"); eq(g.angle, 90); eq(g.stops, ["#111111", "#222222", "#333333"]);
+    eq(Model.gradientFor("custom", ["#111111"], undefined).stops, Model.CUSTOM_STOPS,
+       "one stop is no gradient");
+    eq(Model.gradientFor("custom", [], NaN).angle, Model.CUSTOM_ANGLE);
+    eq(Model.gradientFor("custom", ["#1", "#2", "#3", "#4", "#5"], 0).stops.length, Model.CUSTOM_MAX_STOPS);
+    eq(Model.gradientFor("ember", null, 0).key, "ember", "a preset is untouched");
+    eq(Model.gradientStops(Model.gradientFor("custom", ["#111111", "#222222"], 0).stops).length,
+       Model.GRADIENT_STOPS, "and fills the stage's fixed slots");
+});
+
+test("saved gradients are edited in place, new ones go first", () => {
+    let list = Model.saveGradient([], { id: "a", stops: ["#111111", "#222222"], angle: 90 });
+    list = Model.saveGradient(list, { id: "b", stops: ["#333333", "#444444"], angle: 45 });
+    eq(list.map(g => g.id), ["b", "a"], "newest first");
+    list = Model.saveGradient(list, { id: "a", stops: ["#555555", "#666666", "#777777"], angle: 10 });
+    eq(list.map(g => g.id), ["b", "a"], "an edit keeps its place");
+    eq(list[1].stops, ["#555555", "#666666", "#777777"]);
+    eq(Model.forgetGradient(list, "b").map(g => g.id), ["a"]);
+    eq(Model.saveGradient(list, { id: "c", stops: ["#111111"] }), list, "one stop is not saved");
+    let many = [];
+    for (let i = 0; i < 20; i++) many = Model.saveGradient(many, { id: "g" + i, stops: ["#000000", "#ffffff"], angle: 0 });
+    eq(many.length, Model.USER_GRADIENTS_KEPT);
+});
+
+test("a saved gradient read back off disk is cleaned up", () => {
+    const g = Model.cleanGradient({ id: 7, stops: ["#ABC", "nope", "#112233", "#1", "#223344", "#334455", "#445566"], angle: 400.4 });
+    eq(g.id, "7");
+    eq(g.stops, ["#aabbcc", "#112233", "#223344", "#334455"], "bad stops dropped, four kept");
+    eq(g.angle, 359);
+    eq(Model.cleanGradient({ stops: ["#aabbcc", "nope"] }), null);
+    eq(Model.cleanGradient("nope"), null);
+    ok(Model.cleanGradient({ stops: ["#000000", "#ffffff"] }).id.length > 0, "an id is made up if missing");
+});
+
+test("a new gradient starts from the one on show", () => {
+    eq(Model.gradientSeed("ember", [], 0), { stops: ["#7a2e2e", "#e0764a"], angle: 120 });
+    eq(Model.gradientSeed("custom", ["#010101", "#020202", "#030303"], 33),
+       { stops: ["#010101", "#020202", "#030303"], angle: 33 });
+    eq(Model.gradientSeed("bloom", [], 0), { stops: Model.CUSTOM_STOPS, angle: Model.CUSTOM_ANGLE },
+       "a mesh has no stops to start from");
+});
+
+test("a magnifier is drawn over what it shows, then set beside it", () => {
+    const m = Model.magnifyFromDrag(100, 100, 140, 120, 2);
+    eq([m.sx, m.sy], [120, 110], "the middle of the drag");
+    eq([m.x, m.y, m.w, m.h], [80, 70, 80, 80], "the lens over it, twice the size");
+    const src = Model.magnifySource({ x: m.x, y: m.y, w: m.w, h: m.h, sx: m.sx, sy: m.sy, zoom: 2 });
+    eq(src, { x: 120, y: 110, r: 20 });
+    eq(Model.magnifySource({ x: 0, y: 0, w: 120, h: 120, sx: 5, sy: 5, zoom: 7 }).r, 30,
+       "an unknown zoom is read as the default");
+
+    const lens = Model.placeMagnifier(200, 300, 20, 2, 1000, 600);
+    ok(lens.x > 200 && lens.y + lens.h < 300, "up and to the right when there is room");
+    eq(lens.w, 80);
+    const corner = Model.placeMagnifier(980, 20, 20, 2, 1000, 600);
+    ok(corner.x + corner.w < 980 && corner.y > 20, "down and to the left in the top right corner");
+    const cramped = Model.placeMagnifier(50, 50, 40, 4, 200, 200);
+    eq(cramped.w, 320, "too big for anywhere still keeps its size");
+});
+
+test("a magnifier keeps whole pixels, and a new zoom keeps its lens", () => {
+    const m = Model.magnifyFromDrag(100.4, 100.2, 141, 120.6, 3);
+    eq([m.sx, m.sy], [121, 110], "the middle on a pixel");
+    eq(m.w % 6, 0, "the lens a whole number of source pixels across");
+    const lens = { kind: "magnify", x: 0, y: 0, w: 80, h: 80, sx: 50, sy: 50, zoom: 2, width: 3 };
+    eq(Model.resizeAnnotation(lens, "br", 83, 83).w % 4, 0, "resized in steps of whole source pixels");
+    const z = Model.magnifyRezoom(lens, 4);
+    eq(z.zoom, 4); eq(z.w, 80); eq([z.x, z.y], [0, 0]);
+    eq(Model.magnifySource({ x: z.x, y: z.y, w: z.w, h: z.h, sx: 50, sy: 50, zoom: 4 }).r, 10,
+       "showing less at more zoom");
+});
+
+test("a crop keeps a magnifier by the area it shows, not its lens", () => {
+    const m = { kind: "magnify", x: 500, y: 500, w: 80, h: 80, sx: 20, sy: 20, zoom: 2 };
+    ok(Model.overlapsRect(m, 0, 0, 100, 100), "its area is kept though the lens is cut away");
+    ok(!Model.overlapsRect({ kind: "magnify", x: 0, y: 0, w: 80, h: 80, sx: 500, sy: 500, zoom: 2 },
+                           0, 0, 100, 100), "and dropped when its area is cut away");
+});
+
+test("the line joins the lens and what it shows, edge to edge", () => {
+    const l = Model.magnifyLink(0, 0, 10, 30, 0, 5);
+    eq(l, { x1: 10, y1: 0, x2: 25, y2: 0 });
+    eq(Model.magnifyLink(0, 0, 10, 12, 0, 5), null, "no line when they touch");
+});
+
+test("a magnifier is resized from its corners and stays round", () => {
+    const mag = { kind: "magnify", x: 0, y: 0, w: 80, h: 80, sx: 200, sy: 200, zoom: 2, width: 3 };
+    eq(Model.resizeHandles(mag).length, 4, "corners only");
+    const big = Model.resizeAnnotation(mag, "br", 150, 100);
+    eq(big.w, big.h, "square, so the lens stays a circle");
+    ok(Model.hitAnnotation(mag, 40, 40, 4), "inside the lens");
+    ok(!Model.hitAnnotation(mag, 2, 2, 1), "not the corner of its box");
+});
+
+test("a style is the look of the card, not the marks or the tools", () => {
+    const doc = Object.assign({}, Model.DEFAULT_STYLE, {
+        padding: 8, bgSolid: "#ABCDEF", inkColor: "#ff0000", tool: "arrow", frameTitle: "x"
+    });
+    const s = Model.styleOf(doc);
+    eq(s.padding, 8);
+    eq(s.bgSolid, "#abcdef", "a color comes out as its hex");
+    ok(!("inkColor" in s) && !("tool" in s) && !("frameTitle" in s), "tools and content stay out");
+    eq(Object.keys(s).sort(), Model.STYLE_KEYS.slice().sort());
+    ok(Model.sameStyle(Model.DEFAULT_STYLE, Object.assign({}, Model.DEFAULT_STYLE, { inkColor: "#000000" })),
+       "a change of ink is not a change of style");
+    ok(!Model.sameStyle(Model.DEFAULT_STYLE, Object.assign({}, Model.DEFAULT_STYLE, { radius: 4 })));
+});
+
+test("a preset read back off disk keeps only what makes sense", () => {
+    const s = Model.cleanStyle({ padding: 12, radius: "big", bgSolid: "nope", bgMode: "solid",
+                                 bgCustomStops: ["#111111"], format: "jpg", surprise: 1 });
+    eq(s.padding, 12);
+    eq(s.radius, Model.DEFAULT_STYLE.radius, "a number that is not a number is ignored");
+    eq(s.bgSolid, Model.DEFAULT_STYLE.bgSolid);
+    eq(s.bgMode, "solid");
+    eq(s.bgCustomStops, Model.CUSTOM_STOPS, "one stop is not a gradient");
+    ok(!("surprise" in s));
+    eq(Model.cleanStyle({}).shadow, Model.DEFAULT_STYLE.shadow, "a setting it predates gets the default");
+    eq(Model.cleanPreset({ name: "   " }), null, "a preset needs a name");
+    eq(Model.cleanPreset({ id: "default", name: "Mine" }), null, "and cannot take the built-in's place");
+    eq(Model.cleanPreset({ name: "  Social   post " }).name, "Social post");
+});
+
+test("presets keep their order, and are found by id or by name", () => {
+    let list = Model.savePreset([], { id: "a", name: "Docs", style: { padding: 2 } });
+    list = Model.savePreset(list, { id: "b", name: "Social", style: { padding: 9 } });
+    list = Model.savePreset(list, { id: "a", name: "Docs", style: { padding: 3 } });
+    eq(list.map(p => p.id), ["a", "b"], "an edit stays where it is");
+    eq(list[0].style.padding, 3);
+    eq(Model.findPreset(list, "social").id, "b", "by name, any case");
+    const spaced = Model.savePreset([], { id: "s", name: "Social Post" });
+    for (const typed of ["social-post", "Social_Post", "social\\u0020post", "SOCIAL--POST"])
+        eq(Model.findPreset(spaced, typed) && Model.findPreset(spaced, typed).id, "s", typed);
+    eq(Model.findPreset(list, "a").name, "Docs", "by id");
+    eq(Model.findPreset(list, "Default").id, Model.DEFAULT_PRESET);
+    eq(Model.findPreset(list, "nope"), null);
+    eq(Model.forgetPreset(list, "a").map(p => p.id), ["b"]);
 });
 
 console.log(passed + " passed, " + failed + " failed");

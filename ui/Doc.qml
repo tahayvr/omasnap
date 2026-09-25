@@ -36,6 +36,26 @@ QtObject {
     property string bgGradient: "dusk"
     property string desktopBg: ""          // the wallpaper, bin/postcard-wallpaper
     property int bgAngle: 135
+    // The "custom" gradient on show, held by value so it stays on the card
+    // even if the saved gradient it came from is deleted; bgCustomId names
+    // that saved gradient, so edits reach it too.
+    property var bgCustomStops: Model.CUSTOM_STOPS
+    property int bgCustomAngle: Model.CUSTOM_ANGLE
+    property string bgCustomId: ""
+    // The user's own, kept on disk by the overlay rather than reset with the
+    // rest of the styling: solid colors and gradients, newest first.
+    property var customColors: []
+    property var userGradients: []
+
+    // Saved looks, kept on disk by the overlay like the colors; the one in
+    // use is remembered too, so it is still in use after a restart.
+    property var presets: []
+    property string activePreset: Model.DEFAULT_PRESET
+    readonly property var activePresetEntry: Model.findPreset(presets, activePreset)
+                                             || Model.findPreset([], Model.DEFAULT_PRESET)
+    // Whether the card has been changed since the preset was put on it.
+    // styleOf reads every setting, so this follows each of them.
+    readonly property bool presetModified: !Model.sameStyle(Model.styleOf(doc), activePresetEntry.style)
     property var autoPalette: []            // backdrop colors, bin/postcard-palette
     property var shotPalette: []            // the same colors as they appear in the shot
     property string shotEdge: ""            // the shot's edge color, bin/postcard-edge
@@ -58,6 +78,7 @@ QtObject {
     property color inkColor: "#ff5f56"
     property real inkWidth: 4
     property string arrowStyle: "straight"
+    property int magnifyZoom: Model.MAGNIFY_ZOOM
     property int stepCounter: 0
     property string selectedId: ""
 
@@ -139,13 +160,26 @@ QtObject {
         if (a && a.kind === "arrow") updateAnnotation(a.uid, { style: key });
     }
 
-    // A crop moves the picture out from under everything drawn on it.
+    // Like the arrow style, the zoom is for the next magnifier and the one
+    // in hand.
+    function setMagnifyZoom(z) {
+        magnifyZoom = Model.magnifyZoom(z);
+        var a = selectedAnnotation();
+        if (a && a.kind === "magnify") updateAnnotation(a.uid, Model.magnifyRezoom(a, magnifyZoom));
+    }
+
+    // A crop moves the picture out from under everything drawn on it, a
+    // magnifier's area as well as its lens.
     function shiftAnnotations(dx, dy) {
         if (dx === 0 && dy === 0) return;
         for (var i = 0; i < annotations.count; i++) {
             var a = annotations.get(i);
             annotations.setProperty(i, "x", a.x + dx);
             annotations.setProperty(i, "y", a.y + dy);
+            if (a.kind === "magnify") {
+                annotations.setProperty(i, "sx", a.sx + dx);
+                annotations.setProperty(i, "sy", a.sy + dy);
+            }
         }
         annotationsEdited();
     }
@@ -257,13 +291,53 @@ QtObject {
     // Every styling setting back to its default; content and title stay.
     function reset() {
         clearAnnotations();
-        padding = 5; inset = 0; ratio = "auto"; balance = false;
-        radius = 3; shadow = 45;
-        frame = "none"; tool = "select";
-        bgMode = "auto"; bgSolid = "#1e222a"; bgGradient = "dusk";
+        applyStyle(Model.DEFAULT_STYLE);
+        activePreset = Model.DEFAULT_PRESET;
+        tool = "select";
         spotShape = "rect"; spotDim = 55;
         inkColor = "#ff5f56"; inkWidth = 4; arrowStyle = "straight";
-        exportScale = 1; format = "png"; quality = 92;
-        codeTheme = "omarchy"; codeFont = 16; codeNumbers = false;
+        magnifyZoom = Model.MAGNIFY_ZOOM;
+    }
+
+    function applyStyle(style) {
+        var s = Model.cleanStyle(style);
+        for (var i = 0; i < Model.STYLE_KEYS.length; i++)
+            doc[Model.STYLE_KEYS[i]] = s[Model.STYLE_KEYS[i]];
+        // Held by value in the preset, so no saved gradient is being edited.
+        bgCustomId = "";
+    }
+
+    function applyPreset(key) {
+        var p = Model.findPreset(presets, key);
+        if (!p) return false;
+        applyStyle(p.style);
+        activePreset = p.id;
+        return true;
+    }
+
+    // Saving under a name that is taken updates that preset rather than
+    // making a second one with the same name.
+    function savePresetAs(name) {
+        var clean = Model.cleanPresetName(name);
+        if (!clean || clean.toLowerCase() === Model.DEFAULT_PRESET) return "";
+        var same = Model.findPreset(presets, clean);
+        var p = { id: same ? same.id : Model.newGradientId(), name: clean, style: Model.styleOf(doc) };
+        presets = Model.savePreset(presets, p);
+        activePreset = p.id;
+        return p.id;
+    }
+
+    function updatePreset() {
+        if (activePreset === Model.DEFAULT_PRESET) return false;
+        var p = Model.findPreset(presets, activePreset);
+        if (!p) return false;
+        presets = Model.savePreset(presets, { id: p.id, name: p.name, style: Model.styleOf(doc) });
+        return true;
+    }
+
+    // The card keeps its look; it is simply no longer that preset.
+    function deletePreset(id) {
+        presets = Model.forgetPreset(presets, id);
+        if (activePreset === id) activePreset = Model.DEFAULT_PRESET;
     }
 }

@@ -11,6 +11,157 @@ Flickable {
     property var systemThemes: []
 
     signal copyTextRequested()
+    signal eyedropRequested(var done)
+
+    // What the color picker is editing: "solid", "stop0" to "stop3" for the
+    // custom gradient, or "" when it is closed.
+    property string pickerTarget: ""
+
+    // The swatch grids are as wide as the buttons above them: a fixed count of
+    // columns with each cell sized to fill the row. Fixed cells stopped a few
+    // pixels short of the edge, by a different amount in every grid.
+    readonly property real swatchCell: (col.width - Ui.gap * 8) / 9
+    readonly property real tileCell: (col.width - Ui.gap * 4) / 5
+    // The first choice made after the picker opens is a new recent color;
+    // those after it replace that one, so one visit leaves one color.
+    property bool pickerFresh: true
+
+    function openPicker(target) {
+        insp.pickerTarget = insp.pickerTarget === target ? "" : target;
+        insp.pickerFresh = true;
+    }
+
+    function pickedValue(target) {
+        if (target === "solid") return String(doc.bgSolid);
+        var i = parseInt(target.slice(4));
+        return target.indexOf("stop") === 0 && i < doc.bgCustomStops.length ? doc.bgCustomStops[i] : "";
+    }
+
+    function applyPicked(target, hex) {
+        if (target === "solid") {
+            doc.bgSolid = hex;
+        } else if (target.indexOf("stop") === 0) {
+            var i = parseInt(target.slice(4));
+            if (i >= doc.bgCustomStops.length) return;
+            var stops = doc.bgCustomStops.slice();
+            stops[i] = hex;
+            doc.bgCustomStops = stops;
+            insp.keepGradient();
+        }
+    }
+
+    // A gradient is saved whole, so its colors are not also kept one by one.
+    function commitPicked(target, hex) {
+        insp.applyPicked(target, hex);
+        if (target !== "solid") return;
+        doc.customColors = Model.rememberColor(doc.customColors, hex, !insp.pickerFresh);
+        insp.pickerFresh = false;
+    }
+
+    // Writes the gradient on show back to the saved one it came from.
+    function keepGradient() {
+        if (doc.bgCustomId === "") return;
+        doc.userGradients = Model.saveGradient(doc.userGradients,
+            { id: doc.bgCustomId, stops: doc.bgCustomStops, angle: doc.bgCustomAngle });
+    }
+
+    // Naming a new preset opens a field under the picker rather than a
+    // dialog, like everything else in the inspector.
+    property bool naming: false
+
+    function startNaming() {
+        insp.naming = !insp.naming;
+        if (!insp.naming) return;
+        presetName.text = "";
+        Qt.callLater(presetName.focusInput);
+    }
+
+    function commitName() {
+        if (!insp.naming) return;
+        if (doc.savePresetAs(presetName.text) !== "") insp.naming = false;
+    }
+
+    // Deleting takes a second click while the button says so.
+    property bool deleteArmed: false
+    Timer {
+        id: disarm
+        interval: 3000
+        onTriggered: insp.deleteArmed = false
+    }
+
+    function deletePreset() {
+        if (!insp.deleteArmed) {
+            insp.deleteArmed = true;
+            disarm.restart();
+            return;
+        }
+        insp.deleteArmed = false;
+        disarm.stop();
+        doc.deletePreset(doc.activePreset);
+    }
+
+    function setAngle(v) {
+        doc.bgCustomAngle = Math.round(v);
+        insp.keepGradient();
+    }
+
+    function showGradient(g) {
+        doc.bgCustomStops = g.stops.slice();
+        doc.bgCustomAngle = g.angle;
+        doc.bgCustomId = g.id;
+        doc.bgGradient = "custom";
+    }
+
+    // Starts from the gradient on show, which is usually the one about to be
+    // adjusted, and opens it for editing.
+    function newGradient() {
+        var seed = Model.gradientSeed(doc.bgGradient, doc.bgCustomStops, doc.bgCustomAngle);
+        var g = Model.cleanGradient({ id: Model.newGradientId(), stops: seed.stops, angle: seed.angle });
+        doc.userGradients = Model.saveGradient(doc.userGradients, g);
+        insp.showGradient(g);
+    }
+
+    // The card keeps it, as it keeps a deleted solid color; it just stops
+    // being saved anywhere.
+    function forgetGradient(id) {
+        doc.userGradients = Model.forgetGradient(doc.userGradients, id);
+        if (doc.bgCustomId === id) doc.bgCustomId = "";
+    }
+
+    // Forgetting one that was just picked would otherwise let the next pick
+    // in the same visit replace the color after it instead.
+    function forgetColor(hex) {
+        doc.customColors = Model.forgetColor(doc.customColors, hex);
+        insp.pickerFresh = true;
+    }
+
+    function addStop() {
+        var stops = doc.bgCustomStops.slice();
+        if (stops.length >= Model.CUSTOM_MAX_STOPS) return;
+        stops.push(stops[stops.length - 1]);
+        doc.bgCustomStops = stops;
+        insp.keepGradient();
+        insp.pickerTarget = "stop" + (stops.length - 1);
+        insp.pickerFresh = true;
+    }
+
+    // The stop being edited if there is one, otherwise the last.
+    function removeStop() {
+        var stops = doc.bgCustomStops.slice();
+        if (stops.length <= Model.CUSTOM_MIN_STOPS) return;
+        var i = insp.pickerTarget.indexOf("stop") === 0 ? parseInt(insp.pickerTarget.slice(4)) : stops.length - 1;
+        stops.splice(i, 1);
+        doc.bgCustomStops = stops;
+        insp.keepGradient();
+        insp.pickerTarget = "";
+    }
+
+    Connections {
+        target: insp.doc
+        function onBgModeChanged() { insp.pickerTarget = ""; }
+        function onBgGradientChanged() { if (insp.pickerTarget !== "solid") insp.pickerTarget = ""; }
+        function onBgCustomIdChanged() { if (insp.pickerTarget !== "solid") insp.pickerTarget = ""; }
+    }
 
     contentWidth: width
     contentHeight: col.implicitHeight + Ui.pad * 2
@@ -37,6 +188,97 @@ Flickable {
         y: Ui.pad
         width: insp.width - Ui.pad * 2
         spacing: Ui.section
+
+        Section {
+            title: "Preset"
+
+            Row {
+                width: parent.width
+                spacing: Ui.gap
+
+                Dropdown {
+                    width: parent.width - (Ui.control + Ui.gap) * (presetDelete.visible ? 2 : 1)
+                    current: doc.activePreset
+                    options: [{ key: Model.DEFAULT_PRESET, label: "Default" }].concat(
+                        doc.presets.map(function (p) { return { key: p.id, label: p.name }; }))
+                    onPicked: function (k) {
+                        insp.naming = false;
+                        doc.applyPreset(k);
+                    }
+                }
+                IconButton {
+                    glyph: "+"
+                    tip: "Save this look as a new preset"
+                    active: insp.naming
+                    implicitWidth: Ui.control
+                    implicitHeight: Ui.control
+                    onClicked: insp.startNaming()
+                }
+                IconButton {
+                    id: presetDelete
+                    glyph: "\uf1f8"
+                    tip: insp.deleteArmed ? "Click again to delete this preset" : "Delete this preset"
+                    visible: doc.activePreset !== Model.DEFAULT_PRESET
+                    primary: insp.deleteArmed
+                    implicitWidth: Ui.control
+                    implicitHeight: Ui.control
+                    onClicked: insp.deletePreset()
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Ui.gap
+                visible: insp.naming
+
+                TextBox {
+                    id: presetName
+                    width: parent.width - presetSave.width - Ui.gap
+                    placeholder: "Preset name"
+                    onCancelled: insp.naming = false
+                    onDone: insp.commitName()
+                }
+                IconButton {
+                    id: presetSave
+                    label: "Save"
+                    primary: presetName.text.trim() !== ""
+                    enabled: presetName.text.trim() !== ""
+                    implicitHeight: Ui.control
+                    onClicked: insp.commitName()
+                }
+            }
+
+            // Said plainly, since picking another preset would lose it.
+            Item {
+                width: parent.width
+                height: Ui.control
+                visible: doc.presetModified && !insp.naming
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.right: presetUpdate.visible ? presetUpdate.left : parent.right
+                    anchors.rightMargin: Ui.gap
+                    anchors.verticalCenter: parent.verticalCenter
+                    elide: Text.ElideRight
+                    text: doc.activePreset === Model.DEFAULT_PRESET
+                          ? "Changed. + saves it as a preset."
+                          : "Changed since " + doc.activePresetEntry.name
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+                IconButton {
+                    id: presetUpdate
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: doc.activePreset !== Model.DEFAULT_PRESET
+                    label: "Update"
+                    tip: "Save these changes to " + doc.activePresetEntry.name
+                    implicitHeight: Ui.control
+                    onClicked: doc.updatePreset()
+                }
+            }
+        }
 
         Section {
             title: "Code"
@@ -104,15 +346,18 @@ Flickable {
                 font.pixelSize: Style.font.caption
             }
 
-            Flow {
+            Grid {
                 width: parent.width
                 spacing: Ui.gap
+                columns: 9
                 visible: doc.kind === "shot" && doc.bgMode === "auto" && doc.autoPalette.length > 0
                 Repeater {
                     model: doc.autoPalette
                     Swatch {
                         required property var modelData
                         required property int index
+                        width: insp.swatchCell
+                        height: insp.swatchCell
                         swatchColor: modelData
                         active: index === 0
                         onPicked: {
@@ -124,16 +369,17 @@ Flickable {
                 }
             }
 
-            Flow {
+            Grid {
                 width: parent.width
                 spacing: Ui.gap
+                columns: 5
                 visible: doc.bgMode === "gradient"
                 Repeater {
                     model: Model.GRADIENTS
                     Rectangle {
                         id: swatch
                         required property var modelData
-                        width: Ui.tile
+                        width: insp.tileCell
                         height: Ui.swatch
                         border.width: doc.bgGradient === modelData.key ? 2 : (ma.containsMouse ? 1 : 0)
                         border.color: doc.bgGradient === modelData.key ? Color.foreground : Ui.textMuted
@@ -172,19 +418,176 @@ Flickable {
                 }
             }
 
-            Flow {
+            // Kept apart from the presets, which cannot be removed.
+            Column {
                 width: parent.width
                 spacing: Ui.gap
+                visible: doc.bgMode === "gradient"
+
+                Text {
+                    text: "Your gradients"
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                Grid {
+                    width: parent.width
+                    spacing: Ui.gap
+                    columns: 5
+                    Repeater {
+                        model: doc.userGradients
+                        UserSwatch {
+                            required property var modelData
+                            width: insp.tileCell
+                            height: Ui.swatch
+                            stops: modelData.stops
+                            active: doc.bgGradient === "custom" && doc.bgCustomId === modelData.id
+                            onPicked: insp.showGradient(modelData)
+                            onRemoved: insp.forgetGradient(modelData.id)
+                        }
+                    }
+                    IconButton {
+                        glyph: "+"
+                        tip: "Save a gradient of your own, starting from this one"
+                        implicitHeight: Ui.swatch
+                        implicitWidth: insp.tileCell
+                        onClicked: insp.newGradient()
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: Ui.row
+                visible: doc.bgMode === "gradient" && doc.bgGradient === "custom"
+
+                // Its own caption, or its + reads as a second "new gradient".
+                Text {
+                    text: "Colors"
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                Grid {
+                    width: parent.width
+                    spacing: Ui.gap
+                    columns: 9
+                    Repeater {
+                        model: doc.bgCustomStops
+                        Swatch {
+                            required property var modelData
+                            required property int index
+                            width: insp.swatchCell
+                            height: insp.swatchCell
+                            swatchColor: modelData
+                            active: insp.pickerTarget === "stop" + index
+                            onPicked: insp.openPicker("stop" + index)
+                        }
+                    }
+                    IconButton {
+                        glyph: "+"
+                        tip: "Add a color"
+                        visible: doc.bgCustomStops.length < Model.CUSTOM_MAX_STOPS
+                        implicitHeight: insp.swatchCell
+                        implicitWidth: insp.swatchCell
+                        onClicked: insp.addStop()
+                    }
+                    IconButton {
+                        glyph: "\u2212"
+                        tip: insp.pickerTarget.indexOf("stop") === 0 ? "Remove this color" : "Remove the last color"
+                        visible: doc.bgCustomStops.length > Model.CUSTOM_MIN_STOPS
+                        implicitHeight: insp.swatchCell
+                        implicitWidth: insp.swatchCell
+                        onClicked: insp.removeStop()
+                    }
+                }
+
+                LabeledSlider {
+                    label: "Angle"
+                    value: doc.bgCustomAngle
+                    from: 0; to: 359
+                    suffix: "\u00b0"
+                    onMoved: function (v) { insp.setAngle(v); }
+                }
+            }
+
+            Grid {
+                width: parent.width
+                spacing: Ui.gap
+                columns: 9
                 visible: doc.bgMode === "solid"
                 Repeater {
                     model: ["#0d0d12", "#1e222a", "#2d333f", "#f2f2f2", "#e8e2d5",
                             "#1b3a4b", "#3c1f4a", "#4a2b1f", "#20402c"]
                     Swatch {
                         required property var modelData
+                        width: insp.swatchCell
+                        height: insp.swatchCell
                         swatchColor: modelData
                         active: Qt.colorEqual(doc.bgSolid, modelData)
                         onPicked: doc.bgSolid = modelData
                     }
+                }
+            }
+
+            // Kept apart from the presets, which cannot be removed.
+            Column {
+                width: parent.width
+                spacing: Ui.gap
+                visible: doc.bgMode === "solid"
+
+                Text {
+                    text: "Your colors"
+                    color: Ui.textMuted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                Grid {
+                    width: parent.width
+                    spacing: Ui.gap
+                    columns: 9
+                    Repeater {
+                        model: doc.customColors
+                        UserSwatch {
+                            required property var modelData
+                            width: insp.swatchCell
+                            height: insp.swatchCell
+                            swatchColor: modelData
+                            active: Qt.colorEqual(doc.bgSolid, modelData)
+                            onPicked: doc.bgSolid = modelData
+                            onRemoved: insp.forgetColor(modelData)
+                        }
+                    }
+                    IconButton {
+                        glyph: "+"
+                        tip: "Pick your own color"
+                        active: insp.pickerTarget === "solid"
+                        implicitHeight: insp.swatchCell
+                        implicitWidth: insp.swatchCell
+                        onClicked: insp.openPicker("solid")
+                    }
+                }
+            }
+
+            ColorPicker {
+                visible: insp.pickerTarget !== ""
+                value: insp.pickedValue(insp.pickerTarget)
+                // The solid row already shows them all.
+                recent: insp.pickerTarget === "solid" ? [] : doc.customColors
+                onForgotten: function (hex) { insp.forgetColor(hex); }
+                onEdited: function (hex) { insp.applyPicked(insp.pickerTarget, hex); }
+                onCommitted: function (hex) { insp.commitPicked(insp.pickerTarget, hex); }
+                onEyedropRequested: {
+                    // Held, so the pick lands where it was asked for even if
+                    // the picker moved on while the screen was up.
+                    var target = insp.pickerTarget;
+                    insp.eyedropRequested(function (hex) {
+                        insp.pickerFresh = true;
+                        insp.commitPicked(target, hex);
+                    });
                 }
             }
         }

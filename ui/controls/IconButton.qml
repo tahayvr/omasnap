@@ -9,6 +9,7 @@ Rectangle {
     property bool flat: false
     property bool primary: false
     property string tip: ""
+    property color rest: flat ? "transparent" : Ui.fill
     signal clicked()
 
     implicitWidth: label !== "" ? row.implicitWidth + Ui.padX * 2 : Ui.button
@@ -16,8 +17,7 @@ Rectangle {
     color: primary ? (ma.containsMouse ? Qt.lighter(Color.accent, 1.12) : Color.accent)
          : active ? Ui.fillActive
          : ma.containsMouse ? Ui.fillHover
-         : flat ? "transparent"
-         : Ui.fill
+         : rest
     border.width: active ? 1 : 0
     border.color: Ui.borderActive
     Behavior on color { ColorAnimation { duration: 90 } }

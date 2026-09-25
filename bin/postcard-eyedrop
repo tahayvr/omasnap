@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# postcard-eyedrop
+# Print the color clicked on screen as #rrggbb. Prints nothing if the user
+# cancelled.
+set -uo pipefail
+exec </dev/null
+
+# No -q: hyprpicker prints the picked color as a log line, and quiet mode
+# drops it along with the rest, so a pick came back empty. The grep keeps
+# just the color out of whatever else it says.
+hyprpicker -f hex -l -b -r 2>/dev/null | grep -E '^#[0-9a-f]{6}$' | tail -n1
+exit 0

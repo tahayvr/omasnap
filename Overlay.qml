@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import "ui"
+import "ui/controls"
 import "lib/Redact.js" as Redact
 import "lib/Model.js" as Model
 import "lib/Code.js" as Code
@@ -18,6 +19,7 @@ Item {
     property bool opened: false
     property bool capturing: false
     property bool picking: false        // the system file dialog is up
+    property bool eyedropping: false    // hyprpicker is up
 
     readonly property string pluginId: manifest && manifest.id ? manifest.id : "tahayvr.postcard"
     readonly property string pluginDir: decodeURIComponent(
@@ -100,6 +102,7 @@ Item {
     }
 
     function open(payloadJson) {
+        if (capturing || captureProc.running) return "busy";
         var payload = {};
         try { payload = payloadJson ? JSON.parse(payloadJson) : {}; } catch (e) { payload = {}; }
         if (!payload || typeof payload !== "object") payload = {};
@@ -113,7 +116,14 @@ Item {
         } else if (payload.code) {
             code();
         } else if (payload.capture) {
-            capture(String(payload.capture));
+            var result = capture(String(payload.capture), payload.delay);
+            if (result !== "ok") {
+                // Otherwise the last picture comes up with no word of why
+                // the capture never happened.
+                if (!doc.hasContent) { dismiss(); return result; }
+                editor.statusText = result === "bad delay"
+                        ? "Delay must be 0 to 60 whole seconds" : "Busy, capture not started";
+            }
         } else {
             // A plain open always starts clean: the empty state offers
             // region, code and file, and nothing from last time lingers.
@@ -126,6 +136,12 @@ Item {
     // Shell calls this on hide; dismiss() calls it too, so it must be idempotent.
     function close() {
         opened = false;
+        hideTimer.stop();
+        countdown.stop();
+        CaptureDelay.remaining = 0;
+        eyedropTimer.stop();
+        if (!eyedropProc.running) eyedropping = false;
+        if (!captureProc.running) capturing = false;
         doc.selectedId = "";
     }
 
@@ -134,7 +150,7 @@ Item {
         if (shell && typeof shell.hide === "function") shell.hide(pluginId);
     }
 
-    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText
+    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText, preset
     // (see README, Scripting).
     function edit(path) {
         if (!path) return "no path";
@@ -146,7 +162,7 @@ Item {
     }
 
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
-    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "padding", "inset", "balance", "ratio",
+    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "bgCustomStops", "bgCustomAngle", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
         "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "spotShape", "spotDim",
         "codeLang", "codeTheme", "codeFont", "codeNumbers"]
@@ -159,7 +175,7 @@ Item {
     }
 
     // annotate <json>: add annotations in screenshot pixels: one object
-    // {kind, x, y, w, h, color, width, text, index, strength}, or several as
+    // {kind, x, y, w, h, color, width, text, index, strength, zoom}, or several as
     // {"items": [...]} (the IPC CLI splits a bare top-level array on commas).
     function annotate(json) {
         var list;
@@ -187,6 +203,17 @@ Item {
                     a.x -= size / 2; a.y -= size / 2; a.w = size; a.h = size;
                 }
             }
+            // As when drawn: the box is the area to magnify, and the lens is
+            // set beside it.
+            if (a.kind === "magnify") {
+                var m = Model.magnifyFromDrag(a.x, a.y, a.x + a.w, a.y + a.h, Number(o.zoom));
+                var lens = Model.placeMagnifier(m.sx, m.sy, m.w / 2 / Model.magnifyZoom(Number(o.zoom)),
+                                                Number(o.zoom), doc.shotWidth, doc.shotHeight);
+                if (m.w < 2 * Model.MIN_MAGNIFY) continue;
+                a.zoom = Model.magnifyZoom(Number(o.zoom));
+                a.sx = m.sx; a.sy = m.sy;
+                a.x = lens.x; a.y = lens.y; a.w = lens.w; a.h = lens.h;
+            }
             doc.annotations.append(a);
             added++;
         }
@@ -201,6 +228,7 @@ Item {
             kind: doc.kind, opened: opened, capturing: capturing, picking: picking, busy: editor.busy, hasContent: doc.hasContent,
             shotPath: doc.shotPath, shotWidth: doc.shotWidth, shotHeight: doc.shotHeight,
             outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
+            preset: doc.activePresetEntry.name, presetModified: doc.presetModified,
             bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, inset: doc.inset,
             frame: doc.frame, shotEdge: doc.shotEdge,
             cropped: doc.cropped, cropRect: [doc.cropRect.x, doc.cropRect.y,
@@ -390,15 +418,153 @@ Item {
         }
     }
 
-    function capture(mode) {
-        if (captureProc.running) return "busy";
-        var m = String(mode || "region");
-        if (["region", "windows", "fullscreen", "smart"].indexOf(m) === -1) m = "region";
+    function capture(mode, delay) {
+        if (capturing || captureProc.running || picking || eyedropping || editor.busy) return "busy";
+        var request = Model.captureRequest(mode, delay);
+        if (request.error) return request.error;
         opened = true;
         capturing = true;
-        captureProc.mode = m;
-        hideTimer.restart();
+        captureProc.mode = request.mode;
+        CaptureDelay.remaining = request.seconds;
+        if (request.seconds > 0) countdown.restart();
+        else hideTimer.restart();
         return "ok";
+    }
+
+    // The overlay steps aside like it does for a capture, so the pick is from
+    // what is behind it rather than from the editor itself.
+    property var eyedropDone: null
+    function eyedrop(done) {
+        if (eyedropping || eyedropProc.running) return "busy";
+        eyedropDone = done;
+        eyedropping = true;
+        eyedropTimer.restart();
+        return "ok";
+    }
+
+    Timer {
+        id: eyedropTimer
+        interval: 140      // let the layer surface actually leave the screen
+        onTriggered: eyedropProc.running = true
+    }
+
+    Process {
+        id: eyedropProc
+        command: ["bash", root.pluginDir + "bin/postcard-eyedrop"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var hex = Model.normaliseHex(text.trim());
+                var done = root.eyedropDone;
+                root.eyedropDone = null;
+                root.eyedropping = false;
+                if (hex && done) done(hex);
+                root.focusEditor();
+            }
+        }
+    }
+
+    // The user's own colors and gradients outlive the shell, unlike the rest
+    // of the styling: written here and read back on load. Never under the
+    // plugin directory, where any write reloads it.
+    readonly property string colorsFile: {
+        var d = Quickshell.env("XDG_CONFIG_HOME");
+        return (d && d.length ? d : Quickshell.env("HOME") + "/.config") + "/postcard/colors.json";
+    }
+    // Nothing is written until the file has been read, or the defaults would
+    // overwrite what was saved last time.
+    property bool colorsReady: false
+
+    function readColors(json) {
+        var o;
+        try { o = JSON.parse(json); } catch (e) { return; }
+        if (!o || typeof o !== "object") return;
+        if (Array.isArray(o.customColors)) {
+            var kept = [];
+            for (var i = o.customColors.length - 1; i >= 0; i--)
+                kept = Model.rememberColor(kept, o.customColors[i]);
+            doc.customColors = kept;
+        }
+        if (Array.isArray(o.gradients)) {
+            var saved = [];
+            for (var j = o.gradients.length - 1; j >= 0; j--)
+                saved = Model.saveGradient(saved, o.gradients[j]);
+            doc.userGradients = saved;
+        }
+    }
+
+    FileView {
+        id: colorsView
+        path: root.colorsFile
+        printErrors: false
+        onLoaded: {
+            root.readColors(colorsView.text());
+            root.colorsReady = true;
+        }
+        onLoadFailed: root.colorsReady = true
+    }
+
+    Timer {
+        id: colorsSave
+        interval: 500
+        onTriggered: colorsView.setText(JSON.stringify({
+            customColors: doc.customColors,
+            gradients: doc.userGradients
+        }, null, 2) + "\n")
+    }
+
+    Connections {
+        target: doc
+        function onCustomColorsChanged() { if (root.colorsReady) colorsSave.restart(); }
+        function onUserGradientsChanged() { if (root.colorsReady) colorsSave.restart(); }
+    }
+
+    // Presets have a file of their own beside the colors, read and written
+    // the same way. The one in use is saved with them and put back on load,
+    // so a preset picked once is the look every capture starts from.
+    readonly property string presetsFile: root.colorsFile.replace(/colors\.json$/, "presets.json")
+    property bool presetsReady: false
+
+    function readPresets(json) {
+        var o;
+        try { o = JSON.parse(json); } catch (e) { return; }
+        if (!o || typeof o !== "object" || !Array.isArray(o.presets)) return;
+        var list = [];
+        for (var i = 0; i < o.presets.length; i++) list = Model.savePreset(list, o.presets[i]);
+        doc.presets = list;
+        if (o.active && o.active !== Model.DEFAULT_PRESET) doc.applyPreset(String(o.active));
+    }
+
+    FileView {
+        id: presetsView
+        path: root.presetsFile
+        printErrors: false
+        onLoaded: {
+            root.readPresets(presetsView.text());
+            root.presetsReady = true;
+        }
+        onLoadFailed: root.presetsReady = true
+    }
+
+    Timer {
+        id: presetsSave
+        interval: 500
+        onTriggered: presetsView.setText(JSON.stringify({
+            active: doc.activePreset,
+            presets: doc.presets
+        }, null, 2) + "\n")
+    }
+
+    Connections {
+        target: doc
+        function onPresetsChanged() { if (root.presetsReady) presetsSave.restart(); }
+        function onActivePresetChanged() { if (root.presetsReady) presetsSave.restart(); }
+    }
+
+    // preset <name>: put a saved preset on the card, by name or id, or
+    // "default". The command line splits on spaces, so a name with one is
+    // typed with a dash or an underscore instead (Model.presetKey).
+    function preset(name) {
+        return doc.applyPreset(String(name || "")) ? "ok" : "unknown preset";
     }
 
     function redact() {
@@ -425,6 +591,20 @@ Item {
         ocrProc.purpose = "text";
         ocrProc.running = true;
         return "ok";
+    }
+
+    // Ticks in whole seconds so the bar can show the count; the unmap pause
+    // still follows the last tick, so the shot never has the count in it.
+    Timer {
+        id: countdown
+        interval: 1000
+        repeat: true
+        onTriggered: {
+            CaptureDelay.remaining -= 1;
+            if (CaptureDelay.remaining > 0) return;
+            stop();
+            hideTimer.restart();
+        }
     }
 
     Timer {
@@ -536,6 +716,21 @@ Item {
         }
     }
 
+    // grabToImage never calls back while the screen is locked or once the
+    // window unmaps mid-grab, and busy would then hold off every save, copy
+    // and capture until the shell restarts. A real render takes seconds.
+    property int exportGeneration: 0
+    Timer {
+        id: exportWatchdog
+        interval: 20000
+        onTriggered: {
+            root.exportGeneration++;
+            doc.exporting = false;
+            editor.busy = false;
+            editor.statusText = "Render timed out";
+        }
+    }
+
     function exportTo(path, andThen) {
         if (!doc.hasContent) return "no shot";
         if (editor.busy) return "busy";
@@ -548,11 +743,17 @@ Item {
         }
         editor.busy = true;
         doc.exporting = true;
+        var generation = ++root.exportGeneration;
+        exportWatchdog.restart();
 
         Qt.callLater(function () {
             var target = editor.exportTarget;
             var size = Qt.size(target.width * doc.exportScale, target.height * doc.exportScale);
             var ok = target.grabToImage(function (result) {
+                // Given up on already: writing now would surprise, and
+                // clearing busy could cut across a newer export.
+                if (generation !== root.exportGeneration) return;
+                exportWatchdog.stop();
                 var wrote = result.saveToFile(path);
                 doc.exporting = false;
                 editor.busy = false;
@@ -564,6 +765,7 @@ Item {
             }, size);
 
             if (!ok) {
+                exportWatchdog.stop();
                 doc.exporting = false;
                 editor.busy = false;
                 editor.statusText = "Render failed — try a smaller export scale";
@@ -758,7 +960,7 @@ Item {
         map[Qt.Key_R] = "box";     map[Qt.Key_O] = "ellipse";
         map[Qt.Key_T] = "text";    map[Qt.Key_S] = "step";
         map[Qt.Key_H] = "highlight"; map[Qt.Key_B] = "redact";
-        map[Qt.Key_L] = "spotlight";
+        map[Qt.Key_L] = "spotlight"; map[Qt.Key_M] = "magnify";
         if (doc.kind === "shot") map[Qt.Key_C] = "crop";
         if (map[event.key] !== undefined) {
             doc.tool = map[event.key];
@@ -770,7 +972,7 @@ Item {
 
     PanelWindow {
         id: window
-        visible: root.opened && !root.capturing && !root.picking
+        visible: root.opened && !root.capturing && !root.picking && !root.eyedropping
         color: "transparent"
 
         anchors { top: true; bottom: true; left: true; right: true }
@@ -808,7 +1010,8 @@ Item {
                 saveDir: root.shotDir
                 radius: 0
 
-                onCaptureRequested: function (mode) { root.capture(mode); }
+                onEyedropRequested: function (done) { root.eyedrop(done); }
+                onCaptureRequested: function (mode) { root.capture(mode, mode === "fullscreen" ? CaptureDelay.seconds : 0); }
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()

@@ -19,6 +19,7 @@ Item {
         { key: "highlight", glyph: "▤", name: "Highlight", hint: "H" },
         { key: "redact",    glyph: "░", name: "Hide",      hint: "B" },
         { key: "spotlight", glyph: "◎", name: "Spotlight", hint: "L" },
+        { key: "magnify",   glyph: "\uf00e", name: "Magnify", hint: "M" },
         { key: "crop",      glyph: "\uf125", name: "Crop",  hint: "C", shotOnly: true }
     ]
 

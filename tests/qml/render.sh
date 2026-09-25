@@ -9,7 +9,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="${XDG_RUNTIME_DIR:-/tmp}/postcard-tests"
 mkdir -p "$out"
 rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png" \
-      "$out/export-odd.png" "$out/export-spot.png" "$out/export-spot-oval.png"
+      "$out/export-odd.png" "$out/export-spot.png" "$out/export-spot-oval.png" "$out/export-magnify.png"
 
 # Synthetic screenshot: white left half, black right half, and a band of
 # 1px red/blue stripes through the middle that redaction has to destroy.
@@ -199,6 +199,35 @@ if [ $gpu = 1 ]; then
     fi
     sexpect "$f keeps the middle of the hole"    90 140   255 255 255
   done
+fi
+
+# ---- magnifier -------------------------------------------------------------
+# Two 2x lenses 40px across on the same 480x280 frame, shot pixel (sx,sy) at
+# (sx+40, sy+40). One shows shot (110..130, 90..110) of the stripes, which are
+# 2px each, so the lens draws them as 4px bands; the band from 70 to 73 is
+# red and the next is blue, and the two pixels either side of that edge must
+# be pure. A lens that smoothed its pixels would blend them. The other shows
+# the middle of a hidden block, so it must be one flat color.
+if [ $gpu = 1 ]; then
+  if [ -f "$out/export-magnify.png" ]; then
+    mpx() { magick "$out/export-magnify.png" -format "%[fx:int(255*p{$1,$2}.r+0.5)] %[fx:int(255*p{$1,$2}.g+0.5)] %[fx:int(255*p{$1,$2}.b+0.5)]" info:; }
+    read -r r1 g1 b1 <<<"$(mpx 73 211)"
+    read -r r2 g2 b2 <<<"$(mpx 74 211)"
+    if (( r1 > 200 && b1 < 60 && b2 > 200 && r2 < 60 )); then
+      echo "ok   a lens shows each shot pixel as a crisp block"
+    else
+      echo "FAIL a lens smeared the stripes: got $r1 $g1 $b1 then $r2 $g2 $b2"; fail=1
+    fi
+    read -r h1 _ k1 <<<"$(mpx 381 211)"
+    read -r h2 _ k2 <<<"$(mpx 383 211)"
+    if (( h1 - h2 < 12 && h2 - h1 < 12 && k1 - k2 < 12 && k2 - k1 < 12 )); then
+      echo "ok   a lens over a hidden area shows the blocks, not what is under them"
+    else
+      echo "FAIL a lens showed a hidden area: got $h1 $k1 then $h2 $k2"; fail=1
+    fi
+  else
+    echo "FAIL magnify export missing"; fail=1
+  fi
 fi
 
 # ---- multipoint gradient ---------------------------------------------------

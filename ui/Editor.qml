@@ -21,6 +21,7 @@ Rectangle {
     signal closeRequested()
     signal autoRedactRequested()
     signal copyTextRequested()
+    signal eyedropRequested(var done)
     signal cropRequested()
     signal uncropRequested()
 
@@ -42,12 +43,33 @@ Rectangle {
         if (draw.activeId === "") return;
         var i = doc.indexOfId(draw.activeId);
         if (i < 0) return;
+        if (doc.tool === "magnify") {
+            var m = Model.magnifyFromDrag(draw.ox, draw.oy, px, py, doc.magnifyZoom);
+            doc.updateAnnotation(draw.activeId, m);
+            return;
+        }
         doc.annotations.setProperty(i, "w", px - draw.ox);
         doc.annotations.setProperty(i, "h", py - draw.oy);
         // Every other tool draws itself from the delegate, which follows the
         // model on its own. The dim is one layer over the picture, so it only
         // redraws when the document says something changed.
         if (doc.tool === "spotlight") doc.annotationsEdited();
+    }
+
+    // Drawn over the area it shows, a magnifier is set beside it on release;
+    // one too small to show anything is a stray drag.
+    function finishMagnifier(uid) {
+        var i = doc.indexOfId(uid);
+        if (i < 0) return;
+        var a = doc.annotations.get(i);
+        var src = Model.magnifySource(a);
+        if (src.r < Model.MIN_MAGNIFY) {
+            doc.removeAnnotation(uid);
+            return;
+        }
+        doc.updateAnnotation(uid, Model.placeMagnifier(src.x, src.y, src.r, a.zoom,
+                                                       doc.shotWidth, doc.shotHeight));
+        doc.annotationsEdited();
     }
 
     readonly property Item exportTarget: grabRoot
@@ -275,6 +297,11 @@ Rectangle {
                         editor.statusText = "Type the label, then press Enter";
                         return;
                     }
+                    if (doc.tool === "magnify") {
+                        a.zoom = doc.magnifyZoom;
+                        a.sx = Math.round(p.x);
+                        a.sy = Math.round(p.y);
+                    }
                     a.strength = Math.max(6, Math.round(doc.geo.shotW / 90));
                     doc.addAnnotation(a);
                     activeId = a.uid;
@@ -292,6 +319,11 @@ Rectangle {
                     }
                     if (activeId === "") return;
                     var i = doc.indexOfId(activeId);
+                    if (i >= 0 && doc.annotations.get(i).kind === "magnify") {
+                        editor.finishMagnifier(activeId);
+                        activeId = "";
+                        return;
+                    }
                     if (i >= 0) {
                         var a = doc.annotations.get(i);
                         if (Math.abs(a.w) < 4 && Math.abs(a.h) < 4)
@@ -350,6 +382,7 @@ Rectangle {
         width: Style.space(300)
         visible: doc.hasContent
         onCopyTextRequested: editor.copyTextRequested()
+        onEyedropRequested: function (done) { editor.eyedropRequested(done); }
     }
 
     Rectangle {
