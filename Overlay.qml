@@ -281,11 +281,14 @@ Item {
 
     Process {
         id: textProc
-        command: ["bash", root.pluginDir + "bin/postcard-text"]
+        command: ["bash", root.pluginDir + "bin/postcard-text", String(Model.CODE_MAX)]
         stdout: StdioCollector {
             onStreamFinished: {
-                if (text.length) {
-                    root.loadCode(text);
+                // The first line says whether the selection was cut short.
+                var nl = text.indexOf("\n");
+                var body = nl >= 0 ? text.slice(nl + 1) : "";
+                if (body.length) {
+                    root.loadCode(body, text.slice(0, nl) === "cut");
                 } else if (!doc.hasContent) {
                     root.dismiss();
                 } else {
@@ -296,9 +299,15 @@ Item {
         }
     }
 
-    function loadCode(text) {
-        text = text.replace(/\r/g, "").replace(/\n+$/, "");
+    // cut: the selection was already trimmed on the way in.
+    function loadCode(text, cut) {
+        var clip = Model.clipCode(text, Model.CODE_MAX);
+        text = clip.text.replace(/\r/g, "").replace(/\n+$/, "");
         if (!text.length) return;
+        if (clip.cut || cut)
+            Qt.callLater(function () {
+                editor.statusText = "Only the first " + Model.plural(text.split("\n").length, "line") + " fit on a card";
+            });
         doc.clearAnnotations();
         doc.resetHistory();
         // A code card is its own picture; shots left from before would still

@@ -1,8 +1,31 @@
 #!/usr/bin/env bash
-# Print the selected text (the primary selection), or the clipboard if
-# nothing is selected. Exit 1 when both are empty.
+# postcard-text [max-bytes]: the selected text (the primary selection), or the
+# clipboard if nothing is selected, at most max-bytes of it. The first line
+# says whether it was cut ("full" or "cut"); the text follows. Exit 1 when
+# neither holds any text.
 set -u
-text="$(wl-paste --primary --no-newline 2>/dev/null)"
-[ -n "$text" ] || text="$(wl-paste --no-newline 2>/dev/null)"
-[ -n "$text" ] || exit 1
-printf '%s' "$text"
+exec </dev/null
+max="${1:-65536}"
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp" "$tmp.cut"' EXIT
+
+# Streamed to a file and stopped a byte past the limit, so however much is
+# selected, neither this script nor the editor ever holds more than that.
+# Text only: an image on the clipboard is not code.
+wl-paste --primary --no-newline --type text 2>/dev/null | head -c "$((max + 1))" > "$tmp"
+[ -s "$tmp" ] || wl-paste --no-newline --type text 2>/dev/null | head -c "$((max + 1))" > "$tmp"
+[ -s "$tmp" ] || exit 1
+
+if [ "$(stat -c %s "$tmp")" -le "$max" ]; then
+  echo full
+  cat "$tmp"
+  exit 0
+fi
+
+# Cut back to whole lines where there are any, and drop a character the cut
+# split in half.
+head -c "$max" "$tmp" > "$tmp.cut"
+[ "$(wc -l < "$tmp.cut")" -gt 0 ] && sed -i '$d' "$tmp.cut"
+echo cut
+iconv -c -f UTF-8 -t UTF-8 "$tmp.cut" 2>/dev/null

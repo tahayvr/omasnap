@@ -332,6 +332,16 @@ test("the sheet is composed from what goes into it", () => {
     ok(path.indexOf("300") === -1, "and clamped to it, not run past its edge");
 });
 
+test("a code card takes at most CODE_MAX of the text, cut at a line", () => {
+    eq(JSON.stringify(Model.clipCode("abc\ndef", 100)), JSON.stringify({ text: "abc\ndef", cut: false }));
+    const long = "line\n".repeat(20);
+    const c = Model.clipCode(long, 12);
+    ok(c.cut);
+    eq(c.text, "line\nline", "back to the last whole line");
+    eq(Model.clipCode("x".repeat(30), 10).text, "x".repeat(10), "one long line is cut where it must be");
+    eq(Model.clipCode(null, 10).text, "");
+});
+
 test("a copied annotation keeps every role and nothing else", () => {
     const a = Model.newAnnotation("magnify", 3, 4);
     a.sx = 9; a.text = "hi";
