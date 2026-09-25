@@ -213,7 +213,7 @@ test("a watermark's ink suits what is under it", () => {
 
 test("the command line help covers every call's options", () => {
     const top = Model.helpText("");
-    for (const fn of ["capture", "edit", "code", "pick", "set", "preset", "annotate", "crop",
+    for (const fn of ["capture", "edit", "add", "code", "pick", "set", "preset", "annotate", "crop",
                       "uncrop", "redact", "save", "saveAs", "copy", "copyText", "info", "help"])
         ok(new RegExp("\\n  " + fn + " ").test(top), "overview lists " + fn);
     const set = Model.helpText("set");
@@ -223,6 +223,113 @@ test("the command line help covers every call's options", () => {
     ok(Model.helpText("capture").indexOf("smart") !== -1);
     eq(Model.helpText("nonsense"), top, "an unknown topic is the overview");
     eq(Model.helpText("  SET "), set, "topics ignore case and spaces");
+});
+
+test("several shots lay out side by side or stacked", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 800, 400), { id: "a" });
+    const b = Object.assign(Model.newSlot("/p/b.png", 300, 600), { id: "b" });
+    eq(a.name, "a.png");
+    const o = { dir: "row", gap: 5, match: true, align: "center", inset: 10, chrome: 0 };
+    const L = Model.slotLayout([a, b], o);
+    eq(L.items[0].h, 400, "matched to the shorter shot");
+    eq(L.items[1].h, 400); eq(L.items[1].w, 200, "the taller one scaled down, not up");
+    eq(L.items[0].scale, 1, "the shorter one stays 1:1");
+    eq(L.items[1].x, 800 + 20 + 20, "after the first card's inset, the gap and its own inset");
+    eq(L.w, 1040); eq(L.h, 400);
+
+    const keep = Model.slotLayout([a, b], Object.assign({}, o, { match: false, align: "end" }));
+    eq(keep.items[1].h, 600, "keeping sizes keeps them");
+    eq(keep.items[0].y, 200, "aligned to the bottom");
+    eq(keep.h, 600);
+
+    const col = Model.slotLayout([a, b], Object.assign({}, o, { dir: "column", chrome: 30 }));
+    eq(col.items[1].w, 300, "stacked, widths match");
+    eq(col.items[0].w, 300); eq(col.items[0].h, 150);
+    eq(col.items[1].y, 150 + 20 + 30 + 15, "each card has its own title bar");
+
+    const one = Model.slotLayout([a], o);
+    eq(one.w + "x" + one.h, "800x400", "one shot is its own size");
+    ok(!Model.needsSheet([a]), "and needs no sheet");
+    ok(Model.needsSheet([a, b]));
+    ok(Model.needsSheet([Object.assign({}, a, { crop: { x: 0, y: 0, w: 10, h: 10 } })]), "a crop does");
+
+    eq(Model.slotIndexAt(L, 50, 50), 0);
+    eq(Model.slotIndexAt(L, 900, 50), 1);
+    eq(Model.slotIndexAt(L, 810, 50), 0, "in a gap, the nearer shot");
+});
+
+test("marks follow their shot when the layout changes", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 800, 400), { id: "a" });
+    const b = Object.assign(Model.newSlot("/p/b.png", 400, 400), { id: "b" });
+    const o = { dir: "row", gap: 0, match: true, align: "start", inset: 0, chrome: 0 };
+    const before = Model.slotLayout([a, b], o);
+    const onB = Object.assign(Model.newAnnotation("box", 810, 10), { w: 50, h: 50 });
+    const across = Object.assign(Model.newAnnotation("arrow", 700, 100), { w: 200, h: 0 });
+    const label = Object.assign(Model.newAnnotation("text", 900, 300), { fontSize: 40 });
+
+    const swapped = Model.slotLayout([b, a], o);
+    let r = Model.remapAnnotations([onB, across, label], before, [a, b], swapped, [b, a]);
+    eq(r.marks[0].x, 10, "a mark on the second shot moves with it to the front");
+    eq(r.marks[1].x, 1100, "an arrow's tail stays on the shot it started on");
+    eq(r.marks[1].x + r.marks[1].w, 100, "and its tip on the other");
+
+    const alone = Model.slotLayout([a], o);
+    r = Model.remapAnnotations([onB, across], before, [a, b], alone, [a]);
+    eq(r.dropped, 2, "marks on a removed shot go, as does one that ended on it");
+
+    const small = Object.assign({}, b, { h: 200, w: 200 });
+    const mixed = Model.slotLayout([a, Object.assign({}, b, { w: 800, h: 800 })], o);
+    eq(mixed.items[1].scale, 0.5);
+    const bigB = Object.assign({}, b, { w: 800, h: 800 });
+    const was = Model.slotLayout([a, bigB], o);
+    const now = Model.slotLayout([a, bigB], Object.assign({}, o, { match: false }));
+    r = Model.remapAnnotations([Object.assign(Model.newAnnotation("text", 810, 10), { fontSize: 20 })],
+                               was, [a, bigB], now, [a, bigB]);
+    eq(r.marks[0].x, 820, "unscaling a shot scales its marks' places");
+    eq(r.marks[0].fontSize, 40, "and a label's size");
+
+    const crop = Model.cropForSlot({ x: 100, y: 50, w: 200, h: 100 }, before.items[0], a);
+    eq(JSON.stringify(crop), JSON.stringify({ x: 100, y: 50, w: 200, h: 100 }));
+    const ac = Object.assign({}, a, { crop: crop });
+    const cropped = Model.slotLayout([ac, b], o);
+    const inside = Object.assign(Model.newAnnotation("box", 150, 60), { w: 20, h: 20 });
+    const outside = Object.assign(Model.newAnnotation("box", 600, 300), { w: 20, h: 20 });
+    r = Model.remapAnnotations([inside, outside], before, [a, b], cropped, [ac, b]);
+    eq(r.dropped, 1, "a crop takes the marks only on what it cut away");
+    ok(r.marks[0].x >= 0 && r.marks[0].x < cropped.items[0].w, "the rest move with the cut");
+    eq(Model.cropForSlot({ x: 790, y: 0, w: 100, h: 100 }, before.items[0], a), null,
+       "what is left on the shot is too small to crop to");
+    eq(Model.cropForSlot({ x: 850, y: 0, w: 100, h: 100 }, before.items[1], b).x, 50,
+       "a selection is read in its own shot's pixels");
+});
+
+test("several shots size their inset and title bar from the shots, not the sheet", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 1000, 500), { id: "a" });
+    const b = Object.assign(Model.newSlot("/p/b.png", 1000, 500), { id: "b" });
+    const L = Model.sheetLayout([a, b], { dir: "row", gap: 0, match: true, align: "start", inset: 10, frame: "titlebar" });
+    eq(L.baseW + "x" + L.baseH, "1000x500");
+    eq(L.inset, 100, "10% of a shot's longest edge");
+    eq(L.chrome, Model.chromeHeight({ frame: "titlebar", shotHeight: 500 }));
+    eq(L.items[1].x, 1000 + 200, "the second card clears the first one's inset and its own");
+    const g = Model.frameGeometry({ shotWidth: L.w, shotHeight: L.h, baseWidth: L.baseW, baseHeight: L.baseH,
+                                    padding: 0, inset: 10, ratio: "auto", balance: false, frame: "titlebar" });
+    eq(g.inset, 100, "and the card agrees with the layout");
+});
+
+test("the sheet is composed from what goes into it", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 800, 400), { id: "a", crop: { x: 5, y: 6, w: 100, h: 50 } });
+    const b = Object.assign(Model.newSlot("/p/b.png", 200, 100), { id: "b" });
+    const L = Model.slotLayout([a, b], { dir: "row", gap: 0, match: true, align: "start", inset: 0, chrome: 0 });
+    const args = Model.sheetArgs([a, b], L);
+    eq(args.slice(0, 2).join(), L.w + "," + L.h);
+    eq(args.slice(2, 11).join(), "/p/a.png,5,6,100,50,100,50,0,0");
+    ok(Model.sheetName(args) !== Model.sheetName(args.concat("x")), "a different sheet, a different name");
+    eq(Model.sheetName(args), Model.sheetName(args.slice()), "the same sheet, the same name");
+    const outl = Model.spotlightOutlines(L, 3, 4);
+    eq(outl.length, 2); eq(outl[1].x, 100);
+    const path = Model.spotlightPathIn(outl, [{ x: 110, y: 10, w: 500, h: 20, shape: "rect" }]);
+    ok(path.indexOf("M110,10") !== -1 || path.indexOf("M110") !== -1, "a spotlight is cut from its card");
+    ok(path.indexOf("300") === -1, "and clamped to it, not run past its edge");
 });
 
 test("a copied annotation keeps every role and nothing else", () => {

@@ -4,7 +4,7 @@ import qs.Commons
 // Title bar. Omarchy windows carry no buttons, so this is the title alone.
 Rectangle {
     id: chrome
-    property var doc: null
+    property string title: ""
     property real topRadius: 0
     property color textColor: Color.foreground
 
@@ -15,7 +15,7 @@ Rectangle {
 
     Text {
         anchors.centerIn: parent
-        text: chrome.doc.frameTitle
+        text: chrome.title
         color: chrome.textColor
         opacity: 0.8
         font.family: Style.font.family

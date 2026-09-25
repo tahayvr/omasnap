@@ -30,6 +30,9 @@ the picture that should not be public.
 - Padding, aspect ratio presets, corner radius, crop, shadow and an optional title bar
 - Inset, which extends the screenshot's own edge color outwards to give a
   cramped window room to breathe
+- Several shots on one card, side by side or stacked, each in a card of its
+  own. Larger ones are scaled down to line up, or keep their sizes; each can
+  be cropped, reordered or removed, and an arrow can point from one to another
 
 ![Framing](assets/showcase/framing.png)
 
@@ -173,6 +176,7 @@ A call answers `ok`, or a short reason such as `busy`, `no shot` or `bad json`.
 omarchy-shell shell call tahayvr.postcard capture region        # region | windows | fullscreen | smart
 omarchy-shell shell call tahayvr.postcard capture '{"mode":"fullscreen","delay":5}'   # after 0–60 seconds
 omarchy-shell shell call tahayvr.postcard edit ~/Pictures/Screenshots/shot.png
+omarchy-shell shell call tahayvr.postcard add region            # another shot beside it: a mode, a path, or file
 omarchy-shell shell call tahayvr.postcard code ''               # code card from the selection (or pass the text)
 omarchy-shell shell call tahayvr.postcard pick ''               # system file picker
 omarchy-shell shell hide tahayvr.postcard                       # close, or cancel a pending capture
@@ -183,7 +187,7 @@ omarchy-shell shell call tahayvr.postcard preset social-post    # "Social Post":
 
 # Marking up
 omarchy-shell shell call tahayvr.postcard annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
-omarchy-shell shell call tahayvr.postcard crop '{"x":80,"y":40,"w":900,"h":600}'   # or '' for the selection
+omarchy-shell shell call tahayvr.postcard crop '{"x":80,"y":40,"w":900,"h":600}'   # the shot under it; or '' for the selection
 omarchy-shell shell call tahayvr.postcard uncrop ''             # back to the whole picture
 omarchy-shell shell call tahayvr.postcard redact ''             # find and hide secrets
 
@@ -273,6 +277,19 @@ pc crop '{"x":0,"y":0,"w":1600,"h":1000}' >/dev/null && pc_ready
 pc annotate '{"items":[{"kind":"arrow","x":200,"y":200,"w":300,"h":150},{"kind":"text","x":520,"y":360,"text":"Click\u0020here","size":40}]}'
 pc save '' >/dev/null && pc_ready
 ```
+
+**Before and after, side by side.** Two regions, one card each, lined up
+and saved. `layoutDir` `column` stacks them instead:
+
+```sh
+pc capture region >/dev/null && pc_ready
+pc add region >/dev/null && pc_ready
+pc set '{"layoutDir":"row","slotGap":6}' >/dev/null && pc_ready
+pc save '' >/dev/null && pc_ready && pc info '' | jq -r .lastSaved
+```
+
+With several shots, marks and crops are in the combined picture's pixels,
+left to right (or top to bottom) with the gaps; `info` lists the shots.
 
 **A code card from a file.** The text can not go on the command line, since
 it would be split at every space, so it goes through the selection:

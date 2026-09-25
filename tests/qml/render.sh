@@ -9,7 +9,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="${XDG_RUNTIME_DIR:-/tmp}/postcard-tests"
 mkdir -p "$out"
 rm -f "$out/export.png" "$out/export-inset.png" "$out/export-gradient.png" "$out/export-mesh.png" \
-      "$out/export-odd.png" "$out/export-spot.png" "$out/export-spot-oval.png" "$out/export-magnify.png"
+      "$out/export-odd.png" "$out/export-spot.png" "$out/export-spot-oval.png" "$out/export-magnify.png" \
+      "$out/export-two.png"
 
 # Synthetic screenshot: white left half, black right half, and a band of
 # 1px red/blue stripes through the middle that redaction has to destroy.
@@ -17,6 +18,12 @@ magick -size 2x1 xc:red xc:blue +append -write mpr:tile +delete \
        -size 200x100 tile:mpr:tile "$out/stripes.png"
 magick -size 400x200 xc:white -fill black -draw "rectangle 200,0 399,199" \
        "$out/stripes.png" -geometry +100+50 -composite "$out/shot.png"
+
+# A second shot, and the sheet the two make side by side with an 8px gap,
+# as the overlay would compose it.
+magick -size 100x200 xc:'#0000ff' "$out/blue.png"
+bash "$here/../../bin/postcard-sheet" "$out/sheet.png" 508 200 \
+     "$out/shot.png" 0 0 400 200 400 200 0 0 "$out/blue.png" 0 0 100 200 100 200 408 0 >/dev/null
 
 # The offscreen platform can only use the software scene graph, which does
 # not run shader effects, so the card (drawn through MultiEffect) is missing
@@ -318,6 +325,20 @@ if [ $gpu = 1 ]; then
   else
     echo "FAIL code harness wrote nothing"; fail=1
   fi
+fi
+
+# Two shots on one card, padding 0: the first card is the picture, then the
+# background in the gap, then the second card, each exactly as it was.
+if [ -f "$out/export-two.png" ]; then
+  tpx() { magick "$out/export-two.png" -format "%[fx:int(255*p{$1,$2}.r+0.5)] %[fx:int(255*p{$1,$2}.g+0.5)] %[fx:int(255*p{$1,$2}.b+0.5)]" info:; }
+  t="$(tpx 20 20) / $(tpx 300 20) / $(tpx 404 100) / $(tpx 450 100)"
+  [ "$t" = "255 255 255 / 0 0 0 / 0 255 0 / 0 0 255" ] \
+    && echo "ok   two shots: each card shows its own shot, the gap the background" \
+    || { echo "FAIL two shots: white/black/gap/blue came out $t"; fail=1; }
+  d="$(magick compare -metric AE "$out/export-two.png[400x200+0+0]" "$out/shot.png" null: 2>&1 | cut -d' ' -f1)"
+  [ "$d" = "0" ] && echo "ok   the first shot is 1:1" || { echo "FAIL the first shot differs in $d pixels"; fail=1; }
+else
+  echo "FAIL two-shot export missing"; fail=1
 fi
 
 exit $fail

@@ -17,6 +17,8 @@ Rectangle {
     signal copyRequested()
     signal dragOutRequested()
     signal logoRequested()
+    signal addShotRequested(string how)
+    signal shotRequested(string action, string id)
     signal saveRequested()
     signal saveAsRequested()
     signal openRequested()
@@ -139,6 +141,7 @@ Rectangle {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: doc.kind === "code" && doc.hasContent ? doc.frameTitle
+                      : doc.shotCount > 1 ? doc.slots[0].name + "  +" + (doc.shotCount - 1)
                       : doc.shotName ? doc.shotName : "No screenshot yet"
                 color: Ui.textMuted
                 font.family: Style.font.family
@@ -158,6 +161,7 @@ Rectangle {
             onCropRequested: editor.cropRequested()
             onUncropRequested: editor.uncropRequested()
             onEyedropRequested: function (done) { editor.eyedropRequested(done); }
+            onAddShotRequested: function (how) { editor.addShotRequested(how); }
         }
 
         Row {
@@ -483,6 +487,8 @@ Rectangle {
         visible: doc.hasContent && !editor.settingsOpen
         onCopyTextRequested: editor.copyTextRequested()
         onLogoRequested: editor.logoRequested()
+        onAddShotRequested: function (how) { editor.addShotRequested(how); }
+        onShotRequested: function (action, id) { editor.shotRequested(action, id); }
         onEyedropRequested: function (done) { editor.eyedropRequested(done); }
     }
 

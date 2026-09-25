@@ -134,12 +134,23 @@ QtObject {
 
     property var redactClasses: ["email", "secret", "card", "net", "phone"]
 
-    // Cropping never touches the file it started from: the picture on show is
-    // a fresh cut of cropSource, and cropOffset says how far it has moved, so
-    // the crop can be widened again or dropped entirely.
-    property string cropSource: ""
-    property point cropOffset: Qt.point(0, 0)
-    property bool cropped: false
+    // The shots on the card (Model.newSlot), each the file it came from and
+    // its own crop in that file, so a crop never touches a file and can be
+    // widened again or dropped. The picture on show (shotPath) is the first
+    // file itself while there is one shot and no crop, and otherwise a sheet
+    // composed from them all (bin/postcard-sheet), laid out by `sheet`.
+    // Both change together, only once the new picture is ready: the
+    // overlay commits them.
+    property var slots: []
+    property var sheet: null
+    readonly property int shotCount: slots.length
+    readonly property bool cropped: slots.some(function (s) { return !!s.crop; })
+    // How several shots are laid out. Changing these asks the overlay to
+    // lay the shots out again.
+    property string layoutDir: "row"          // row | column
+    property real slotGap: Model.SLOT_GAP
+    property bool matchSizes: true
+    property string slotAlign: "center"       // start | center | end
     property rect cropRect: Qt.rect(0, 0, 0, 0)   // the selection being drawn
     readonly property bool cropUsable: Model.cropUsable(cropRect)
 
@@ -158,6 +169,8 @@ QtObject {
     readonly property var geo: Model.frameGeometry({
         shotWidth: doc.shotWidth,
         shotHeight: doc.shotHeight,
+        baseWidth: doc.shotCount > 1 && doc.sheet ? doc.sheet.baseW : 0,
+        baseHeight: doc.shotCount > 1 && doc.sheet ? doc.sheet.baseH : 0,
         padding: doc.padding,
         inset: doc.inset,
         ratio: doc.ratio,
@@ -471,13 +484,19 @@ QtObject {
 
     function restore(s) {
         _restoring = true;
+        replaceAnnotations(JSON.parse(s));
+        _restoring = false;
+    }
+
+    // Every mark at once, as plain values: a snapshot, or the marks moved to
+    // a new layout of the shots.
+    function replaceAnnotations(list) {
         selectedId = "";
         groupLeader = "";
         annotations.clear();
-        JSON.parse(s).forEach(function (a) { annotations.append(a); });
+        list.forEach(function (a) { annotations.append(a); });
         renumberSteps();
         annotationsEdited();
-        _restoring = false;
     }
 
     // An edit still settling counts: it is recorded first, then undone.
@@ -509,9 +528,8 @@ QtObject {
         codeText = "";
         codeHtml = "";
         shotName = "";
-        cropSource = "";
-        cropOffset = Qt.point(0, 0);
-        cropped = false;
+        slots = [];
+        sheet = null;
         cropRect = Qt.rect(0, 0, 0, 0);
         frameTitle = "";
         autoPalette = [];

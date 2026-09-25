@@ -12,6 +12,10 @@ Flickable {
 
     signal copyTextRequested()
     signal logoRequested()
+    // how: region | windows | fullscreen | file
+    signal addShotRequested(string how)
+    // action: left | right | uncrop | remove, on the shot with this id
+    signal shotRequested(string action, string id)
     signal eyedropRequested(var done)
 
     // What the color picker is editing: "solid", "stop0" to "stop3" for the
@@ -317,6 +321,138 @@ Flickable {
                 label: "Line numbers"
                 checked: doc.codeNumbers
                 onToggled: function (v) { doc.codeNumbers = v; }
+            }
+        }
+
+        Section {
+            title: "Shots"
+            visible: doc.kind === "shot"
+
+            Text {
+                width: parent.width
+                visible: doc.shotCount < 2
+                text: "Add another shot to put them side by side"
+                wrapMode: Text.WordWrap
+                color: Ui.textMuted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            Row {
+                width: parent.width
+                spacing: Ui.gap
+                Repeater {
+                    model: [{ key: "region", label: "Region" }, { key: "windows", label: "Window" },
+                            { key: "fullscreen", label: "Screen" }, { key: "file", label: "File" }]
+                    IconButton {
+                        required property var modelData
+                        width: (parent.width - Ui.gap * 3) / 4
+                        label: modelData.label
+                        tip: modelData.key === "file" ? "Add a picture from a file" : "Capture another shot beside this one"
+                        onClicked: insp.addShotRequested(modelData.key)
+                    }
+                }
+            }
+
+            Segmented {
+                visible: doc.shotCount > 1
+                current: doc.layoutDir
+                minWidth: Math.floor((width - Ui.gap) / 2)
+                options: [{ key: "row", label: "Side by side" }, { key: "column", label: "Stacked" }]
+                onPicked: function (k) { doc.layoutDir = k; }
+            }
+
+            Toggle {
+                visible: doc.shotCount > 1
+                label: "Match sizes"
+                hint: doc.layoutDir === "row" ? "Scale larger shots down to the same height"
+                                              : "Scale larger shots down to the same width"
+                checked: doc.matchSizes
+                onToggled: function (v) { doc.matchSizes = v; }
+            }
+
+            Segmented {
+                visible: doc.shotCount > 1 && !doc.matchSizes
+                current: doc.slotAlign
+                minWidth: Math.floor((width - Ui.gap * 2) / 3)
+                options: doc.layoutDir === "row"
+                         ? [{ key: "start", label: "Top" }, { key: "center", label: "Middle" }, { key: "end", label: "Bottom" }]
+                         : [{ key: "start", label: "Left" }, { key: "center", label: "Centre" }, { key: "end", label: "Right" }]
+                onPicked: function (k) { doc.slotAlign = k; }
+            }
+
+            LabeledSlider {
+                visible: doc.shotCount > 1
+                label: "Gap"
+                value: doc.slotGap
+                from: 0; to: Model.SLOT_GAP_MAX; decimals: 1; suffix: "%"
+                onMoved: function (v) { doc.slotGap = v; }
+            }
+
+            // One row a shot, in order: move it, give it back its whole
+            // picture, or take it off the card.
+            Column {
+                width: parent.width
+                spacing: Ui.gap
+                visible: doc.shotCount > 1
+                Repeater {
+                    model: doc.slots
+                    Row {
+                        id: slotRow
+                        required property var modelData
+                        required property int index
+                        width: parent.width
+                        spacing: Ui.gap
+                        Image {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Ui.button
+                            height: Ui.button
+                            source: "file://" + slotRow.modelData.source
+                            sourceSize.height: Ui.button * 2
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - Ui.button - (Ui.button + Ui.gap) * 4 - Ui.gap
+                            text: slotRow.modelData.name
+                            elide: Text.ElideMiddle
+                            color: Ui.text
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+                        IconButton {
+                            glyph: doc.layoutDir === "row" ? "\u2190" : "\u2191"
+                            flat: true
+                            enabled: slotRow.index > 0
+                            opacity: enabled ? 1 : 0.3
+                            tip: "Move earlier"
+                            onClicked: insp.shotRequested("left", slotRow.modelData.id)
+                        }
+                        IconButton {
+                            glyph: doc.layoutDir === "row" ? "\u2192" : "\u2193"
+                            flat: true
+                            enabled: slotRow.index < doc.shotCount - 1
+                            opacity: enabled ? 1 : 0.3
+                            tip: "Move later"
+                            onClicked: insp.shotRequested("right", slotRow.modelData.id)
+                        }
+                        IconButton {
+                            glyph: "\u21ba"
+                            flat: true
+                            enabled: !!slotRow.modelData.crop
+                            opacity: enabled ? 1 : 0.3
+                            tip: "Undo this shot's crop"
+                            onClicked: insp.shotRequested("uncrop", slotRow.modelData.id)
+                        }
+                        IconButton {
+                            glyph: "\u2715"
+                            flat: true
+                            tip: "Take this shot off the card"
+                            onClicked: insp.shotRequested("remove", slotRow.modelData.id)
+                        }
+                    }
+                }
             }
         }
 

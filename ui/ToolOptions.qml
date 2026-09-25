@@ -21,6 +21,7 @@ Loader {
     signal cropRequested()
     signal uncropRequested()
     signal eyedropRequested(var done)
+    signal addShotRequested(string how)
 
     readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step", "magnify"]
 
@@ -119,6 +120,47 @@ Loader {
                 }
             }
             IconButton { glyph: "‹›"; label: "Code"; tip: "Selected text as a code card"; onClicked: opts.codeRequested() }
+
+            // Another shot beside the one on the card, rather than in its
+            // place like the buttons before it.
+            IconButton {
+                id: addShot
+                visible: opts.doc.hasContent && opts.doc.kind === "shot"
+                glyph: "+"
+                label: "Add"
+                tip: "Put another shot beside this one"
+                active: addMenu.opened
+                onClicked: addMenu.opened ? addMenu.close() : addMenu.open()
+
+                QQC.Popup {
+                    id: addMenu
+                    y: addShot.height + Ui.gap
+                    padding: Ui.gap
+                    focus: true
+                    closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
+                    background: Rectangle {
+                        color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
+                        border.width: 1
+                        border.color: Ui.borderActive
+                    }
+                    Column {
+                        spacing: Ui.gap
+                        Repeater {
+                            model: [{ key: "region", label: "Region" }, { key: "windows", label: "Window" },
+                                    { key: "fullscreen", label: "Screen" }, { key: "file", label: "File" }]
+                            IconButton {
+                                required property var modelData
+                                width: Style.space(110)
+                                label: modelData.label
+                                onClicked: {
+                                    addMenu.close();
+                                    opts.addShotRequested(modelData.key);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             IconButton { glyph: ""; label: "File"; tip: "Open a file"; onClicked: opts.openRequested() }
         }
     }

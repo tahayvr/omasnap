@@ -97,8 +97,12 @@ Item {
     readonly property real shadowDrop: stage.shadowRoom * 0.25 * stage.shadowAmount
     readonly property real shadowAlpha: 0.62 * stage.shadowAmount
 
-    readonly property real cardRadiusPx: Math.min(doc.radius / 100 * Math.min(geo.cardW, geo.cardH),
-                                                  Math.min(geo.cardW, geo.cardH) / 2)
+    // The same on every card, from the smallest, so no card is rounder.
+    readonly property real cardRadiusPx: {
+        var side = Math.min(geo.cardW, geo.cardH);
+        stage.cards.forEach(function (c) { side = Math.min(side, c.w, c.h); });
+        return Math.min(doc.radius / 100 * side, side / 2);
+    }
     readonly property real cardRadius: stage.cardRadiusPx * unit
 
     Rectangle {
@@ -136,75 +140,121 @@ Item {
         angle: stage.bgAngle
     }
 
-    Shadow {
-        readonly property Item card: stage.codeKind ? codeCard : shotCard
-        anchors.fill: parent
-        visible: stage.shadowAmount > 0 && stage.shadowRoom > 1
-                 && stage.doc.bgMode !== "none"
-        box: Qt.rect(card.x, card.y + stage.shadowDrop, card.width, card.height)
-        sigma: stage.shadowSigma
-        corner: stage.cardRadius
-        tint: Qt.rgba(0, 0, 0, stage.shadowAlpha)
+    // The cards, one per shot, in shot pixels: where each sits on the sheet
+    // (Model.sheetLayout), plus the room its inset and title bar take. A
+    // picture not yet laid out, or a code card, is one card the size of the
+    // picture.
+    readonly property var cards: {
+        var inset = stage.geo.inset, chrome = stage.geo.chromeH;
+        var items = !stage.codeKind && doc.sheet && doc.sheet.items.length
+                  ? doc.sheet.items : [{ id: "", x: 0, y: 0, w: stage.geo.shotW, h: stage.geo.shotH }];
+        return items.map(function (it) {
+            var n = Model.slotById(doc.slots, it.id);
+            var slot = n >= 0 ? doc.slots[n] : null;
+            // The first card's title bar is tinted from the shot's colors, as
+            // a single shot's is; the others take theirs from their own edge,
+            // so a green shot does not wear the first one's red.
+            var tint = n > 0 && slot && slot.edge ? Model.chromeTint(slot.edge) : "";
+            return { x: stage.geo.cardX + it.x, y: stage.geo.cardY + it.y,
+                     chrome: tint ? tint : String(stage.chromeColor),
+                     chromeText: tint ? Model.textOn(tint) : String(stage.chromeTextColor),
+                     w: it.w + inset * 2, h: it.h + inset * 2 + chrome,
+                     sx: it.x, sy: it.y, sw: it.w, sh: it.h,
+                     title: doc.slots.length > 1 && slot ? slot.name : doc.frameTitle,
+                     edge: slot && slot.edge ? slot.edge : "" };
+        });
     }
 
-    // Screenshot card. The shot is not drawn as an Image inside a clip: every
+    Repeater {
+        model: stage.cards
+        Shadow {
+            required property var modelData
+            anchors.fill: parent
+            visible: stage.shadowAmount > 0 && stage.shadowRoom > 1
+                     && stage.doc.bgMode !== "none"
+            box: Qt.rect(modelData.x * stage.unit, (modelData.y + stage.shadowDrop / stage.unit) * stage.unit,
+                         modelData.w * stage.unit, modelData.h * stage.unit)
+            sigma: stage.shadowSigma
+            corner: stage.cardRadius
+            tint: Qt.rgba(0, 0, 0, stage.shadowAlpha)
+        }
+    }
+
+    // What every card is filled from: the picture, or the sheet of shots.
+    Image {
+        id: shotTexture
+        visible: false
+        source: stage.codeKind ? "" : stage.doc.shotUrl
+        cache: true           // shared with the probe and the redaction source
+        asynchronous: false
+    }
+
+    // Screenshot cards. A shot is not drawn as an Image inside a clip: every
     // texture round trip — ClippingRectangle, a layer, a MultiEffect mask —
     // resamples it on a fractional scale, where the card is not a whole
     // number of logical pixels. The Shape fills a rounded rectangle straight
-    // from the image's own texture, one texel per shot pixel, so a 1x export
-    // is the file.
-    Rectangle {
-        id: shotCard
-        x: stage.geo.cardX * stage.unit
-        y: stage.geo.cardY * stage.unit
-        width: Math.max(1, stage.geo.cardW * stage.unit)
-        height: Math.max(1, stage.geo.cardH * stage.unit)
-        radius: stage.cardRadius
-        color: stage.geo.inset > 0 ? stage.insetColor
-             : (stage.geo.chromeH > 0 ? stage.chromeColor : "transparent")
-        visible: !stage.codeKind
+    // from the picture's own texture, one texel per shot pixel, so a 1x
+    // export is the file. With several shots each card takes its own part of
+    // the sheet, by moving the fill rather than the shape.
+    Repeater {
+        model: stage.codeKind ? [] : stage.cards
+        Rectangle {
+            id: shotCard
+            required property var modelData
+            x: modelData.x * stage.unit
+            y: modelData.y * stage.unit
+            width: Math.max(1, modelData.w * stage.unit)
+            height: Math.max(1, modelData.h * stage.unit)
+            radius: stage.cardRadius
+            color: stage.geo.inset > 0 ? (modelData.edge !== "" ? modelData.edge : stage.insetColor)
+                 : (stage.geo.chromeH > 0 ? modelData.chrome : "transparent")
 
-        Chrome {
-            doc: stage.doc
-            height: stage.geo.chromeH * stage.unit
-            color: stage.chromeColor
-            textColor: stage.chromeTextColor
-            topRadius: stage.cardRadius
-        }
+            Chrome {
+                title: shotCard.modelData.title
+                height: stage.geo.chromeH * stage.unit
+                color: shotCard.modelData.chrome
+                textColor: shotCard.modelData.chromeText
+                topRadius: stage.cardRadius
+            }
 
-        Image {
-            id: shotTexture
-            visible: false
-            source: stage.codeKind ? "" : stage.doc.shotUrl
-            cache: true           // shared with the probe and the redaction source
-            asynchronous: false
-        }
+            Shape {
+                id: shot
+                x: stage.geo.inset * stage.unit
+                y: (stage.geo.chromeH + stage.geo.inset) * stage.unit
+                width: Math.max(1, shotCard.modelData.sw * stage.unit)
+                height: Math.max(1, shotCard.modelData.sh * stage.unit)
+                preferredRendererType: Shape.CurveRenderer
+                // Inside an inset the shot sits square within the rounded card;
+                // under a title bar only its bottom corners are the card's.
+                readonly property real corner: stage.geo.inset > 0 ? 0 : stage.cardRadius
+                readonly property real topCorner: stage.geo.chromeH > 0 ? 0 : shot.corner
 
-        Shape {
-            id: shot
-            x: stage.geo.inset * stage.unit
-            y: (stage.geo.chromeH + stage.geo.inset) * stage.unit
-            width: Math.max(1, stage.geo.shotW * stage.unit)
-            height: Math.max(1, stage.geo.shotH * stage.unit)
-            preferredRendererType: Shape.CurveRenderer
-            // Inside an inset the shot sits square within the rounded card;
-            // under a title bar only its bottom corners are the card's.
-            readonly property real corner: stage.geo.inset > 0 ? 0 : stage.cardRadius
-            readonly property real topCorner: stage.geo.chromeH > 0 ? 0 : shot.corner
-
-            ShapePath {
-                strokeWidth: -1
-                fillItem: shotTexture
-                PathRectangle {
-                    width: shot.width
-                    height: shot.height
-                    topLeftRadius: shot.topCorner
-                    topRightRadius: shot.topCorner
-                    bottomLeftRadius: shot.corner
-                    bottomRightRadius: shot.corner
+                ShapePath {
+                    strokeWidth: -1
+                    fillItem: shotTexture
+                    fillTransform: PlanarTransform.fromTranslate(-shotCard.modelData.sx * stage.unit,
+                                                                 -shotCard.modelData.sy * stage.unit)
+                    PathRectangle {
+                        width: shot.width
+                        height: shot.height
+                        topLeftRadius: shot.topCorner
+                        topRightRadius: shot.topCorner
+                        bottomLeftRadius: shot.corner
+                        bottomRightRadius: shot.corner
+                    }
                 }
             }
         }
+    }
+
+    Shadow {
+        anchors.fill: parent
+        visible: stage.codeKind && stage.shadowAmount > 0 && stage.shadowRoom > 1
+                 && stage.doc.bgMode !== "none"
+        box: Qt.rect(codeCard.x, codeCard.y + stage.shadowDrop, codeCard.width, codeCard.height)
+        sigma: stage.shadowSigma
+        corner: stage.cardRadius
+        tint: Qt.rgba(0, 0, 0, stage.shadowAlpha)
     }
 
     // The watermark, under the card's bottom-right corner (Model.watermarkBox).
@@ -271,7 +321,7 @@ Item {
         color: stage.doc.codeBg
 
         Chrome {
-            doc: stage.doc
+            title: stage.doc.frameTitle
             height: stage.geo.chromeH * stage.unit
             color: stage.chromeColor
             textColor: stage.chromeTextColor
@@ -368,6 +418,8 @@ Item {
         holeOffset: stage.geo.inset
         topRadius: stage.geo.chromeH > 0 ? 0 : stage.cardRadiusPx
         bottomRadius: stage.cardRadiusPx
+        outlines: stage.doc.shotCount > 1 && stage.doc.sheet
+                  ? Model.spotlightOutlines(stage.doc.sheet, topRadius, bottomRadius) : null
         x: stage.geo.cardX * stage.unit
         y: (stage.geo.cardY + stage.geo.chromeH) * stage.unit
         width: Math.max(1, stage.geo.cardW)

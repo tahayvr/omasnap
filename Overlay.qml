@@ -150,8 +150,8 @@ Item {
         if (shell && typeof shell.hide === "function") shell.hide(pluginId);
     }
 
-    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText, preset,
-    // help (see README, Scripting, and Model.helpText).
+    // Public: edit, add, capture, save, saveAs, copy, crop, redact, copyText,
+    // preset, help (see README, Scripting, and Model.helpText).
     function edit(path) {
         if (!path) return "no path";
         if (shell && typeof shell.summon === "function"
@@ -236,7 +236,8 @@ Item {
             // busy covers everything a script has to wait out before the
             // next call, not only what the editor shows as working.
             kind: doc.kind, opened: opened, capturing: capturing, picking: picking,
-            busy: editor.busy || cropProc.running || textProc.running || ocrProc.running,
+            busy: editor.busy || sheetProc.running || sizeProc.running || relayout.running
+                  || textProc.running || ocrProc.running,
             hasContent: doc.hasContent,
             // Rendering is `busy`; encoding and writing the file comes after.
             delivering: deliver.running || dragFile.running, lastSaved: root.lastSaved,
@@ -245,6 +246,8 @@ Item {
             preset: doc.activePresetEntry.name, presetModified: doc.presetModified,
             bgMode: doc.bgMode, ratio: doc.ratio, padding: doc.padding, inset: doc.inset,
             frame: doc.frame, shotEdge: doc.shotEdge,
+            shots: doc.slots.map(function (s) { return { name: s.name, crop: s.crop }; }),
+            layout: doc.layoutDir, matchSizes: doc.matchSizes, slotGap: doc.slotGap,
             cropped: doc.cropped, cropRect: [doc.cropRect.x, doc.cropRect.y,
                                              doc.cropRect.width, doc.cropRect.height],
             codeLang: doc.codeLang, codeDetected: doc.codeDetected, codeTheme: doc.codeTheme,
@@ -255,7 +258,12 @@ Item {
 
     // pick: open the system file dialog (the overlay hides so it is reachable).
     function pick() {
+        return pickShot(false);
+    }
+
+    function pickShot(append) {
         if (picker.running) return "busy";
+        picker.append = !!append && doc.hasContent && doc.kind === "shot";
         opened = true;
         picking = true;
         picker.running = true;
@@ -293,6 +301,10 @@ Item {
         if (!text.length) return;
         doc.clearAnnotations();
         doc.resetHistory();
+        // A code card is its own picture; shots left from before would still
+        // size its inset and title bar.
+        doc.slots = [];
+        doc.sheet = null;
         // There is nothing to cut down on a card drawn from its own text.
         if (doc.tool === "crop") doc.tool = "select";
         doc.kind = "code";
@@ -375,8 +387,9 @@ Item {
         Qt.callLater(function () { if (window.visible) scope.forceActiveFocus(); });
     }
 
-    // recut is a crop of the picture already open: it keeps the annotations,
-    // the name and the crop bookkeeping, and only the pixels change.
+    // A new picture, alone on the card. With recut the shots stay and only
+    // the picture on show changes: a new sheet for them, after a crop or a
+    // change of layout, keeping the marks (applySlots has moved them).
     function loadShot(path, recut) {
         if (!path) return;
         if (!recut) {
@@ -384,9 +397,18 @@ Item {
             doc.resetHistory();
             doc.shotName = path.split("/").pop();
             doc.frameTitle = doc.shotName;
-            doc.cropSource = path;
-            doc.cropOffset = Qt.point(0, 0);
-            doc.cropped = false;
+            // Its size comes from the probe, which then lays it out.
+            doc.slots = [Model.newSlot(path, 0, 0)];
+            doc.sheet = null;
+            doc.autoPalette = [];
+            doc.shotPalette = [];
+            doc.shotEdge = "";
+            // The first shot sets the colors: the backdrop, the title bar,
+            // and the inset band of any shot without an edge of its own.
+            paletteProc.path = path;
+            paletteProc.running = true;
+            edgeProc.path = path;
+            edgeProc.running = true;
         }
         doc.cropRect = Qt.rect(0, 0, 0, 0);
         doc.kind = "shot";
@@ -396,15 +418,176 @@ Item {
         doc.shotHeight = 0;
         doc.shotPath = path;
         doc.shotRevision += 1;
-        doc.autoPalette = [];
-        doc.shotPalette = [];
-        doc.shotEdge = "";
         probe.source = "";
         probe.source = doc.shotUrl;
-        paletteProc.path = path;
-        paletteProc.running = true;
-        edgeProc.path = path;
-        edgeProc.running = true;
+    }
+
+    // ---- several shots ----------------------------------------------------
+
+    function layoutOptions() {
+        return { dir: doc.layoutDir, gap: doc.slotGap, match: doc.matchSizes,
+                 align: doc.slotAlign, inset: doc.inset, frame: doc.frame };
+    }
+
+    // Every change to the shots comes through here: lay them out, compose
+    // the sheet if one is needed, and only once it exists move the marks
+    // and swap the picture, so nothing is ever drawn on a layout the
+    // picture does not have yet. A request made while a sheet is being
+    // composed waits, and the latest one wins.
+    property var slotsWanted: null
+    function applySlots(slots, note) {
+        if (slots.length === 0) return "no shot";
+        if (sheetProc.running) { root.slotsWanted = { slots: slots, note: note }; return "ok"; }
+        var L = Model.sheetLayout(slots, root.layoutOptions());
+        if (!Model.needsSheet(slots)) {
+            root.commitSlots(slots, L, slots[0].source, note);
+            return "ok";
+        }
+        var args = Model.sheetArgs(slots, L);
+        sheetProc.pending = { slots: slots, layout: L, note: note,
+                              dest: root.scratchDir + "/" + Model.sheetName(args) };
+        sheetProc.command = ["bash", root.pluginDir + "bin/postcard-sheet", sheetProc.pending.dest].concat(args);
+        sheetProc.running = true;
+        return "ok";
+    }
+
+    function commitSlots(slots, L, path, note) {
+        // An edge color can arrive while the sheet is still being composed,
+        // before its shot is on the document at all.
+        slots = slots.map(function (s) {
+            var c = root.slotEdges[s.id];
+            return c && s.edge !== c ? Object.assign({}, s, { edge: c }) : s;
+        });
+        var gone = 0;
+        if (doc.sheet) {
+            var r = Model.remapAnnotations(JSON.parse(doc.snapshot()), doc.sheet, doc.slots, L, slots);
+            doc.replaceAnnotations(r.marks);
+            gone = r.dropped;
+        }
+        doc.slots = slots;
+        doc.sheet = L;
+        loadShot(path, true);
+        // Undo is about the marks; stepping back past a change of layout
+        // would put them where the shots no longer are.
+        doc.resetHistory();
+        if (note) editor.statusText = note + (gone > 0 ? "  \u00b7  " + Model.plural(gone, "annotation") + " dropped" : "");
+    }
+
+    Process {
+        id: sheetProc
+        property var pending: null
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var p = sheetProc.pending;
+                if (text.trim() !== "ok") {
+                    editor.statusText = text.trim().length ? text.trim() : "Could not lay the shots out";
+                } else {
+                    root.commitSlots(p.slots, p.layout, p.dest, p.note);
+                }
+                var next = root.slotsWanted;
+                root.slotsWanted = null;
+                if (next) root.applySlots(next.slots, next.note);
+            }
+        }
+    }
+
+    // A layout setting, or a style change that moves the shots, lays them
+    // out again. Held back a moment so a slider drag composes once.
+    Timer {
+        id: relayout
+        interval: 250
+        onTriggered: if (doc.shotCount > 1) root.applySlots(doc.slots, "")
+    }
+    Connections {
+        target: doc
+        function onLayoutDirChanged() { relayout.restart(); }
+        function onSlotGapChanged() { relayout.restart(); }
+        function onMatchSizesChanged() { relayout.restart(); }
+        function onSlotAlignChanged() { relayout.restart(); }
+        function onInsetChanged() { relayout.restart(); }
+        function onFrameChanged() { relayout.restart(); }
+    }
+
+    // add <mode|path>: another shot beside the ones on the card, captured
+    // (region, windows, fullscreen, smart, or {"mode":..,"delay":..}) or
+    // from a file. With nothing open it is the first shot.
+    function add(what) {
+        var w = String(what || "").trim();
+        if (w === "" || w === "file") return pickShot(true);
+        if (w.indexOf("{") === 0 || Model.CAPTURE_MODES.indexOf(w) !== -1) return capture(w, undefined, true);
+        addShot(w);
+        return "ok";
+    }
+
+    function addShot(path) {
+        if (!doc.hasContent || doc.kind !== "shot" || !doc.sheet) {
+            if (!opened) edit(path); else loadShot(path);
+            return;
+        }
+        sizeProc.path = path;
+        sizeProc.running = true;
+    }
+
+    Process {
+        id: sizeProc
+        property string path: ""
+        command: ["magick", "identify", "-format", "%w %h", sizeProc.path + "[0]"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var m = /^(\d+) (\d+)/.exec(text.trim());
+                if (!m) { editor.statusText = "Could not open that image"; return; }
+                var slot = Model.newSlot(sizeProc.path, parseInt(m[1]), parseInt(m[2]));
+                root.applySlots(doc.slots.concat([slot]), "Added " + slot.name);
+                slotEdgeProc.slotId = slot.id;
+                slotEdgeProc.path = sizeProc.path;
+                slotEdgeProc.running = true;
+            }
+        }
+    }
+
+    // A shot's own edge color, for its card's inset band.
+    Process {
+        id: slotEdgeProc
+        property string slotId: ""
+        property string path: ""
+        command: ["bash", root.pluginDir + "bin/postcard-edge", path]
+        stdout: StdioCollector {
+            onStreamFinished: root.setSlotEdge(slotEdgeProc.slotId, text.trim())
+        }
+    }
+
+    // Each shot's edge color by its id, kept apart from the slots so one that
+    // arrives mid-layout is not lost (commitSlots puts it on).
+    property var slotEdges: ({})
+    function setSlotEdge(id, c) {
+        if (!/^#[0-9a-fA-F]{6}$/.test(c)) return;
+        var e = Object.assign({}, root.slotEdges);
+        e[id] = c;
+        root.slotEdges = e;
+        doc.slots = doc.slots.map(function (s) {
+            return s.id === id ? Object.assign({}, s, { edge: c }) : s;
+        });
+    }
+
+    function removeSlot(id) {
+        if (doc.shotCount < 2) return "last shot";
+        var gone = doc.slots.filter(function (s) { return s.id === id; });
+        if (!gone.length) return "no such shot";
+        return applySlots(doc.slots.filter(function (s) { return s.id !== id; }), "Removed " + gone[0].name);
+    }
+
+    function moveSlot(id, by) {
+        var i = Model.slotById(doc.slots, id), j = i + by;
+        if (i < 0 || j < 0 || j >= doc.shotCount) return "no move";
+        var s = doc.slots.slice();
+        s.splice(j, 0, s.splice(i, 1)[0]);
+        return applySlots(s, "");
+    }
+
+    function uncropSlot(id) {
+        return applySlots(doc.slots.map(function (s) {
+            return s.id === id ? Object.assign({}, s, { crop: null }) : s;
+        }), "Crop removed");
     }
 
     Image {
@@ -416,6 +599,12 @@ Item {
             if (status === Image.Ready) {
                 doc.shotWidth = implicitWidth;
                 doc.shotHeight = implicitHeight;
+                // A picture just opened: now its size is known, it has a layout.
+                if (doc.sheet === null && doc.shotCount === 1) {
+                    var first = Object.assign({}, doc.slots[0], { w: implicitWidth, h: implicitHeight });
+                    doc.slots = [first];
+                    doc.sheet = Model.sheetLayout(doc.slots, root.layoutOptions());
+                }
                 editor.statusText = implicitWidth + "×" + implicitHeight + " loaded";
             } else if (status === Image.Error) {
                 editor.statusText = "Could not open that image";
@@ -434,8 +623,10 @@ Item {
         }
     }
 
-    function capture(mode, delay) {
+    // With append the shot goes beside the ones already on the card.
+    function capture(mode, delay, append) {
         if (capturing || captureProc.running || picking || eyedropping || editor.busy) return "busy";
+        captureProc.append = !!append && doc.hasContent && doc.kind === "shot";
         var request = Model.captureRequest(mode, delay);
         if (request.error) return request.error;
         opened = true;
@@ -703,6 +894,7 @@ Item {
     Process {
         id: captureProc
         property string mode: "region"
+        property bool append: false
         command: ["bash", root.pluginDir + "bin/postcard-capture", mode]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -710,7 +902,7 @@ Item {
                 var path = lines[lines.length - 1].trim();
                 root.capturing = false;
                 if (path.length > 0 && path.indexOf("/") === 0) {
-                    root.loadShot(path);
+                    if (captureProc.append) root.addShot(path); else root.loadShot(path);
                 } else if (!doc.hasContent) {
                     root.dismiss();    // cancelled with nothing to fall back to
                 } else {
@@ -750,6 +942,7 @@ Item {
             onStreamFinished: {
                 var c = text.trim();
                 doc.shotEdge = /^#[0-9a-fA-F]{6}$/.test(c) ? c : "";
+                if (doc.shotCount > 0) root.setSlotEdge(doc.slots[0].id, c);
             }
         }
     }
@@ -866,7 +1059,7 @@ Item {
     // rectangle is only shown, to be taken or redrawn by hand.
     function crop(json) {
         if (doc.kind !== "shot" || !doc.hasContent) return "no shot";
-        if (cropProc.running) return "busy";
+        if (sheetProc.running) return "busy";
         if (json && String(json).length) {
             var o;
             try { o = JSON.parse(json); } catch (e) { return "bad json"; }
@@ -880,59 +1073,26 @@ Item {
             if (o.select) return doc.cropUsable ? "ok" : "too small";
         }
         if (!doc.cropUsable) return "no selection";
+        if (!doc.sheet || sheetProc.running) return "busy";
 
-        var cut = Model.cropInSource(doc.cropRect, doc.cropOffset.x, doc.cropOffset.y);
-        // Named for the cut so a reopened crop is never served from Qt's
-        // image cache, and so no two crops write the same file.
-        cropProc.dest = root.scratchDir + "/postcard-crop-"
-                      + cut.x + "-" + cut.y + "-" + cut.w + "-" + cut.h + ".png";
-        cropProc.moved = Qt.point(doc.cropRect.x, doc.cropRect.y);
-        cropProc.cut = cut;
-        cropProc.command = ["bash", root.pluginDir + "bin/postcard-crop", doc.cropSource,
-                            String(cut.x), String(cut.y), String(cut.w), String(cut.h),
-                            cropProc.dest];
-        cropProc.running = true;
-        return "ok";
+        // The shot the selection is on is cropped, and only that one.
+        var sel = { x: doc.cropRect.x, y: doc.cropRect.y, w: doc.cropRect.width, h: doc.cropRect.height };
+        var i = Model.slotIndexAt(doc.sheet, sel.x + sel.w / 2, sel.y + sel.h / 2);
+        var id = doc.sheet.items[i].id;
+        var k = Model.slotById(doc.slots, id);
+        var c = Model.cropForSlot(sel, doc.sheet.items[i], doc.slots[k]);
+        if (!c) return "too small";
+        var slots = doc.slots.slice();
+        slots[k] = Object.assign({}, slots[k], { crop: c });
+        doc.tool = "select";
+        return applySlots(slots, "Cropped to " + c.w + "\u00d7" + c.h);
     }
 
-    // uncrop: back to the whole picture, annotations and all.
+    // uncrop: every shot back to its whole picture, marks and all.
     function uncrop() {
-        if (!doc.cropped || !doc.cropSource) return "not cropped";
-        var off = doc.cropOffset;
-        loadShot(doc.cropSource, true);
-        doc.shiftAnnotations(off.x, off.y);
-        // Undo is about the marks; stepping back past a crop would move them
-        // off the picture they were drawn on.
-        doc.resetHistory();
-        doc.cropOffset = Qt.point(0, 0);
-        doc.cropped = false;
-        editor.statusText = "Crop removed";
-        return "ok";
-    }
-
-    Process {
-        id: cropProc
-        property string dest: ""
-        property var cut: null
-        property point moved: Qt.point(0, 0)
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (text.trim() !== "ok") {
-                    editor.statusText = text.trim().length ? text.trim() : "Could not crop";
-                    return;
-                }
-                root.loadShot(cropProc.dest, true);
-                doc.shiftAnnotations(-cropProc.moved.x, -cropProc.moved.y);
-                var gone = doc.dropOutside(cropProc.cut.w, cropProc.cut.h);
-                doc.resetHistory();
-                doc.cropOffset = Qt.point(cropProc.cut.x, cropProc.cut.y);
-                doc.cropped = true;
-                doc.tool = "select";
-                editor.statusText = "Cropped to " + cropProc.cut.w + "\u00d7" + cropProc.cut.h
-                                  + (gone > 0 ? "  \u00b7  " + gone + (gone === 1 ? " annotation" : " annotations")
-                                                + " dropped" : "");
-            }
-        }
+        if (!doc.cropped) return "not cropped";
+        return applySlots(doc.slots.map(function (s) { return Object.assign({}, s, { crop: null }); }),
+                          "Crop removed");
     }
 
     function outputName() {
@@ -1217,6 +1377,13 @@ Item {
                 onCopyRequested: root.copy()
                 onDragOutRequested: root.dragOut()
                 onLogoRequested: root.pickLogo()
+                onAddShotRequested: function (how) { root.add(how); }
+                onShotRequested: function (action, id) {
+                    if (action === "left") root.moveSlot(id, -1);
+                    else if (action === "right") root.moveSlot(id, 1);
+                    else if (action === "uncrop") root.uncropSlot(id);
+                    else if (action === "remove") root.removeSlot(id);
+                }
                 onSaveRequested: root.save()
                 onSaveAsRequested: root.saveAs()
                 onOpenRequested: root.pick()
@@ -1276,12 +1443,15 @@ Item {
 
     Process {
         id: picker
+        property bool append: false
         command: ["bash", root.pluginDir + "bin/postcard-pick", "open", root.shotDir]
         stdout: StdioCollector {
             onStreamFinished: {
                 var p = text.trim();
                 root.picking = false;
-                if (p.length && p.indexOf("/") === 0) root.loadShot(p);
+                if (p.length && p.indexOf("/") === 0) {
+                    if (picker.append) root.addShot(p); else root.loadShot(p);
+                }
                 root.focusEditor();
             }
         }

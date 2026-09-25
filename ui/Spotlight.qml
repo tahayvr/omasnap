@@ -12,6 +12,9 @@ Item {
     property real holeOffset: 0            // the inset, between card and shot
     property real topRadius: 0
     property real bottomRadius: 0
+    // With several shots, each card's part of the area (Model.spotlightOutlines);
+    // null for one.
+    property var outlines: null
 
     readonly property real amount: doc ? Model.clamp(doc.spotDim / 100, 0, 1) : 0
     visible: doc !== null && doc.spotlightCount > 0 && amount > 0
@@ -30,11 +33,10 @@ Item {
                     // Read for the dependency alone: a ListModel notifies
                     // nothing a binding can follow, so every edit bumps this.
                     spot.doc.annotationRevision;
+                    var holes = Model.spotlightHoles(spot.doc.annotations, spot.holeOffset, spot.doc.spotShape);
+                    if (spot.outlines) return Model.spotlightPathIn(spot.outlines, holes);
                     return Model.spotlightPath(spot.width, spot.height,
-                                               spot.topRadius, spot.bottomRadius,
-                                               Model.spotlightHoles(spot.doc.annotations,
-                                                                    spot.holeOffset,
-                                                                    spot.doc.spotShape));
+                                               spot.topRadius, spot.bottomRadius, holes);
                 }
             }
         }

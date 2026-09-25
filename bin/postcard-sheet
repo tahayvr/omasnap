@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# postcard-sheet <dest> <W> <H> [<src> <cx> <cy> <cw> <ch> <w> <h> <x> <y>]...
+# Several shots on one transparent sheet: from each file the part cx,cy,cw,ch
+# is taken, brought to w x h and placed at x,y. A shot at its own size is
+# copied 1:1; only one that has to shrink is resampled. Prints ok.
+set -uo pipefail
+exec </dev/null
+dest="${1:-}"; W="${2:-0}"; H="${3:-0}"
+shift 3 2>/dev/null || { echo "Nothing to compose"; exit 1; }
+[ -n "$dest" ] || { echo "No destination"; exit 1; }
+
+args=(-size "${W}x${H}" xc:none)
+while [ "$#" -ge 9 ]; do
+  src="$1" cx="$2" cy="$3" cw="$4" ch="$5" w="$6" h="$7" x="$8" y="$9"
+  shift 9
+  [ -f "$src" ] || { echo "Missing $(basename "$src")"; exit 1; }
+  part=("(" "$src[0]" -crop "${cw}x${ch}+${cx}+${cy}" +repage)
+  [ "$cw" = "$w" ] && [ "$ch" = "$h" ] || part+=(-resize "${w}x${h}!")
+  args+=("${part[@]}" ")" -geometry "+${x}+${y}" -composite)
+done
+# Always 8-bit RGBA. Left to itself magick picked a 16-bit palette PNG for
+# some sheets, which Qt draws garbled: striped and half transparent.
+magick "${args[@]}" -depth 8 "PNG32:$dest" || { echo "Could not compose"; exit 1; }
+# Only the newest sheet is ever on show; the scratch directory is in memory,
+# and a gap slider dragged across its range would otherwise leave dozens.
+find "$(dirname "$dest")" -maxdepth 1 -name 'postcard-sheet-*.png' ! -path "$dest" -delete
+echo "ok"
