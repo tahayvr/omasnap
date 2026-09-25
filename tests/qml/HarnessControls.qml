@@ -511,6 +511,10 @@ Window {
         win.check("with nothing selected there is nothing to restyle",
                   doc.styleSelection("color", "#ff0000"), false);
 
+        // ---- the command line reaches real properties ------------------------
+        var unknown = Object.keys(Model.SETTABLE).filter(function (k) { return doc[k] === undefined; });
+        win.check("every key `set` accepts is a property of the document", unknown.join(), "");
+
         // ---- several marks at once -----------------------------------------
         doc.clearAnnotations();
         var trio = [];

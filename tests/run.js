@@ -211,6 +211,20 @@ test("a watermark's ink suits what is under it", () => {
     eq(Model.cleanStyle({ watermarkSize: "big" }).watermarkSize, 100, "a bad size falls back");
 });
 
+test("the command line help covers every call's options", () => {
+    const top = Model.helpText("");
+    for (const fn of ["capture", "edit", "code", "pick", "set", "preset", "annotate", "crop",
+                      "uncrop", "redact", "save", "saveAs", "copy", "copyText", "info", "help"])
+        ok(new RegExp("\\n  " + fn + " ").test(top), "overview lists " + fn);
+    const set = Model.helpText("set");
+    for (const k of Object.keys(Model.SETTABLE)) ok(set.indexOf("  " + k + ": ") !== -1, "help set lists " + k);
+    const ann = Model.helpText("annotate");
+    for (const k of Model.ANNOTATION_KINDS) ok(ann.indexOf(k) !== -1, "help annotate names " + k);
+    ok(Model.helpText("capture").indexOf("smart") !== -1);
+    eq(Model.helpText("nonsense"), top, "an unknown topic is the overview");
+    eq(Model.helpText("  SET "), set, "topics ignore case and spaces");
+});
+
 test("a copied annotation keeps every role and nothing else", () => {
     const a = Model.newAnnotation("magnify", 3, 4);
     a.sx = 9; a.text = "hi";

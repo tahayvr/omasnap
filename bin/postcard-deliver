@@ -2,6 +2,8 @@
 # postcard-deliver copy <png> ""     <format> <quality> [w h] -> image onto the clipboard
 # postcard-deliver save <png> <dest> <format> <quality> [w h [copy]] -> final file on disk,
 #                                                        and on the clipboard unless copy is 0
+# postcard-deliver save-new ...                          -> the same, but never over an existing
+#                                                        file: a name taken gets -2, -3, ...
 # postcard-deliver file <png> <dest> <format> <quality> [w h] -> the file alone, to be dragged
 # postcard-deliver text                                        -> stdin onto the clipboard
 # The grab is padded up to whole device pixels so nothing gets resampled;
@@ -53,6 +55,17 @@ clip() { # clip <encoded file>
     wl-copy --type "$mime" < "$1"
   fi
 }
+
+# Save names are stamped to the second, so two saves in one second, as a
+# script saving a batch makes, would land on the same name.
+if [ "$action" = "save-new" ]; then
+  action="save"
+  if [ -e "$dest" ]; then
+    base="${dest%.*}" ext="${dest##*.}" n=2
+    while [ -e "$base-$n.$ext" ]; do n=$((n + 1)); done
+    dest="$base-$n.$ext"
+  fi
+fi
 
 case "$action" in
   file)

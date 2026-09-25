@@ -150,8 +150,8 @@ Item {
         if (shell && typeof shell.hide === "function") shell.hide(pluginId);
     }
 
-    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText, preset
-    // (see README, Scripting).
+    // Public: edit, capture, save, saveAs, copy, crop, redact, copyText, preset,
+    // help (see README, Scripting, and Model.helpText).
     function edit(path) {
         if (!path) return "no path";
         if (shell && typeof shell.summon === "function"
@@ -161,12 +161,14 @@ Item {
         return "ok";
     }
 
+    // help [topic]: usage, from the same lists the calls use.
+    function help(topic) {
+        return Model.helpText(topic);
+    }
+
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
-    readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "bgCustomStops", "bgCustomAngle", "padding", "inset", "balance", "ratio",
-        "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
-        "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "textFont", "spotShape", "spotDim",
-        "codeLang", "codeTheme", "codeFont", "codeNumbers", "saveCopies",
-        "watermarkText", "watermarkLogo", "watermarkSize"]
+    // The keys, and what each takes, are Model.SETTABLE.
+    readonly property var settable: Object.keys(Model.SETTABLE)
     function set(json) {
         var o;
         try { o = JSON.parse(json); } catch (e) { return "bad json"; }
@@ -231,7 +233,13 @@ Item {
     // info: the document as JSON.
     function info() {
         return JSON.stringify({
-            kind: doc.kind, opened: opened, capturing: capturing, picking: picking, busy: editor.busy, hasContent: doc.hasContent,
+            // busy covers everything a script has to wait out before the
+            // next call, not only what the editor shows as working.
+            kind: doc.kind, opened: opened, capturing: capturing, picking: picking,
+            busy: editor.busy || cropProc.running || textProc.running || ocrProc.running,
+            hasContent: doc.hasContent,
+            // Rendering is `busy`; encoding and writing the file comes after.
+            delivering: deliver.running || dragFile.running, lastSaved: root.lastSaved,
             shotPath: doc.shotPath, shotWidth: doc.shotWidth, shotHeight: doc.shotHeight,
             outWidth: doc.outWidth, outHeight: doc.outHeight, annotations: doc.annotations.count,
             preset: doc.activePresetEntry.name, presetModified: doc.presetModified,
@@ -937,7 +945,7 @@ Item {
 
     function save() {
         return exportTo(root.scratchDir + "/postcard-out.png", function (p) {
-            deliver.args = ["save", p, outputPath(), doc.format, String(doc.quality),
+            deliver.args = ["save-new", p, outputPath(), doc.format, String(doc.quality),
                             String(doc.outWidth), String(doc.outHeight), doc.saveCopies ? "1" : "0"];
             deliver.running = true;
         });
@@ -998,9 +1006,19 @@ Item {
             onStreamFinished: {
                 var msg = text.trim();
                 if (msg.length) editor.statusText = msg;
+                // For a script to pick the file up from, through `info`.
+                // The name comes back from the script, which may have had to
+                // pick a free one.
+                if (deliver.args[0].indexOf("save") === 0 && msg.indexOf("Saved ") === 0) {
+                    var dest = String(deliver.args[2]);
+                    root.lastSaved = dest.slice(0, dest.lastIndexOf("/") + 1) + msg.slice(6);
+                }
             }
         }
     }
+
+    // The last file a save wrote, for scripts.
+    property string lastSaved: ""
 
     function editSelectedText(event) {
         if (doc.selectedIds.length !== 1) return false;
