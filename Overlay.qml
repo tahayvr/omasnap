@@ -480,10 +480,37 @@ Item {
     // overwrite what was saved last time.
     property bool colorsReady: false
 
-    function readColors(json) {
+    // Each file is brought up to this build's version as it is read, and an
+    // older one is written back at once (Model.CONFIG_FILES). One from a newer
+    // Postcard is read and left alone: tooNew holds its name.
+    property var tooNew: ({})
+
+    // The parsed file, migrated; null when there is nothing usable. Returns
+    // through `done` whether the file on disk should be rewritten.
+    function openConfig(kind, json, done) {
         var o;
-        try { o = JSON.parse(json); } catch (e) { return; }
-        if (!o || typeof o !== "object") return;
+        try { o = JSON.parse(json); } catch (e) { return null; }
+        if (!o || typeof o !== "object") return null;
+        var m = Model.migrateConfig(kind, o);
+        if (m.tooNew) {
+            var t = Object.assign({}, root.tooNew);
+            t[kind] = true;
+            root.tooNew = t;
+            console.warn("postcard: " + kind + ".json is version " + m.from
+                         + ", newer than this Postcard; not writing to it");
+        }
+        done(!m.tooNew && m.from < Model.CONFIG_FILES[kind].version);
+        return m.data;
+    }
+
+    function writeConfig(kind, view, values) {
+        if (root.tooNew[kind]) return;
+        view.setText(JSON.stringify(Model.configFile(kind, values), null, 2) + "\n");
+    }
+
+    function readColors(json) {
+        var o = root.openConfig("colors", json, function (stale) { if (stale) colorsSave.restart(); });
+        if (!o) return;
         if (Array.isArray(o.customColors)) {
             var kept = [];
             for (var i = o.customColors.length - 1; i >= 0; i--)
@@ -518,11 +545,11 @@ Item {
     Timer {
         id: colorsSave
         interval: 500
-        onTriggered: colorsView.setText(JSON.stringify({
+        onTriggered: root.writeConfig("colors", colorsView, {
             customColors: doc.customColors,
             inkColors: doc.inkColors,
             gradients: doc.userGradients
-        }, null, 2) + "\n")
+        })
     }
 
     Connections {
@@ -539,9 +566,8 @@ Item {
     property bool presetsReady: false
 
     function readPresets(json) {
-        var o;
-        try { o = JSON.parse(json); } catch (e) { return; }
-        if (!o || typeof o !== "object" || !Array.isArray(o.presets)) return;
+        var o = root.openConfig("presets", json, function (stale) { if (stale) presetsSave.restart(); });
+        if (!o || !Array.isArray(o.presets)) return;
         var list = [];
         for (var i = 0; i < o.presets.length; i++) list = Model.savePreset(list, o.presets[i]);
         doc.presets = list;
@@ -562,10 +588,10 @@ Item {
     Timer {
         id: presetsSave
         interval: 500
-        onTriggered: presetsView.setText(JSON.stringify({
+        onTriggered: root.writeConfig("presets", presetsView, {
             active: doc.activePreset,
             presets: doc.presets
-        }, null, 2) + "\n")
+        })
     }
 
     Connections {
@@ -579,20 +605,10 @@ Item {
     readonly property string settingsFile: root.colorsFile.replace(/colors\.json$/, "settings.json")
     property bool settingsReady: false
 
-    // Set when settings.json came from a newer Postcard: it is read, and
-    // left as it is.
-    property bool settingsTooNew: false
-
     function readSettings(json) {
-        var o = null;
-        try { o = JSON.parse(json); } catch (e) {}
-        var m = Model.migrateSettings(o);
-        for (var k in m.settings) doc[k] = m.settings[k];
-        root.settingsTooNew = m.tooNew;
-        if (m.tooNew)
-            console.warn("postcard: settings.json is version " + m.from + ", newer than this Postcard; not writing to it");
-        // An older file is brought up to date on disk straight away.
-        return o !== null && m.from < Model.SETTINGS_VERSION;
+        var o = root.openConfig("settings", json, function (stale) { if (stale) settingsSave.restart(); });
+        var s = Model.cleanSettings(o);
+        for (var k in s) doc[k] = s[k];
     }
 
     FileView {
@@ -600,9 +616,8 @@ Item {
         path: root.settingsFile
         printErrors: false
         onLoaded: {
-            var migrated = root.readSettings(settingsView.text());
+            root.readSettings(settingsView.text());
             root.settingsReady = true;
-            if (migrated) settingsSave.restart();
         }
         onLoadFailed: root.settingsReady = true
     }
@@ -611,10 +626,9 @@ Item {
         id: settingsSave
         interval: 500
         onTriggered: {
-            if (root.settingsTooNew) return;
             var values = {};
             for (var k in Model.DEFAULT_SETTINGS) values[k] = doc[k];
-            settingsView.setText(JSON.stringify(Model.settingsFile(values), null, 2) + "\n");
+            root.writeConfig("settings", settingsView, Model.cleanSettings(values));
         }
     }
 

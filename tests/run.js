@@ -813,22 +813,38 @@ test("settings come back off disk as the kind of value they should be", () => {
     eq(Object.keys(Model.cleanSettings({ stray: 1 })).join(), "saveCopies", "nothing unknown is kept");
 });
 
-test("settings files carry a version and older ones are brought up to it", () => {
-    eq(Model.SETTINGS_MIGRATIONS.length, Model.SETTINGS_VERSION, "a step for every version before this one");
-    const old = Model.migrateSettings({ saveCopies: false });
+test("settings come back off disk at this version", () => {
+    const read = o => { const m = Model.migrateConfig("settings", o); return Object.assign(m, { settings: Model.cleanSettings(m.data) }); };
+    const V = Model.CONFIG_FILES.settings.version;
+    const old = read({ saveCopies: false });
     eq(old.from, 0, "a file without a version is the first layout");
     eq(old.settings.saveCopies, false, "and keeps what it said");
     ok(!old.tooNew);
-    const cur = Model.migrateSettings({ version: Model.SETTINGS_VERSION, saveCopies: false });
-    eq(cur.from, Model.SETTINGS_VERSION);
-    const newer = Model.migrateSettings({ version: Model.SETTINGS_VERSION + 1, saveCopies: false });
+    const newer = read({ version: V + 1, saveCopies: false });
     ok(newer.tooNew, "a newer file is flagged, so it is not written over");
     eq(newer.settings.saveCopies, false, "but still read");
-    eq(Model.migrateSettings(null).settings.saveCopies, true, "no file is the defaults");
-    eq(Model.migrateSettings({ version: "2" }).from, 0, "a version that is not a number is not trusted");
-    const file = Model.settingsFile({ saveCopies: false, stray: 1 });
+    eq(read(null).settings.saveCopies, true, "no file is the defaults");
+    eq(read({ version: "2" }).from, 0, "a version that is not a number is not trusted");
+    const file = Model.configFile("settings", Model.cleanSettings({ saveCopies: false, stray: 1 }));
     eq(Object.keys(file).join(), "version,saveCopies", "version first, and nothing unknown");
-    eq(file.version, Model.SETTINGS_VERSION);
+});
+
+test("every config file is versioned the same way", () => {
+    for (const kind of ["settings", "colors", "presets"]) {
+        const spec = Model.CONFIG_FILES[kind];
+        eq(spec.migrations.length, spec.version, kind + ": a step for every version before this one");
+        const m = Model.migrateConfig(kind, { a: 1 });
+        eq(m.from, 0, kind);
+        eq(m.data.a, 1, kind + " keeps what it had");
+        ok(Model.migrateConfig(kind, { version: spec.version + 1 }).tooNew, kind + " from a newer build");
+        const f = Model.configFile(kind, { version: 0, a: 1 });
+        eq(Object.keys(f).join(), "version,a", kind + ": version first, not the stale one");
+        eq(f.version, spec.version);
+    }
+    const colors = { customColors: ["#112233"], gradients: [] };
+    const back = Model.migrateConfig("colors", colors);
+    back.data.customColors.push("#000000");
+    eq(colors.customColors.length, 1, "migrating does not touch what was read");
 });
 
 test("a chosen save path is given the extension the format needs", () => {
