@@ -164,7 +164,7 @@ Item {
     // set <json>: change document settings, e.g. {"padding": 8, "codeTheme": "nord"}.
     readonly property var settable: ["bgMode", "bgSolid", "bgGradient", "bgCustomStops", "bgCustomAngle", "padding", "inset", "balance", "ratio",
         "radius", "shadow", "frame", "frameTitle", "exportScale", "format",
-        "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "spotShape", "spotDim",
+        "quality", "tool", "inkColor", "inkWidth", "arrowStyle", "textFont", "spotShape", "spotDim",
         "codeLang", "codeTheme", "codeFont", "codeNumbers"]
     function set(json) {
         var o;
@@ -175,7 +175,7 @@ Item {
     }
 
     // annotate <json>: add annotations in screenshot pixels: one object
-    // {kind, x, y, w, h, color, width, text, size, index, strength, zoom}, or several as
+    // {kind, x, y, w, h, color, width, text, size, font, index, strength, zoom}, or several as
     // {"items": [...]} (the IPC CLI splits a bare top-level array on commas).
     function annotate(json) {
         var list;
@@ -195,6 +195,7 @@ Item {
                     : (a.kind === "arrow" ? String(doc.arrowStyle) : "");
             a.text = o.text ? String(o.text) : "";
             // A label sized by width, as before it had a size, keeps that size.
+            if (a.kind === "text") a.font = o.font ? String(o.font) : String(doc.textFont);
             if (a.kind === "text")
                 a.fontSize = Number(o.size) || (Number(o.width) ? Model.textSize(a)
                            : doc.textSize || Model.defaultTextSize(doc.shotWidth, doc.shotHeight));

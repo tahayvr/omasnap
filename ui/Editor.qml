@@ -291,6 +291,7 @@ Rectangle {
                     if (doc.tool === "text") {
                         a.w = 0; a.h = 0;
                         a.text = "";
+                        a.font = doc.textFont;
                         a.fontSize = doc.textSize > 0 ? doc.textSize
                                    : Model.defaultTextSize(doc.shotWidth, doc.shotHeight);
                         doc.addAnnotation(a);

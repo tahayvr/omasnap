@@ -78,6 +78,7 @@ QtObject {
     property color inkColor: "#ff5f56"
     property real inkWidth: 4
     property string arrowStyle: "straight"
+    property string textFont: "mono"
     property int magnifyZoom: Model.MAGNIFY_ZOOM
     property int stepCounter: 0
     // The size a label was last pulled to, so the next one matches; 0 until
@@ -165,6 +166,13 @@ QtObject {
         arrowStyle = key;
         var a = selectedAnnotation();
         if (a && a.kind === "arrow") updateAnnotation(a.uid, { style: key });
+    }
+
+    // The font for the next label and for the one in hand, like the arrow style.
+    function setTextFont(key) {
+        textFont = key;
+        var a = selectedAnnotation();
+        if (a && a.kind === "text") updateAnnotation(a.uid, { font: key });
     }
 
     // Like the arrow style, the zoom is for the next magnifier and the one
@@ -323,7 +331,7 @@ QtObject {
         activePreset = Model.DEFAULT_PRESET;
         tool = "select";
         spotShape = "rect"; spotDim = 55;
-        inkColor = "#ff5f56"; inkWidth = 4; arrowStyle = "straight";
+        inkColor = "#ff5f56"; inkWidth = 4; arrowStyle = "straight"; textFont = "mono";
         magnifyZoom = Model.MAGNIFY_ZOOM;
     }
 

@@ -321,8 +321,8 @@ Item {
                         text: placeholder ? (anno.doc.exporting ? "" : "Type…") : entry.a.text
                         color: entry.ink
                         opacity: placeholder ? 0.55 : 1
-                        font.family: Style.font.family
                         font.pixelSize: Math.round(Model.textSize(entry.a))
+                        font.family: Model.textFamily(entry.a.font)
                         font.bold: true
                         style: Text.Outline
                         styleColor: Qt.rgba(0, 0, 0, 0.55)
