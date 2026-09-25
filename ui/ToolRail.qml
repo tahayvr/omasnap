@@ -8,7 +8,6 @@ Item {
     signal status(string text)
 
     readonly property int annotationCount: rail.doc ? rail.doc.annotations.count : 0
-    readonly property int redoCount: rail.doc ? rail.doc.redoStack.length : 0
 
     readonly property var tools: [
         { key: "select",    glyph: "↖", name: "Move",      hint: "V" },
@@ -73,22 +72,16 @@ Item {
         IconButton {
             glyph: "↶"
             flat: true
-            enabled: rail.annotationCount > 0
+            enabled: rail.doc !== null && rail.doc.canUndo
             tip: "Undo (Ctrl+Z)"
-            onClicked: {
-                rail.doc.undo();
-                rail.status("Undid the last annotation");
-            }
+            onClicked: if (rail.doc.undo()) rail.status("Undone")
         }
         IconButton {
             glyph: "↷"
             flat: true
-            enabled: rail.redoCount > 0
+            enabled: rail.doc !== null && rail.doc.canRedo
             tip: "Redo (Ctrl+Shift+Z)"
-            onClicked: {
-                rail.doc.redo();
-                rail.status("Redid the annotation");
-            }
+            onClicked: if (rail.doc.redo()) rail.status("Redone")
         }
         IconButton {
             glyph: "✕"

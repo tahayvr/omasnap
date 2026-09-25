@@ -218,6 +218,24 @@ Rectangle {
         }
         clip: true
 
+        // Sees every press on the picture without taking it from the marks,
+        // so the undo history knows to wait for the release. It has to sit
+        // on top: a handler on the viewport itself never saw a press that a
+        // mark or the drawing surface took.
+        Item {
+            anchors.fill: parent
+            z: 100
+            PointHandler {
+                id: press
+                acceptedButtons: Qt.LeftButton
+            }
+        }
+        Binding {
+            target: editor.doc
+            property: "pressing"
+            value: press.active
+        }
+
         readonly property real margin: Ui.pad * 2
         // The stage is laid out in screen units, so a fit of 1 shows the shot
         // life-size, pixel for pixel; it is never magnified.
