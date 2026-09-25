@@ -11,6 +11,8 @@ Rectangle {
     property string tip: ""
     property color rest: flat ? "transparent" : Ui.fill
     signal clicked()
+    signal pressStarted()
+    readonly property bool held: ma.pressed
 
     implicitWidth: label !== "" ? row.implicitWidth + Ui.padX * 2 : Ui.button
     implicitHeight: Ui.button
@@ -70,6 +72,7 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onEntered: hold.restart()
         onExited: hold.stop()
+        onPressed: root.pressStarted()
         onClicked: root.clicked()
     }
 }

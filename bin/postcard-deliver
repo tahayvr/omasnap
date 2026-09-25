@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # postcard-deliver copy <png> ""     <format> <quality> [w h] -> image onto the clipboard
 # postcard-deliver save <png> <dest> <format> <quality> [w h] -> final file on disk (+ clipboard)
+# postcard-deliver file <png> <dest> <format> <quality> [w h] -> the file alone, to be dragged
 # postcard-deliver text                                        -> stdin onto the clipboard
 # The grab is padded up to whole device pixels so nothing gets resampled;
 # w h is the size of the picture inside it, and the surplus is cropped off.
@@ -36,6 +37,14 @@ encode() { # encode <in> <out>
 }
 
 case "$action" in
+  file)
+    # Only the newest is ever being dragged; the app it was dropped on has
+    # read the one before by now.
+    mkdir -p "$(dirname "$dest")"
+    find "$(dirname "$dest")" -maxdepth 1 -type f -name 'postcard-*' -delete
+    encode "$src" "$dest"
+    printf '%s\n' "$dest"
+    ;;
   copy)
     tmp="${src%.png}.out.${format}"
     encode "$src" "$tmp"

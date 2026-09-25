@@ -898,6 +898,29 @@ Item {
         });
     }
 
+    // dragOut: render, then hand the file to the editor to drag, if the button
+    // is still held by the time it is ready.
+    function dragOut() {
+        return exportTo(root.scratchDir + "/postcard-drag.png", function (p) {
+            dragFile.args = ["file", p, root.scratchDir + "/postcard-drag/" + root.outputName(),
+                             doc.format, String(doc.quality),
+                             String(doc.outWidth), String(doc.outHeight)];
+            dragFile.running = true;
+        });
+    }
+
+    Process {
+        id: dragFile
+        property var args: []
+        command: ["bash", root.pluginDir + "bin/postcard-deliver"].concat(args)
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var path = text.trim();
+                if (path.indexOf("/") === 0) editor.startDragOut(path);
+            }
+        }
+    }
+
     Process {
         id: deliver
         property var args: []
@@ -1027,7 +1050,14 @@ Item {
 
         onVisibleChanged: if (visible) root.focusEditor()
 
+        // While the picture is dragged out the editor steps aside: nothing
+        // shows and every pointer event reaches the windows underneath, or
+        // the overlay would be the only place it could be dropped.
+        mask: editor.draggingOut ? passThrough : null
+        readonly property Region passThrough: Region {}
+
         Rectangle {
+            opacity: editor.draggingOut ? 0 : 1
             anchors.fill: parent
             color: Color.menu && Color.menu.scrim ? Color.menu.scrim : Qt.rgba(0, 0, 0, 0.55)
             MouseArea {
@@ -1040,6 +1070,7 @@ Item {
         // desktop behind it and a click there closes the editor.
         FocusScope {
             id: scope
+            opacity: editor.draggingOut ? 0 : 1
             anchors.centerIn: parent
             width: Math.min(Style.space(1320), parent.width - Style.gapsOut * 4)
             height: Math.min(Style.space(860), parent.height - Style.gapsOut * 4)
@@ -1058,6 +1089,7 @@ Item {
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()
+                onDragOutRequested: root.dragOut()
                 onSaveRequested: root.save()
                 onSaveAsRequested: root.saveAs()
                 onOpenRequested: root.pick()
