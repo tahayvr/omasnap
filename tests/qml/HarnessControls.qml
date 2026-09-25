@@ -511,6 +511,66 @@ Window {
         win.check("with nothing selected there is nothing to restyle",
                   doc.styleSelection("color", "#ff0000"), false);
 
+        // ---- the command line reaches real properties ------------------------
+        var unknown = Object.keys(Model.SETTABLE).filter(function (k) { return doc[k] === undefined; });
+        win.check("every key `set` accepts is a property of the document", unknown.join(), "");
+
+        // ---- several marks at once -----------------------------------------
+        doc.clearAnnotations();
+        var trio = [];
+        for (var t = 0; t < 3; t++) {
+            var m3 = Model.newAnnotation("box", t * 100, 10);
+            m3.w = 40; m3.h = 40;
+            doc.annotations.append(m3);
+            trio.push(m3.uid);
+        }
+        doc.annotationsEdited();
+        doc.selectedId = trio[0];
+        doc.toggleSelected(trio[2]);
+        win.check("shift adds a mark to the selection", doc.selectedIds.length, 2);
+        win.check("and puts it in hand", doc.selectedId, trio[2]);
+        doc.toggleSelected(trio[2]);
+        win.check("and again takes it out", doc.selectedIds.join(), trio[0]);
+        doc.selectedId = trio[1];
+        win.check("a plain pick selects that mark alone", doc.selectedIds.join(), trio[1]);
+        doc.selectInBox(0, 0, 150, 60, false);
+        win.check("a box takes what it touches", doc.selectedIds.length, 2);
+        doc.selectInBox(190, 0, 20, 20, true);
+        win.check("and with shift adds to it", doc.selectedIds.length, 3);
+        doc.moveSelection(5, 7, "");
+        win.check("a group moves together", doc.annotations.get(2).x + "," + doc.annotations.get(2).y, "205,17");
+        doc.styleSelection("color", "#123456");
+        win.check("and is restyled together", String(doc.annotations.get(0).color), "#123456");
+        doc.selectMany([trio[0], trio[2]], trio[0]);
+        win.check("and goes together", doc.removeSelection(), 2);
+        win.check("leaving the rest", doc.annotations.get(0).uid, trio[1]);
+        win.check("and nothing selected", doc.selectedIds.length + doc.selectedId.length, 0);
+        doc.selectAll();
+        win.check("select all", doc.selectedIds.join(), trio[1]);
+
+        // ---- copy and paste --------------------------------------------------
+        doc.clearAnnotations();
+        var src = Model.newAnnotation("box", 10, 10); src.w = 40; src.h = 40;
+        var num = Model.newAnnotation("step", 100, 10); num.w = 30; num.h = 30;
+        doc.stepCounter = 1; num.index = 1;
+        doc.annotations.append(src);
+        doc.annotations.append(num);
+        doc.annotationsEdited();
+        doc.selectAll();
+        win.check("a selection is copied", doc.copySelection(), 2);
+        win.check("and pasted", doc.paste(), 2);
+        win.check("beside the original", doc.annotations.get(2).x, 10 + Model.pasteStep(doc.shotWidth, doc.shotHeight));
+        win.check("a pasted step carries on the count", doc.annotations.get(3).index, 2);
+        win.check("the pasted marks are what is selected", doc.selectedIds.length, 2);
+        doc.paste();
+        win.check("a second paste steps further", doc.annotations.get(4).x,
+                  10 + 2 * Model.pasteStep(doc.shotWidth, doc.shotHeight));
+        doc.selectedId = doc.annotations.get(0).uid;
+        win.check("duplicate copies what is selected", doc.duplicateSelection(), 1);
+        win.check("without touching the clipboard", doc.markClipboard.length, 2);
+        doc.clearContent();
+        win.check("a new picture clears it", doc.markClipboard.length, 0);
+
         // ---- a step sequence closes up -------------------------------------
         doc.clearAnnotations();
         var steps = [];
@@ -537,7 +597,10 @@ Window {
         }
         win.check("five steps in order", sequence(), "1,2,3,4,5");
 
+        // checkpoint() stands in for the settle timer after each action.
+        doc.resetHistory();
         doc.removeAnnotation(steps[2].uid);
+        doc.checkpoint();
         win.check("the third goes and the rest close up", sequence(), "1,2,3,4");
         win.check("so the next one carries on from the end", doc.stepCounter, 4);
         win.check("and the box is still there", doc.annotations.count, 5);
@@ -546,10 +609,56 @@ Window {
         win.check("and again from the front", sequence(), "1,2,3");
 
         doc.undo();
-        win.check("undo takes the box, which was last", sequence(), "1,2,3");
+        win.check("undo brings back what was removed last, settled or not", sequence(), "1,2,3,4");
         doc.undo();
-        win.check("and again once a step goes", sequence(), "1,2");
-        win.check("with the counter following", doc.stepCounter, 2);
+        win.check("and the one before", sequence(), "1,2,3,4,5");
+        win.check("with the counter following", doc.stepCounter, 5);
+        win.check("and no further than the picture as it was", doc.undo(), false);
+        doc.redo();
+        win.check("redo takes it away again", sequence(), "1,2,3,4");
+
+        // ---- the undo history ------------------------------------------------
+        doc.clearAnnotations();
+        doc.resetHistory();
+        var hb = Model.newAnnotation("box", 10, 10); hb.w = 40; hb.h = 40;
+        doc.addAnnotation(hb);
+        doc.checkpoint();
+        doc.moveSelection(30, 0, "");
+        doc.checkpoint();
+        doc.styleSelection("color", "#abcdef");
+        doc.checkpoint();
+        doc.undo();
+        win.check("undo takes back a restyle", String(doc.annotations.get(0).color), String(hb.color));
+        doc.undo();
+        win.check("and a move", doc.annotations.get(0).x, 10);
+        doc.redo();
+        win.check("redo moves it again", doc.annotations.get(0).x, 40);
+        win.check("with more to redo", doc.canRedo, true);
+        doc.selectedId = doc.annotations.get(0).uid;
+        doc.moveSelection(0, 5, "");
+        win.check("a new edit is undoable at once", doc.canUndo, true);
+        doc.checkpoint();
+        win.check("and leaves nothing to redo", doc.canRedo, false);
+        doc.selectAll();
+        doc.removeSelection();
+        doc.checkpoint();
+        doc.undo();
+        win.check("a delete is undone", doc.annotations.count, 1);
+        win.check("to where it was", doc.annotations.get(0).y, 15);
+        doc.pressing = true;
+        win.check("nothing is undone while a press is under way", doc.undo(), false);
+        doc.pressing = false;
+        var stepsBefore = doc.history.length;
+        var hbLabel = Model.newAnnotation("text", 5, 5);
+        doc.addAnnotation(hbLabel);
+        doc.checkpoint();
+        win.check("a label with nothing typed is not a step", doc.history.length, stepsBefore);
+        doc.updateAnnotation(hbLabel.uid, { text: "hi" });
+        doc.checkpoint();
+        win.check("once it says something it is", doc.history.length, doc.historyAt + 1);
+        win.check("and redo is gone", doc.canRedo, false);
+        doc.clearContent();
+        win.check("a new picture starts the history again", doc.canUndo, false);
 
         // What a crop cuts away leaves the same tidy sequence behind.
         doc.clearAnnotations();

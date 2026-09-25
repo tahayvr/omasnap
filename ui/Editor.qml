@@ -15,6 +15,10 @@ Rectangle {
     signal captureRequested(string mode)
     signal codeRequested()
     signal copyRequested()
+    signal dragOutRequested()
+    signal logoRequested()
+    signal addShotRequested(string how)
+    signal shotRequested(string action, string id)
     signal saveRequested()
     signal saveAsRequested()
     signal openRequested()
@@ -74,6 +78,37 @@ Rectangle {
 
     readonly property Item exportTarget: grabRoot
     readonly property string repoUrl: "https://github.com/tahayvr/postcard"
+    // The settings take the inspector's place while they are open.
+    property bool settingsOpen: false
+    readonly property Item sidePanel: settingsPanel.visible ? settingsPanel
+                                    : inspector.visible ? inspector : null
+    // True from the moment the picture is ready until the drag ends: the
+    // backdrop goes first, and the drag starts once it has.
+    property bool draggingOut: false
+    readonly property bool dragActive: dragOut.Drag.active
+
+    // Called once the picture is on disk. A drag can only start while the
+    // button is still held: Wayland ties it to that press.
+    function startDragOut(path) {
+        if (!dragOut.held) {
+            editor.statusText = "Hold the button and drag it into another window";
+            return;
+        }
+        var url = "file://" + path;
+        dragOut.Drag.mimeData = { "text/uri-list": url + "\r\n" };
+        dragOut.Drag.imageSource = url;
+        editor.draggingOut = true;
+        dragStart.restart();
+    }
+
+    Timer {
+        id: dragStart
+        interval: 150
+        onTriggered: {
+            if (!dragOut.held) { editor.draggingOut = false; return; }
+            dragOut.Drag.active = true;
+        }
+    }
 
     color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
     border.width: 1
@@ -106,6 +141,7 @@ Rectangle {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: doc.kind === "code" && doc.hasContent ? doc.frameTitle
+                      : doc.shotCount > 1 ? doc.slots[0].name + "  +" + (doc.shotCount - 1)
                       : doc.shotName ? doc.shotName : "No screenshot yet"
                 color: Ui.textMuted
                 font.family: Style.font.family
@@ -124,6 +160,8 @@ Rectangle {
             onAutoRedactRequested: editor.autoRedactRequested()
             onCropRequested: editor.cropRequested()
             onUncropRequested: editor.uncropRequested()
+            onEyedropRequested: function (done) { editor.eyedropRequested(done); }
+            onAddShotRequested: function (how) { editor.addShotRequested(how); }
         }
 
         Row {
@@ -132,6 +170,13 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Ui.gap
 
+            IconButton {
+                glyph: "\uf013"
+                flat: true
+                active: editor.settingsOpen
+                tip: "Settings"
+                onClicked: editor.settingsOpen = !editor.settingsOpen
+            }
             // The overlay covers the screen, so the browser it opens would
             // sit behind it; close on the way out.
             IconButton {
@@ -174,9 +219,27 @@ Rectangle {
             top: header.bottom
             bottom: footer.top
             left: rail.visible ? rail.right : parent.left
-            right: inspector.visible ? inspector.left : parent.right
+            right: editor.sidePanel ? editor.sidePanel.left : parent.right
         }
         clip: true
+
+        // Sees every press on the picture without taking it from the marks,
+        // so the undo history knows to wait for the release. It has to sit
+        // on top: a handler on the viewport itself never saw a press that a
+        // mark or the drawing surface took.
+        Item {
+            anchors.fill: parent
+            z: 100
+            PointHandler {
+                id: press
+                acceptedButtons: Qt.LeftButton
+            }
+        }
+        Binding {
+            target: editor.doc
+            property: "pressing"
+            value: press.active
+        }
 
         readonly property real margin: Ui.pad * 2
         // The stage is laid out in screen units, so a fit of 1 shows the shot
@@ -213,10 +276,48 @@ Rectangle {
             height: stage.height * viewport.fit
             visible: doc.hasContent
 
+            // With the move tool, a press on nothing clears the selection and
+            // a drag from there draws a box that selects whatever it touches;
+            // with Shift it adds to what is already selected.
             MouseArea {
+                id: marquee
                 anchors.fill: parent
                 enabled: doc.tool === "select"
-                onClicked: doc.selectedId = ""
+                property point from: Qt.point(0, 0)
+                property bool adding: false
+                property bool boxing: false
+
+                onPressed: function (e) {
+                    marquee.from = Qt.point(e.x, e.y);
+                    marquee.adding = (e.modifiers & Qt.ShiftModifier) !== 0;
+                    marquee.boxing = false;
+                    if (!marquee.adding) doc.selectedId = "";
+                }
+                onPositionChanged: function (e) {
+                    if (!pressed) return;
+                    if (Math.abs(e.x - marquee.from.x) + Math.abs(e.y - marquee.from.y) > 4)
+                        marquee.boxing = true;
+                    band.x = Math.min(e.x, marquee.from.x);
+                    band.y = Math.min(e.y, marquee.from.y);
+                    band.width = Math.abs(e.x - marquee.from.x);
+                    band.height = Math.abs(e.y - marquee.from.y);
+                }
+                onReleased: {
+                    if (!marquee.boxing) return;
+                    marquee.boxing = false;
+                    var a = draw.toShot(band.x, band.y);
+                    var b = draw.toShot(band.x + band.width, band.y + band.height);
+                    doc.selectInBox(a.x, a.y, b.x - a.x, b.y - a.y, marquee.adding);
+                }
+            }
+
+            Rectangle {
+                id: band
+                z: 2
+                visible: marquee.boxing
+                color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.12)
+                border.width: 1
+                border.color: Color.accent
             }
 
             // What the export grabs, rather than the stage itself: padded up
@@ -291,6 +392,9 @@ Rectangle {
                     if (doc.tool === "text") {
                         a.w = 0; a.h = 0;
                         a.text = "";
+                        a.font = doc.textFont;
+                        a.fontSize = doc.textSize > 0 ? doc.textSize
+                                   : Model.defaultTextSize(doc.shotWidth, doc.shotHeight);
                         doc.addAnnotation(a);
                         activeId = "";
                         doc.tool = "select";
@@ -380,9 +484,20 @@ Rectangle {
         systemThemes: editor.systemThemes
         anchors { top: header.bottom; bottom: footer.top; right: parent.right }
         width: Style.space(300)
-        visible: doc.hasContent
+        visible: doc.hasContent && !editor.settingsOpen
         onCopyTextRequested: editor.copyTextRequested()
+        onLogoRequested: editor.logoRequested()
+        onShotRequested: function (action, id) { editor.shotRequested(action, id); }
         onEyedropRequested: function (done) { editor.eyedropRequested(done); }
+    }
+
+    Settings {
+        id: settingsPanel
+        doc: editor.doc
+        saveDir: editor.saveDir
+        anchors { top: header.bottom; bottom: footer.top; right: parent.right }
+        width: inspector.width
+        visible: editor.settingsOpen
     }
 
     Rectangle {
@@ -393,8 +508,9 @@ Rectangle {
     }
 
     Rectangle {
-        visible: inspector.visible
-        anchors { right: inspector.left; top: inspector.top; bottom: inspector.bottom }
+        visible: editor.sidePanel !== null
+        anchors { right: editor.sidePanel ? editor.sidePanel.left : parent.right
+                  top: header.bottom; bottom: footer.top }
         width: 1
         color: Ui.hairline
     }
@@ -440,6 +556,23 @@ Rectangle {
                 tip: "Reset styling"
                 flat: true
                 onClicked: doc.reset()
+            }
+            IconButton {
+                id: dragOut
+                glyph: "\uf0b2"
+                label: "Drag"
+                tip: "Hold and drag the picture into another app"
+                onPressStarted: editor.dragOutRequested()
+
+                Drag.dragType: Drag.Automatic
+                Drag.supportedActions: Qt.CopyAction
+                Drag.proposedAction: Qt.CopyAction
+                // The picture itself would be the size of the export.
+                Drag.imageSourceSize: Qt.size(Style.space(200),
+                                              Style.space(200) * doc.outHeight / Math.max(1, doc.outWidth))
+                // Not told whether it was taken: Qt reports no action even
+                // for a drop another window accepted.
+                Drag.onDragFinished: editor.draggingOut = false
             }
             IconButton {
                 glyph: "\u2398"

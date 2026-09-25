@@ -44,7 +44,13 @@ Item {
             required property var model
 
             readonly property var a: model
-            readonly property bool selected: anno.doc.selectedId === a.uid
+            readonly property bool selected: anno.doc.selectedIds.indexOf(a.uid) !== -1
+            // Handles are for one mark at a time.
+            readonly property bool alone: entry.selected && anno.doc.selectedIds.length === 1
+            // Carried along while another selected mark is dragged.
+            readonly property point follow: (entry.selected && anno.doc.groupLeader !== ""
+                                             && anno.doc.groupLeader !== a.uid)
+                                            ? anno.doc.groupShift : Qt.point(0, 0)
             readonly property bool grabbable: anno.editable && (anno.moving || entry.selected)
             readonly property color ink: (a.color && a.color !== "")
                                          ? a.color : anno.doc.inkColor
@@ -57,8 +63,8 @@ Item {
             readonly property real originX: Math.min(a.x, a.x + a.w)
             readonly property real originY: Math.min(a.y, a.y + a.h)
 
-            x: Math.min(a.x, a.x + a.w)
-            y: Math.min(a.y, a.y + a.h)
+            x: Math.min(a.x, a.x + a.w) + entry.follow.x
+            y: Math.min(a.y, a.y + a.h) + entry.follow.y
             width: sizedByContent ? Math.max(1, body.implicitWidth) : Math.max(1, Math.abs(a.w))
             height: sizedByContent ? Math.max(1, body.implicitHeight) : Math.max(1, Math.abs(a.h))
 
@@ -72,8 +78,8 @@ Item {
 
             // Restores what the drag overwrote.
             function rebind() {
-                entry.x = Qt.binding(function () { return Math.min(entry.a.x, entry.a.x + entry.a.w); });
-                entry.y = Qt.binding(function () { return Math.min(entry.a.y, entry.a.y + entry.a.h); });
+                entry.x = Qt.binding(function () { return Math.min(entry.a.x, entry.a.x + entry.a.w) + entry.follow.x; });
+                entry.y = Qt.binding(function () { return Math.min(entry.a.y, entry.a.y + entry.a.h) + entry.follow.y; });
             }
 
             Loader {
@@ -310,18 +316,19 @@ Item {
             Component {
                 id: textComp
                 Item {
-                    implicitWidth: label.implicitWidth + entry.stroke * 2
-                    implicitHeight: label.implicitHeight + entry.stroke
+                    readonly property real pad: label.font.pixelSize / 6
+                    implicitWidth: label.implicitWidth + pad * 2
+                    implicitHeight: label.implicitHeight + pad
                     Text {
                         id: label
-                        x: entry.stroke
-                        y: entry.stroke / 2
+                        x: parent.pad
+                        y: parent.pad / 2
                         readonly property bool placeholder: entry.a.text === ""
                         text: placeholder ? (anno.doc.exporting ? "" : "Type…") : entry.a.text
                         color: entry.ink
                         opacity: placeholder ? 0.55 : 1
-                        font.family: Style.font.family
-                        font.pixelSize: Math.round(Math.max(12, entry.stroke * 6))
+                        font.pixelSize: Math.round(Model.textSize(entry.a))
+                        font.family: Model.textFamily(entry.a.font)
                         font.bold: true
                         style: Text.Outline
                         styleColor: Qt.rgba(0, 0, 0, 0.55)
@@ -377,7 +384,10 @@ Item {
                 // underneath would have shown.
                 cursorShape: (hold.onMark && entry.grabbable) ? Qt.SizeAllCursor
                            : anno.moving ? Qt.ArrowCursor : Qt.CrossCursor
-                drag.target: entry
+                // Shift-clicking adds a mark to the selection or takes it out,
+                // and does not move anything.
+                property bool toggling: false
+                drag.target: hold.toggling ? null : entry
                 drag.threshold: 2
 
                 // A box, an ellipse and an arrow are mostly empty space.
@@ -393,12 +403,31 @@ Item {
                         e.accepted = false;
                         return;
                     }
-                    anno.doc.selectedId = entry.a.uid;
+                    hold.toggling = anno.moving && (e.modifiers & Qt.ShiftModifier);
+                    if (hold.toggling) {
+                        anno.doc.toggleSelected(entry.a.uid);
+                        return;
+                    }
+                    // Taking hold of one of a group moves the group.
+                    if (entry.selected) anno.doc.selectMany(anno.doc.selectedIds, entry.a.uid);
+                    else anno.doc.selectedId = entry.a.uid;
+                    if (anno.doc.selectedIds.length > 1) anno.doc.groupLeader = entry.a.uid;
                 }
                 // The dim is drawn from the model, so a spotlight has to write
                 // its move back as it happens or the hole lags behind the drag.
-                onPositionChanged: if (entry.a.kind === "spotlight") entry.commit()
+                onPositionChanged: {
+                    if (hold.toggling) return;
+                    if (anno.doc.groupLeader === entry.a.uid)
+                        anno.doc.groupShift = Qt.point(entry.x - entry.originX, entry.y - entry.originY);
+                    if (entry.a.kind === "spotlight") entry.commit();
+                }
                 onReleased: {
+                    if (hold.toggling) { hold.toggling = false; return; }
+                    if (anno.doc.groupLeader === entry.a.uid) {
+                        anno.doc.moveSelection(entry.x - entry.originX, entry.y - entry.originY, entry.a.uid);
+                        anno.doc.groupLeader = "";
+                        anno.doc.groupShift = Qt.point(0, 0);
+                    }
                     entry.commit();
                     entry.rebind();
                 }
@@ -438,19 +467,20 @@ Item {
 
             // Corners and sides to pull it by, or the two ends of an arrow.
             // A fixed count, so a delegate is never rebuilt out from under a
-            // drag; a text label is sized by its text and has none.
+            // drag. A text label's corners are where its text ends, which
+            // only this delegate can measure.
             Repeater {
                 model: 8
                 delegate: Rectangle {
                     id: knob
                     required property int index
-                    readonly property var spot: Model.resizeHandles(entry.a)[knob.index] || null
+                    readonly property var spot: Model.resizeHandles(entry.a, entry.width, entry.height)[knob.index] || null
                     readonly property bool side: knob.spot !== null && Model.isSideHandle(knob.spot.key)
                     readonly property bool across: knob.side && (knob.spot.key === "t" || knob.spot.key === "b")
 
                     // A side too short to hold a bar clear of its corners
                     // is left to them.
-                    visible: knob.spot !== null && anno.editable && entry.selected
+                    visible: knob.spot !== null && anno.editable && entry.alone
                              && !anno.doc.exporting
                              && (!knob.side || Math.abs(knob.across ? entry.a.w : entry.a.h) > anno.handle * 5)
                     x: (knob.spot ? knob.spot.x - entry.originX : 0) - width / 2
@@ -481,9 +511,14 @@ Item {
                             // By uid, and through the document, which tells
                             // everything drawn from the model that it moved.
                             anno.doc.updateAnnotation(entry.a.uid,
-                                Model.resizeAnnotation(entry.a, knob.spot.key, p.x, p.y));
+                                Model.resizeAnnotation(entry.a, knob.spot.key, p.x, p.y,
+                                                       entry.width, entry.height));
                         }
-                        onReleased: anno.doc.annotationsEdited()
+                        onReleased: {
+                            // The next label starts at the size this one was left at.
+                            if (entry.a.kind === "text") anno.doc.textSize = entry.a.fontSize;
+                            anno.doc.annotationsEdited();
+                        }
                     }
                 }
             }

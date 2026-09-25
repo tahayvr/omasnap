@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # postcard-deliver copy <png> ""     <format> <quality> [w h] -> image onto the clipboard
-# postcard-deliver save <png> <dest> <format> <quality> [w h] -> final file on disk (+ clipboard)
+# postcard-deliver save <png> <dest> <format> <quality> [w h [copy]] -> final file on disk,
+#                                                        and on the clipboard unless copy is 0
+# postcard-deliver save-new ...                          -> the same, but never over an existing
+#                                                        file: a name taken gets -2, -3, ...
+# postcard-deliver file <png> <dest> <format> <quality> [w h] -> the file alone, to be dragged
 # postcard-deliver text                                        -> stdin onto the clipboard
 # The grab is padded up to whole device pixels so nothing gets resampled;
 # w h is the size of the picture inside it, and the surplus is cropped off.
@@ -19,6 +23,7 @@ format="${4:-png}"
 quality="${5:-92}"
 width="${6:-}"
 height="${7:-}"
+alsoCopy="${8:-1}"
 [ -f "$src" ] || { echo "Nothing to write"; exit 1; }
 
 mime="image/png"
@@ -28,18 +33,53 @@ crop=()
 [ -n "$width" ] && [ -n "$height" ] && crop=(-crop "${width}x${height}+0+0" +repage)
 
 encode() { # encode <in> <out>
-  if [ "$format" = "jpg" ]; then
-    magick "$1" "${crop[@]}" -background white -flatten -quality "$quality" "$2"
+  case "$format" in
+    jpg) magick "$1" "${crop[@]}" -background white -flatten -quality "$quality" "$2" ;;
+    # WebP keeps transparency; at full quality it is lossless.
+    webp)
+      if [ "$quality" -ge 100 ]; then
+        magick "$1" "${crop[@]}" -define webp:lossless=true "$2"
+      else
+        magick "$1" "${crop[@]}" -quality "$quality" "$2"
+      fi ;;
+    *) magick "$1" "${crop[@]}" "$2" ;;
+  esac
+}
+
+# Browsers and chat apps will not paste image/webp, so a WebP export puts a
+# PNG of the render on the clipboard rather than the file.
+clip() { # clip <encoded file>
+  if [ "$format" = "webp" ]; then
+    magick "$src" "${crop[@]}" png:- | wl-copy --type image/png
   else
-    magick "$1" "${crop[@]}" "$2"
+    wl-copy --type "$mime" < "$1"
   fi
 }
 
+# Save names are stamped to the second, so two saves in one second, as a
+# script saving a batch makes, would land on the same name.
+if [ "$action" = "save-new" ]; then
+  action="save"
+  if [ -e "$dest" ]; then
+    base="${dest%.*}" ext="${dest##*.}" n=2
+    while [ -e "$base-$n.$ext" ]; do n=$((n + 1)); done
+    dest="$base-$n.$ext"
+  fi
+fi
+
 case "$action" in
+  file)
+    # Only the newest is ever being dragged; the app it was dropped on has
+    # read the one before by now.
+    mkdir -p "$(dirname "$dest")"
+    find "$(dirname "$dest")" -maxdepth 1 -type f -name 'postcard-*' -delete
+    encode "$src" "$dest"
+    printf '%s\n' "$dest"
+    ;;
   copy)
     tmp="${src%.png}.out.${format}"
     encode "$src" "$tmp"
-    wl-copy --type "$mime" < "$tmp"
+    clip "$tmp"
     rm -f "$tmp"
     echo "Copied to the clipboard"
     ;;
@@ -47,7 +87,7 @@ case "$action" in
     [ -n "$dest" ] || { echo "No destination"; exit 1; }
     mkdir -p "$(dirname "$dest")"
     encode "$src" "$dest"
-    wl-copy --type "$mime" < "$dest"
+    [ "$alsoCopy" = "0" ] || clip "$dest"
     # Best effort: the file is already written, so a notification outage must
     # not report the save as failed.
     omarchy-notification-send "Saved $(basename "$dest")" --image "$dest" >/dev/null 2>&1 || true

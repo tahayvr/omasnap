@@ -226,6 +226,31 @@ Window {
     Timer {
         id: magnifyTimer
         interval: 350
-        onTriggered: win.grab("export-magnify", function () { Qt.quit(); })
+        onTriggered: win.grab("export-magnify", function () {
+            // Two shots on one card: the picture and a solid blue one beside
+            // it, from a sheet render.sh composed. Each card has to show its
+            // own part of the sheet, 1:1, with the background in the gap.
+            doc.clearAnnotations();
+            var a = Model.newSlot(win.outDir + "shot.png", 400, 200);
+            var b = Model.newSlot(win.outDir + "blue.png", 100, 200);
+            doc.inset = 0;
+            doc.padding = 0;
+            doc.slotGap = 4;             // 4% of 200 = 8px
+            doc.matchSizes = true;
+            doc.layoutDir = "row";
+            doc.slots = [a, b];
+            doc.sheet = Model.sheetLayout(doc.slots, { dir: "row", gap: 4, match: true, align: "center",
+                                                       inset: 0, frame: "none" });
+            doc.shotPath = win.outDir + "sheet.png";
+            doc.shotWidth = doc.sheet.w;
+            doc.shotHeight = doc.sheet.h;
+            twoTimer.start();
+        })
+    }
+
+    Timer {
+        id: twoTimer
+        interval: 350
+        onTriggered: win.grab("export-two", function () { Qt.quit(); })
     }
 }

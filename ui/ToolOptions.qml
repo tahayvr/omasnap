@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC
 import qs.Commons
 import "controls"
 import "../lib/Model.js" as Model
@@ -19,6 +20,8 @@ Loader {
     signal autoRedactRequested()
     signal cropRequested()
     signal uncropRequested()
+    signal eyedropRequested(var done)
+    signal addShotRequested(string how)
 
     readonly property var inkTools: ["arrow", "box", "ellipse", "highlight", "text", "step", "magnify"]
 
@@ -35,6 +38,8 @@ Loader {
     readonly property real stroke: opts.picked ? opts.picked.width : doc.inkWidth
     readonly property string arrowStyle: (opts.picked && opts.picked.style && opts.picked.style !== "")
                                          ? opts.picked.style : doc.arrowStyle
+    readonly property string textFont: (opts.picked && opts.picked.kind === "text" && opts.picked.font)
+                                       ? opts.picked.font : doc.textFont
     readonly property int zoom: opts.picked && opts.picked.kind === "magnify"
                                 ? opts.picked.zoom : doc.magnifyZoom
 
@@ -44,6 +49,23 @@ Loader {
         doc.inkColor = c;
         doc.styleSelection("color", String(c));
     }
+    // As in the inspector: every pick in one visit to the picker replaces the
+    // color that visit saved, so dragging across the field keeps one color,
+    // not every color it passed over.
+    property bool pickerFresh: true
+
+    function keepInk(hex) {
+        opts.setInk(hex);
+        doc.inkColors = Model.rememberColor(doc.inkColors, hex, !opts.pickerFresh,
+                                            Model.INK_COLORS_KEPT);
+        opts.pickerFresh = false;
+    }
+
+    function forgetInk(hex) {
+        doc.inkColors = Model.forgetColor(doc.inkColors, hex);
+        opts.pickerFresh = true;
+    }
+
     function setStroke(v) {
         doc.inkWidth = v;
         doc.styleSelection("width", v);
@@ -98,6 +120,47 @@ Loader {
                 }
             }
             IconButton { glyph: "‹›"; label: "Code"; tip: "Selected text as a code card"; onClicked: opts.codeRequested() }
+
+            // Another shot beside the one on the card, rather than in its
+            // place like the buttons before it.
+            IconButton {
+                id: addShot
+                visible: opts.doc.hasContent && opts.doc.kind === "shot"
+                glyph: "+"
+                label: "Add"
+                tip: "Put another shot beside this one"
+                active: addMenu.opened
+                onClicked: addMenu.opened ? addMenu.close() : addMenu.open()
+
+                QQC.Popup {
+                    id: addMenu
+                    y: addShot.height + Ui.gap
+                    padding: Ui.gap
+                    focus: true
+                    closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
+                    background: Rectangle {
+                        color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
+                        border.width: 1
+                        border.color: Ui.borderActive
+                    }
+                    Column {
+                        spacing: Ui.gap
+                        Repeater {
+                            model: [{ key: "region", label: "Region" }, { key: "windows", label: "Window" },
+                                    { key: "fullscreen", label: "Screen" }, { key: "file", label: "File" }]
+                            IconButton {
+                                required property var modelData
+                                width: Style.space(110)
+                                label: modelData.label
+                                onClicked: {
+                                    addMenu.close();
+                                    opts.addShotRequested(modelData.key);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             IconButton { glyph: ""; label: "File"; tip: "Open a file"; onClicked: opts.openRequested() }
         }
     }
@@ -106,6 +169,22 @@ Loader {
         id: inkComp
         Row {
             spacing: Ui.row
+
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Ui.gap
+                visible: opts.subject === "text"
+                Repeater {
+                    model: Model.TEXT_FONTS
+                    IconButton {
+                        required property var modelData
+                        label: modelData.label
+                        tip: modelData.family
+                        active: opts.textFont === modelData.key
+                        onClicked: opts.doc.setTextFont(modelData.key)
+                    }
+                }
+            }
 
             // Only arrows have more than one shape to draw.
             Row {
@@ -141,6 +220,61 @@ Loader {
                     active: Qt.colorEqual(opts.ink, Color.accent)
                     onPicked: opts.setInk(Color.accent)
                 }
+
+                Repeater {
+                    model: opts.doc.inkColors
+                    UserSwatch {
+                        required property var modelData
+                        swatchColor: modelData
+                        active: Qt.colorEqual(opts.ink, modelData)
+                        onPicked: opts.setInk(modelData)
+                        onRemoved: opts.forgetInk(modelData)
+                    }
+                }
+
+                IconButton {
+                    id: addInk
+                    glyph: "+"
+                    tip: "Pick your own color"
+                    active: inkPopup.opened
+                    implicitWidth: Ui.swatch
+                    implicitHeight: Ui.swatch
+                    onClicked: {
+                        if (inkPopup.opened) { inkPopup.close(); return; }
+                        opts.pickerFresh = true;
+                        inkPopup.open();
+                    }
+
+                    QQC.Popup {
+                        id: inkPopup
+                        x: Math.round((addInk.width - width) / 2)
+                        y: addInk.height + Ui.gap
+                        width: Ui.popover
+                        padding: Ui.pad
+                        // Escape closes the picker rather than the editor.
+                        focus: true
+                        closePolicy: QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
+
+                        background: Rectangle {
+                            color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
+                            border.width: 1
+                            border.color: Ui.borderActive
+                        }
+
+                        ColorPicker {
+                            width: inkPopup.availableWidth
+                            value: String(opts.ink)
+                            onEdited: function (hex) { opts.setInk(hex); }
+                            onCommitted: function (hex) { opts.keepInk(hex); }
+                            onEyedropRequested: {
+                                opts.eyedropRequested(function (hex) {
+                                    opts.pickerFresh = true;
+                                    opts.keepInk(hex);
+                                });
+                            }
+                        }
+                    }
+                }
             }
 
             Row {
@@ -160,10 +294,10 @@ Loader {
             }
 
             InlineSlider {
-                // A step badge has no stroke: it is a filled disc, sized by
-                // the handles on it.
-                visible: opts.subject !== "step"
-                label: opts.subject === "text" ? "Size" : "Stroke"
+                // Neither a step badge nor a label has a stroke; both are
+                // sized by the handles on them.
+                visible: opts.subject !== "step" && opts.subject !== "text"
+                label: "Stroke"
                 value: opts.stroke
                 from: 1; to: 16
                 onMoved: function (v) { opts.setStroke(Math.round(v)); }

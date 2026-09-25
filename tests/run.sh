@@ -20,13 +20,19 @@ folded="$(printf 'let u = "%s";\n' "$(printf 'x%.0s' $(seq 1 120))" | bash "$roo
   && echo "postcard-highlight folds long lines under the gutter" || { echo "postcard-highlight did not fold a long line"; fail=1; }
 
 # A crop is taken from the file, so the cut has to come out the size asked for.
-magick -size 200x100 xc:white "$XDG_RUNTIME_DIR/postcard-crop-src.png" 2>/dev/null
-bash "$root/bin/postcard-crop" "$XDG_RUNTIME_DIR/postcard-crop-src.png" 20 10 100 50 \
-     "$XDG_RUNTIME_DIR/postcard-crop-out.png" >/dev/null
-csize="$(magick "$XDG_RUNTIME_DIR/postcard-crop-out.png" -format "%wx%h" info: 2>/dev/null)"
-[ "$csize" = "100x50" ] && echo "postcard-crop cuts to the size asked for" \
-  || { echo "postcard-crop produced $csize, wanted 100x50"; fail=1; }
-rm -f "$XDG_RUNTIME_DIR/postcard-crop-src.png" "$XDG_RUNTIME_DIR/postcard-crop-out.png"
+# Two shots on one sheet: the first cropped 1:1, the second scaled into
+# place, and nothing but transparency between them.
+t="$XDG_RUNTIME_DIR/postcard-test-sheet"
+magick -size 200x100 gradient:red-blue -depth 8 "$t-a.png" 2>/dev/null
+magick -size 100x200 xc:'#00ff00' "$t-b.png" 2>/dev/null
+bash "$root/bin/postcard-sheet" "$t.png" 120 50 "$t-a.png" 20 10 50 50 50 50 0 0 \
+     "$t-b.png" 0 0 100 200 25 50 95 0 >/dev/null
+sheet="$(magick "$t.png" -format "%wx%h %[pixel:p{97,25}] %[fx:p{60,25}.a] %z %[channels]" info: 2>/dev/null)"
+cut="$(magick compare -metric AE "$t.png[50x50+0+0]" "$t-a.png[50x50+20+10]" null: 2>&1 | cut -d' ' -f1)"
+[ "$sheet" = "120x50 srgba(0,255,0,1) 0 8 srgba 4.0" ] && [ "$cut" = "0" ] \
+  && echo "postcard-sheet places, crops 1:1 and leaves the gap clear" \
+  || { echo "postcard-sheet produced '$sheet', crop differed by $cut"; fail=1; }
+rm -f "$t.png" "$t-a.png" "$t-b.png"
 
 echo "== qmllint"
 lintroot="$(mktemp -d)"

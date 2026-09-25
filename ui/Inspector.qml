@@ -11,6 +11,9 @@ Flickable {
     property var systemThemes: []
 
     signal copyTextRequested()
+    signal logoRequested()
+    // action: left | right | uncrop | remove, on the shot with this id
+    signal shotRequested(string action, string id)
     signal eyedropRequested(var done)
 
     // What the color picker is editing: "solid", "stop0" to "stop3" for the
@@ -316,6 +319,110 @@ Flickable {
                 label: "Line numbers"
                 checked: doc.codeNumbers
                 onToggled: function (v) { doc.codeNumbers = v; }
+            }
+        }
+
+        // How the shots on the card are laid out; they are added from the
+        // header, so this only appears once there is more than one.
+        Section {
+            title: "Shots"
+            visible: doc.kind === "shot" && doc.shotCount > 1
+
+            Segmented {
+                current: doc.layoutDir
+                minWidth: Math.floor((width - Ui.gap) / 2)
+                options: [{ key: "row", label: "Side by side" }, { key: "column", label: "Stacked" }]
+                onPicked: function (k) { doc.layoutDir = k; }
+            }
+
+            Toggle {
+                label: "Match sizes"
+                hint: doc.layoutDir === "row" ? "Scale larger shots down to the same height"
+                                              : "Scale larger shots down to the same width"
+                checked: doc.matchSizes
+                onToggled: function (v) { doc.matchSizes = v; }
+            }
+
+            Segmented {
+                visible: !doc.matchSizes
+                current: doc.slotAlign
+                minWidth: Math.floor((width - Ui.gap * 2) / 3)
+                options: doc.layoutDir === "row"
+                         ? [{ key: "start", label: "Top" }, { key: "center", label: "Middle" }, { key: "end", label: "Bottom" }]
+                         : [{ key: "start", label: "Left" }, { key: "center", label: "Centre" }, { key: "end", label: "Right" }]
+                onPicked: function (k) { doc.slotAlign = k; }
+            }
+
+            LabeledSlider {
+                label: "Gap"
+                value: doc.slotGap
+                from: 0; to: Model.SLOT_GAP_MAX; decimals: 1; suffix: "%"
+                onMoved: function (v) { doc.slotGap = v; }
+            }
+
+            // One row a shot, in order: move it, give it back its whole
+            // picture, or take it off the card.
+            Column {
+                width: parent.width
+                spacing: Ui.gap
+                Repeater {
+                    model: doc.slots
+                    Row {
+                        id: slotRow
+                        required property var modelData
+                        required property int index
+                        width: parent.width
+                        spacing: Ui.gap
+                        Image {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Ui.button
+                            height: Ui.button
+                            source: "file://" + slotRow.modelData.source
+                            sourceSize.height: Ui.button * 2
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - Ui.button - (Ui.button + Ui.gap) * 4 - Ui.gap
+                            text: slotRow.modelData.name
+                            elide: Text.ElideMiddle
+                            color: Ui.text
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+                        IconButton {
+                            glyph: doc.layoutDir === "row" ? "\u2190" : "\u2191"
+                            flat: true
+                            enabled: slotRow.index > 0
+                            opacity: enabled ? 1 : 0.3
+                            tip: "Move earlier"
+                            onClicked: insp.shotRequested("left", slotRow.modelData.id)
+                        }
+                        IconButton {
+                            glyph: doc.layoutDir === "row" ? "\u2192" : "\u2193"
+                            flat: true
+                            enabled: slotRow.index < doc.shotCount - 1
+                            opacity: enabled ? 1 : 0.3
+                            tip: "Move later"
+                            onClicked: insp.shotRequested("right", slotRow.modelData.id)
+                        }
+                        IconButton {
+                            glyph: "\u21ba"
+                            flat: true
+                            enabled: !!slotRow.modelData.crop
+                            opacity: enabled ? 1 : 0.3
+                            tip: "Undo this shot's crop"
+                            onClicked: insp.shotRequested("uncrop", slotRow.modelData.id)
+                        }
+                        IconButton {
+                            glyph: "\u2715"
+                            flat: true
+                            tip: "Take this shot off the card"
+                            onClicked: insp.shotRequested("remove", slotRow.modelData.id)
+                        }
+                    }
+                }
             }
         }
 
@@ -669,28 +776,70 @@ Flickable {
         }
 
         Section {
-            title: "Export"
+            title: "Watermark"
+
+            TextBox {
+                id: markText
+                placeholder: "@handle"
+                text: doc.watermarkText
+                onTextChanged: if (text !== doc.watermarkText) doc.watermarkText = text
+                // Typing breaks the text binding for good, so a preset that
+                // brings its own handle has to be put back by hand.
+                Connections {
+                    target: doc
+                    function onWatermarkTextChanged() {
+                        if (markText.text !== doc.watermarkText) markText.text = doc.watermarkText;
+                    }
+                }
+            }
 
             Row {
                 width: parent.width
-                spacing: Ui.row
-                Segmented {
-                    minWidth: Style.space(44); width: minWidth * 3 + Ui.gap * 2
-                    current: String(doc.exportScale)
-                    options: [{ key: "1", label: "1×" }, { key: "2", label: "2×" }, { key: "3", label: "3×" }]
-                    onPicked: function (k) { doc.exportScale = parseInt(k, 10); }
+                spacing: Ui.gap
+                IconButton {
+                    width: parent.width - (logoOff.visible ? logoOff.width + Ui.gap : 0)
+                    glyph: "\uf03e"
+                    label: doc.watermarkLogo !== "" ? "Change logo" : "Add a logo"
+                    onClicked: insp.logoRequested()
                 }
-                Segmented {
-                    minWidth: Style.space(52); width: minWidth * 2 + Ui.gap
-                    current: doc.format
-                    options: [{ key: "png", label: "PNG" }, { key: "jpg", label: "JPEG" }]
-                    onPicked: function (k) { doc.format = k; }
+                IconButton {
+                    id: logoOff
+                    visible: doc.watermarkLogo !== ""
+                    glyph: "\u2715"
+                    tip: "Remove the logo"
+                    onClicked: doc.watermarkLogo = ""
                 }
             }
 
             LabeledSlider {
-                visible: doc.format === "jpg"
-                label: "Quality"
+                visible: doc.hasWatermark
+                label: "Size"
+                value: doc.watermarkSize
+                from: 50; to: 200; decimals: 0; suffix: "%"
+                onMoved: function (v) { doc.watermarkSize = Math.round(v); }
+            }
+        }
+
+        Section {
+            title: "Export"
+
+            Segmented {
+                minWidth: Math.floor((width - Ui.gap * 2) / 3)
+                current: String(doc.exportScale)
+                options: [{ key: "1", label: "1×" }, { key: "2", label: "2×" }, { key: "3", label: "3×" }]
+                onPicked: function (k) { doc.exportScale = parseInt(k, 10); }
+            }
+            Segmented {
+                minWidth: Math.floor((width - Ui.gap * 2) / 3)
+                current: doc.format
+                options: [{ key: "png", label: "PNG" }, { key: "jpg", label: "JPEG" },
+                          { key: "webp", label: "WebP" }]
+                onPicked: function (k) { doc.format = k; }
+            }
+
+            LabeledSlider {
+                visible: doc.format === "jpg" || doc.format === "webp"
+                label: doc.format === "webp" && doc.quality >= 100 ? "Quality · lossless" : "Quality"
                 value: doc.quality
                 from: 40; to: 100; decimals: 0
                 onMoved: function (v) { doc.quality = v; }

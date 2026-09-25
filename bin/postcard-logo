@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# postcard-logo [dir] -> the path of a picked logo, copied into the config
+# directory so a preset that names it survives the original moving. Prints
+# nothing if the picker was cancelled.
+set -uo pipefail
+exec </dev/null
+
+src="$(bash "$(dirname "$0")/postcard-pick" open "${1:-$HOME/Pictures}")"
+[ -n "$src" ] && [ -f "$src" ] || exit 0
+
+dir="${XDG_CONFIG_HOME:-$HOME/.config}/postcard/logos"
+mkdir -p "$dir"
+ext="${src##*.}"
+ext="${ext,,}"
+# Named by content, so picking the same logo twice keeps one copy.
+dest="$dir/$(sha1sum "$src" | cut -c1-12).$ext"
+cp -f "$src" "$dest"
+printf '%s\n' "$dest"

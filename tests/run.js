@@ -134,6 +134,222 @@ test("annotations carry every role the delegates read", () => {
     ok(a.uid.length >= 6 && a.uid !== Model.newAnnotation("box", 0, 0).uid, "unique ids");
 });
 
+test("a text label scales from the corner opposite the one in hand", () => {
+    const t = { kind: "text", x: 10, y: 10, w: 0, h: 0, width: 4, fontSize: 30 };
+    const big = Model.resizeAnnotation(t, "br", 210, 90, 100, 40);
+    eq(big.fontSize, 60); eq(big.x, 10); eq(big.y, 10);
+    const tl = Model.resizeAnnotation(t, "tl", 60, 30, 100, 40);
+    eq(tl.fontSize, 15); eq(tl.x, 60); eq(tl.y, 30);
+    eq(Model.resizeAnnotation(t, "br", 210, 50, 100, 40).fontSize, 56,
+       "pulled sideways only, it still grows");
+    eq(Model.resizeAnnotation(t, "br", 11, 11, 100, 40).fontSize, Model.MIN_TEXT_SIZE);
+    eq(Model.textSize({ width: 4, fontSize: 0 }), 24, "an older label keeps its size");
+    eq(Model.defaultTextSize(3840, 2160), 64);
+    eq(Model.defaultTextSize(400, 300), 16);
+});
+
+test("a label's font is one of the two Omarchy ships", () => {
+    eq(Model.textFamily("mono"), "JetBrainsMono Nerd Font");
+    eq(Model.textFamily("sans"), "iA Writer Quattro S");
+    eq(Model.textFamily(""), "JetBrainsMono Nerd Font", "a label from before fonts stays mono");
+    eq(Model.newAnnotation("text", 0, 0).font, "");
+});
+
+test("a selection box takes whatever it touches", () => {
+    const box = { kind: "box", x: 10, y: 10, w: 50, h: 50 };
+    ok(Model.inSelectionBox(box, 50, 50, 100, 100), "overlapping a corner is enough");
+    ok(!Model.inSelectionBox(box, 70, 70, 10, 10), "clear of it is not");
+    ok(Model.inSelectionBox({ kind: "box", x: 60, y: 60, w: -50, h: -50 }, 0, 0, 12, 12),
+       "drawn backwards, it is where it shows");
+    ok(Model.inSelectionBox({ kind: "text", x: 30, y: 30, w: 0, h: 0 }, 25, 25, 10, 10),
+       "a label is taken at its corner");
+    const lens = { kind: "magnify", x: 200, y: 200, w: 40, h: 40, sx: 20, sy: 20 };
+    ok(Model.inSelectionBox(lens, 190, 190, 20, 20), "a magnifier by its lens");
+    ok(!Model.inSelectionBox(lens, 10, 10, 20, 20), "not by the area it shows");
+});
+
+test("a pasted mark is a copy of its own, set off from the original", () => {
+    const a = Model.newAnnotation("magnify", 10, 20);
+    a.sx = 5; a.sy = 6; a.text = "x";
+    const c = Model.duplicateAnnotation(a, 15, 15);
+    ok(c.uid !== a.uid, "a uid of its own");
+    eq(c.x, 25); eq(c.y, 35);
+    eq(c.sx, 5, "a magnifier still shows the same area");
+    eq(c.text, "x");
+    eq(a.x, 10, "the original is untouched");
+    eq(Model.pasteStep(800, 500), 12);
+    eq(Model.pasteStep(3840, 2160), 48);
+    eq(Model.plural(1, "mark"), "1 mark");
+    eq(Model.plural(3, "mark"), "3 marks");
+});
+
+test("a watermark sits under the card's corner, or in it when there is no room", () => {
+    const geo = { frameW: 1000, frameH: 800, cardX: 100, cardY: 100, cardW: 800, cardH: 500 };
+    const m = Model.watermarkBox(geo, 100);
+    eq(m.size, Math.round(800 * 0.022), "sized by the card");
+    ok(!m.inside, "in the padding");
+    eq(m.right, 900, "lined up with the card's right edge");
+    eq(m.top, 600 + m.gap, "just under it");
+    eq(Model.watermarkBox(geo, 200).size, Math.round(800 * 0.022 * 2), "scaled by the setting");
+    const tight = Model.watermarkBox({ frameW: 800, frameH: 500, cardX: 0, cardY: 0, cardW: 800, cardH: 500 }, 100);
+    ok(tight.inside, "no padding, so inside the card");
+    eq(tight.right, 800 - tight.gap);
+    eq(tight.top + tight.rowH + tight.gap, 500, "clear of the card's bottom edge");
+    eq(Model.watermarkBox({ frameW: 10, frameH: 10, cardX: 0, cardY: 0, cardW: 10, cardH: 10 }, 50).size, 10,
+       "never too small to read");
+});
+
+test("a watermark's ink suits what is under it", () => {
+    eq(Model.watermarkInk(["#101010", "#202020"]), "#ffffff", "light on dark");
+    eq(Model.watermarkInk(["#f0f0f0"]), "#1b1b1b", "dark on light");
+    eq(Model.watermarkInk(["#ff000000"]) !== null, true, "a QML colour with alpha still reads");
+    eq(Model.watermarkInk([]), null, "nothing known underneath");
+    eq(Model.watermarkInk(["nope"]), null);
+    for (const k of ["watermarkText", "watermarkLogo", "watermarkSize"])
+        ok(Model.STYLE_KEYS.indexOf(k) !== -1, k + " is saved with a style");
+    eq(Model.cleanStyle({ watermarkText: "@me", watermarkSize: "big" }).watermarkText, "@me");
+    eq(Model.cleanStyle({ watermarkSize: "big" }).watermarkSize, 100, "a bad size falls back");
+});
+
+test("the command line help covers every call's options", () => {
+    const top = Model.helpText("");
+    for (const fn of ["capture", "edit", "add", "code", "pick", "set", "preset", "annotate", "crop",
+                      "uncrop", "redact", "save", "saveAs", "copy", "copyText", "info", "help"])
+        ok(new RegExp("\\n  " + fn + " ").test(top), "overview lists " + fn);
+    const set = Model.helpText("set");
+    for (const k of Object.keys(Model.SETTABLE)) ok(set.indexOf("  " + k + ": ") !== -1, "help set lists " + k);
+    const ann = Model.helpText("annotate");
+    for (const k of Model.ANNOTATION_KINDS) ok(ann.indexOf(k) !== -1, "help annotate names " + k);
+    ok(Model.helpText("capture").indexOf("smart") !== -1);
+    eq(Model.helpText("nonsense"), top, "an unknown topic is the overview");
+    eq(Model.helpText("  SET "), set, "topics ignore case and spaces");
+});
+
+test("several shots lay out side by side or stacked", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 800, 400), { id: "a" });
+    const b = Object.assign(Model.newSlot("/p/b.png", 300, 600), { id: "b" });
+    eq(a.name, "a.png");
+    const o = { dir: "row", gap: 5, match: true, align: "center", inset: 10, chrome: 0 };
+    const L = Model.slotLayout([a, b], o);
+    eq(L.items[0].h, 400, "matched to the shorter shot");
+    eq(L.items[1].h, 400); eq(L.items[1].w, 200, "the taller one scaled down, not up");
+    eq(L.items[0].scale, 1, "the shorter one stays 1:1");
+    eq(L.items[1].x, 800 + 20 + 20, "after the first card's inset, the gap and its own inset");
+    eq(L.w, 1040); eq(L.h, 400);
+
+    const keep = Model.slotLayout([a, b], Object.assign({}, o, { match: false, align: "end" }));
+    eq(keep.items[1].h, 600, "keeping sizes keeps them");
+    eq(keep.items[0].y, 200, "aligned to the bottom");
+    eq(keep.h, 600);
+
+    const col = Model.slotLayout([a, b], Object.assign({}, o, { dir: "column", chrome: 30 }));
+    eq(col.items[1].w, 300, "stacked, widths match");
+    eq(col.items[0].w, 300); eq(col.items[0].h, 150);
+    eq(col.items[1].y, 150 + 20 + 30 + 15, "each card has its own title bar");
+
+    const one = Model.slotLayout([a], o);
+    eq(one.w + "x" + one.h, "800x400", "one shot is its own size");
+    ok(!Model.needsSheet([a]), "and needs no sheet");
+    ok(Model.needsSheet([a, b]));
+    ok(Model.needsSheet([Object.assign({}, a, { crop: { x: 0, y: 0, w: 10, h: 10 } })]), "a crop does");
+
+    eq(Model.slotIndexAt(L, 50, 50), 0);
+    eq(Model.slotIndexAt(L, 900, 50), 1);
+    eq(Model.slotIndexAt(L, 810, 50), 0, "in a gap, the nearer shot");
+});
+
+test("marks follow their shot when the layout changes", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 800, 400), { id: "a" });
+    const b = Object.assign(Model.newSlot("/p/b.png", 400, 400), { id: "b" });
+    const o = { dir: "row", gap: 0, match: true, align: "start", inset: 0, chrome: 0 };
+    const before = Model.slotLayout([a, b], o);
+    const onB = Object.assign(Model.newAnnotation("box", 810, 10), { w: 50, h: 50 });
+    const across = Object.assign(Model.newAnnotation("arrow", 700, 100), { w: 200, h: 0 });
+    const label = Object.assign(Model.newAnnotation("text", 900, 300), { fontSize: 40 });
+
+    const swapped = Model.slotLayout([b, a], o);
+    let r = Model.remapAnnotations([onB, across, label], before, [a, b], swapped, [b, a]);
+    eq(r.marks[0].x, 10, "a mark on the second shot moves with it to the front");
+    eq(r.marks[1].x, 1100, "an arrow's tail stays on the shot it started on");
+    eq(r.marks[1].x + r.marks[1].w, 100, "and its tip on the other");
+
+    const alone = Model.slotLayout([a], o);
+    r = Model.remapAnnotations([onB, across], before, [a, b], alone, [a]);
+    eq(r.dropped, 2, "marks on a removed shot go, as does one that ended on it");
+
+    const small = Object.assign({}, b, { h: 200, w: 200 });
+    const mixed = Model.slotLayout([a, Object.assign({}, b, { w: 800, h: 800 })], o);
+    eq(mixed.items[1].scale, 0.5);
+    const bigB = Object.assign({}, b, { w: 800, h: 800 });
+    const was = Model.slotLayout([a, bigB], o);
+    const now = Model.slotLayout([a, bigB], Object.assign({}, o, { match: false }));
+    r = Model.remapAnnotations([Object.assign(Model.newAnnotation("text", 810, 10), { fontSize: 20 })],
+                               was, [a, bigB], now, [a, bigB]);
+    eq(r.marks[0].x, 820, "unscaling a shot scales its marks' places");
+    eq(r.marks[0].fontSize, 40, "and a label's size");
+
+    const crop = Model.cropForSlot({ x: 100, y: 50, w: 200, h: 100 }, before.items[0], a);
+    eq(JSON.stringify(crop), JSON.stringify({ x: 100, y: 50, w: 200, h: 100 }));
+    const ac = Object.assign({}, a, { crop: crop });
+    const cropped = Model.slotLayout([ac, b], o);
+    const inside = Object.assign(Model.newAnnotation("box", 150, 60), { w: 20, h: 20 });
+    const outside = Object.assign(Model.newAnnotation("box", 600, 300), { w: 20, h: 20 });
+    r = Model.remapAnnotations([inside, outside], before, [a, b], cropped, [ac, b]);
+    eq(r.dropped, 1, "a crop takes the marks only on what it cut away");
+    ok(r.marks[0].x >= 0 && r.marks[0].x < cropped.items[0].w, "the rest move with the cut");
+    eq(Model.cropForSlot({ x: 790, y: 0, w: 100, h: 100 }, before.items[0], a), null,
+       "what is left on the shot is too small to crop to");
+    eq(Model.cropForSlot({ x: 850, y: 0, w: 100, h: 100 }, before.items[1], b).x, 50,
+       "a selection is read in its own shot's pixels");
+});
+
+test("several shots size their inset and title bar from the shots, not the sheet", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 1000, 500), { id: "a" });
+    const b = Object.assign(Model.newSlot("/p/b.png", 1000, 500), { id: "b" });
+    const L = Model.sheetLayout([a, b], { dir: "row", gap: 0, match: true, align: "start", inset: 10, frame: "titlebar" });
+    eq(L.baseW + "x" + L.baseH, "1000x500");
+    eq(L.inset, 100, "10% of a shot's longest edge");
+    eq(L.chrome, Model.chromeHeight({ frame: "titlebar", shotHeight: 500 }));
+    eq(L.items[1].x, 1000 + 200, "the second card clears the first one's inset and its own");
+    const g = Model.frameGeometry({ shotWidth: L.w, shotHeight: L.h, baseWidth: L.baseW, baseHeight: L.baseH,
+                                    padding: 0, inset: 10, ratio: "auto", balance: false, frame: "titlebar" });
+    eq(g.inset, 100, "and the card agrees with the layout");
+});
+
+test("the sheet is composed from what goes into it", () => {
+    const a = Object.assign(Model.newSlot("/p/a.png", 800, 400), { id: "a", crop: { x: 5, y: 6, w: 100, h: 50 } });
+    const b = Object.assign(Model.newSlot("/p/b.png", 200, 100), { id: "b" });
+    const L = Model.slotLayout([a, b], { dir: "row", gap: 0, match: true, align: "start", inset: 0, chrome: 0 });
+    const args = Model.sheetArgs([a, b], L);
+    eq(args.slice(0, 2).join(), L.w + "," + L.h);
+    eq(args.slice(2, 11).join(), "/p/a.png,5,6,100,50,100,50,0,0");
+    ok(Model.sheetName(args) !== Model.sheetName(args.concat("x")), "a different sheet, a different name");
+    eq(Model.sheetName(args), Model.sheetName(args.slice()), "the same sheet, the same name");
+    const outl = Model.spotlightOutlines(L, 3, 4);
+    eq(outl.length, 2); eq(outl[1].x, 100);
+    const path = Model.spotlightPathIn(outl, [{ x: 110, y: 10, w: 500, h: 20, shape: "rect" }]);
+    ok(path.indexOf("M110,10") !== -1 || path.indexOf("M110") !== -1, "a spotlight is cut from its card");
+    ok(path.indexOf("300") === -1, "and clamped to it, not run past its edge");
+});
+
+test("a code card takes at most CODE_MAX of the text, cut at a line", () => {
+    eq(JSON.stringify(Model.clipCode("abc\ndef", 100)), JSON.stringify({ text: "abc\ndef", cut: false }));
+    const long = "line\n".repeat(20);
+    const c = Model.clipCode(long, 12);
+    ok(c.cut);
+    eq(c.text, "line\nline", "back to the last whole line");
+    eq(Model.clipCode("x".repeat(30), 10).text, "x".repeat(10), "one long line is cut where it must be");
+    eq(Model.clipCode(null, 10).text, "");
+});
+
+test("a copied annotation keeps every role and nothing else", () => {
+    const a = Model.newAnnotation("magnify", 3, 4);
+    a.sx = 9; a.text = "hi";
+    const row = Object.assign({ objectName: "", extra: 1 }, a);
+    const c = Model.plainAnnotation(row);
+    eq(JSON.stringify(c), JSON.stringify(a));
+});
+
 test("grab size pads the stage to whole device pixels", () => {
     eq(Model.grabStep(1.6), 5);
     eq(Model.grabStep(1.25), 4);
@@ -571,7 +787,10 @@ test("a selected mark is pulled about by its handles", () => {
     eq(ends[1].key, "tip"); eq(ends[1].x, -50); eq(ends[1].y, 50);
 
     eq(Model.resizeHandles({ kind: "text", x: 0, y: 0, w: 0, h: 0 }).length, 0,
-       "a text label is sized by its text");
+       "a text label has no handles until it is shown");
+    const label = Model.resizeHandles({ kind: "text", x: 5, y: 5, w: 0, h: 0 }, 100, 40);
+    eq(label.length, 4, "corners only, so the text keeps its shape");
+    eq(label[2].key, "br"); eq(label[2].x, 105); eq(label[2].y, 45);
 
     // The corner opposite the one in hand stays put.
     const br = Model.resizeAnnotation(box, "br", 200, 100);
@@ -736,6 +955,55 @@ test("the spotlight dim is one path with a hole per spotlight", () => {
     // An ellipse closes on itself, so the fill has an inside to leave alone.
     const oval = Model.spotlightPath(100, 100, 0, 0, [{ x: 0, y: 0, w: 100, h: 60, shape: "ellipse" }]);
     ok(oval.indexOf("M0,30A50,30 0 0 1 100,30A50,30 0 0 1 0,30Z") !== -1, "two half arcs");
+});
+
+test("every export format saves under its own extension", () => {
+    eq(Model.exportExtension("png"), "png");
+    eq(Model.exportExtension("jpg"), "jpg");
+    eq(Model.exportExtension("webp"), "webp");
+    eq(Model.exportExtension("tiff"), "png", "an unknown format is saved as the PNG it was rendered as");
+    eq(Model.withExtension("/home/a/shot.png", "webp"), "/home/a/shot.webp");
+});
+
+test("settings come back off disk as the kind of value they should be", () => {
+    eq(Model.cleanSettings(null).saveCopies, true, "no file keeps today's behaviour");
+    eq(Model.cleanSettings({ saveCopies: false }).saveCopies, false);
+    eq(Model.cleanSettings({ saveCopies: "no" }).saveCopies, true, "a damaged value falls back");
+    eq(Object.keys(Model.cleanSettings({ stray: 1 })).join(), "saveCopies", "nothing unknown is kept");
+});
+
+test("settings come back off disk at this version", () => {
+    const read = o => { const m = Model.migrateConfig("settings", o); return Object.assign(m, { settings: Model.cleanSettings(m.data) }); };
+    const V = Model.CONFIG_FILES.settings.version;
+    const old = read({ saveCopies: false });
+    eq(old.from, 0, "a file without a version is the first layout");
+    eq(old.settings.saveCopies, false, "and keeps what it said");
+    ok(!old.tooNew);
+    const newer = read({ version: V + 1, saveCopies: false });
+    ok(newer.tooNew, "a newer file is flagged, so it is not written over");
+    eq(newer.settings.saveCopies, false, "but still read");
+    eq(read(null).settings.saveCopies, true, "no file is the defaults");
+    eq(read({ version: "2" }).from, 0, "a version that is not a number is not trusted");
+    const file = Model.configFile("settings", Model.cleanSettings({ saveCopies: false, stray: 1 }));
+    eq(Object.keys(file).join(), "version,saveCopies", "version first, and nothing unknown");
+});
+
+test("every config file is versioned the same way", () => {
+    for (const kind of ["settings", "colors", "presets"]) {
+        const spec = Model.CONFIG_FILES[kind];
+        eq(spec.migrations.length, spec.version, kind + ": a step for every version before this one");
+        const m = Model.migrateConfig(kind, { a: 1 });
+        eq(m.from, 0, kind);
+        eq(m.data.a, 1, kind + " keeps what it had");
+        ok(Model.migrateConfig(kind, { version: spec.version + 1 }).tooNew, kind + " from a newer build");
+        const f = Model.configFile(kind, { version: 0, a: 1 });
+        eq(Object.keys(f).join(), "version,a", kind + ": version first, not the stale one");
+        eq(f.version, spec.version);
+    }
+    const colors = { customColors: ["#112233"], gradients: [] };
+    const back = Model.migrateConfig("colors", colors);
+    back.data.customColors.push("#000000");
+    eq(colors.customColors.length, 1, "migrating does not touch what was read");
 });
 
 test("a chosen save path is given the extension the format needs", () => {

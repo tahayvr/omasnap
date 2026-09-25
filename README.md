@@ -30,6 +30,9 @@ the picture that should not be public.
 - Padding, aspect ratio presets, corner radius, crop, shadow and an optional title bar
 - Inset, which extends the screenshot's own edge color outwards to give a
   cramped window room to breathe
+- Several shots on one card, side by side or stacked, each in a card of its
+  own. Larger ones are scaled down to line up, or keep their sizes; each can
+  be cropped, reordered or removed, and an arrow can point from one to another
 
 ![Framing](assets/showcase/framing.png)
 
@@ -104,7 +107,7 @@ before you enable it.
 
 ## Usage
 
-Enabling the plugin puts an Postcard button 󰆟 in the bar. Left-click it to grab a
+Enabling the plugin puts a Postcard button 󰆟 in the bar. Left-click it to grab a
 region or window, middle-click to make a code card from the selected text, right-click
 for a menu: region, window, screen with an optional delay, code card, or the editor. Move it with:
 
@@ -130,38 +133,188 @@ clipboard if nothing is highlighted.
 | ------------------------------------------------ | ----------------------------------------------------------------------- |
 | `V`, `A`, `R`, `O`, `T`, `S`, `H`, `B`, `L`, `M`, `C` | move, arrow, box, ellipse, text, step, highlight, hide, spotlight, magnify, crop |
 | `Ctrl+C` / `Ctrl+S`                              | copy / save                                                             |
+| `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+D`           | With annotations selected: copy, cut, paste, duplicate them             |
 | `Ctrl+Shift+S`                                   | Save as, through the system file dialog                                 |
 | `Ctrl+Z`                                         | undo                                                                    |
+| `Ctrl+Shift+Z` / `Ctrl+Y`                        | redo                                                                    |
 | `Ctrl+N`                                         | Grab another region                                                     |
 | `Ctrl+K`                                         | Code card from the selected text                                        |
-| `Delete`                                         | Remove the selected annotation                                          |
+| `Delete`                                         | Remove the selected annotations                                         |
+| `Shift`+click, or drag a box with the move tool  | Select several annotations; `Ctrl+A` selects them all                    |
+| Arrow keys, `Shift`+arrows                       | Move the selected annotations 1px, or 10px                              |
 | `Enter`                                          | Finish typing a text label                                              |
 | `Esc`                                            | Deselect, then close                                                    |
 
 ### Scripting
 
-Every call returns `ok`, or a short reason such as `busy` or `no shot`. The shell
-requires an argument after the function name, so a function that takes nothing
-gets an empty `''`:
+Everything the editor does can be driven from the command line. `help` prints
+the full reference, generated from the same lists the plugin uses, so it is
+always current:
 
 ```sh
-omarchy-shell shell call tahayvr.postcard edit ~/Pictures/Screenshots/shot.png
-omarchy-shell shell call tahayvr.postcard capture fullscreen   # region | windows | fullscreen | smart
+omarchy-shell shell call tahayvr.postcard help ''         # every call
+omarchy-shell shell call tahayvr.postcard help set        # every setting and what it takes
+omarchy-shell shell call tahayvr.postcard help annotate   # every kind of mark and its fields
+omarchy-shell shell call tahayvr.postcard help capture
+```
+
+Three rules of the command line:
+
+- Every call takes exactly one argument. One that needs nothing takes `''`.
+- The argument is split on spaces, so a string inside JSON writes a space as
+  `\u0020`: `'{"watermarkText":"by\u0020me"}'`. A path with a space in it
+  cannot be passed at all.
+- An argument that starts with `[` is split on commas, so a list goes inside an
+  object: `annotate '{"items":[...]}'`.
+
+A call answers `ok`, or a short reason such as `busy`, `no shot` or `bad json`.
+
+#### Reference
+
+```sh
+# Getting a picture in
+omarchy-shell shell call tahayvr.postcard capture region        # region | windows | fullscreen | smart
 omarchy-shell shell call tahayvr.postcard capture '{"mode":"fullscreen","delay":5}'   # after 0–60 seconds
-omarchy-shell shell hide tahayvr.postcard                      # cancel a pending capture
+omarchy-shell shell call tahayvr.postcard edit ~/Pictures/Screenshots/shot.png
+omarchy-shell shell call tahayvr.postcard add region            # another shot beside it: a mode, a path, or file
 omarchy-shell shell call tahayvr.postcard code ''               # code card from the selection (or pass the text)
 omarchy-shell shell call tahayvr.postcard pick ''               # system file picker
+omarchy-shell shell hide tahayvr.postcard                       # close, or cancel a pending capture
+
+# Styling
 omarchy-shell shell call tahayvr.postcard set '{"codeTheme":"nord","padding":8,"frame":"titlebar"}'
-omarchy-shell shell call tahayvr.postcard preset social-post   # "Social Post": a dash for each space; or default
+omarchy-shell shell call tahayvr.postcard preset social-post    # "Social Post": a dash for each space; or default
+
+# Marking up
 omarchy-shell shell call tahayvr.postcard annotate '{"kind":"box","x":40,"y":40,"w":300,"h":120}'
-omarchy-shell shell call tahayvr.postcard crop '{"x":80,"y":40,"w":900,"h":600}'   # or '' for the selection
-omarchy-shell shell call tahayvr.postcard uncrop ''            # back to the whole picture
+omarchy-shell shell call tahayvr.postcard crop '{"x":80,"y":40,"w":900,"h":600}'   # the shot under it; or '' for the selection
+omarchy-shell shell call tahayvr.postcard uncrop ''             # back to the whole picture
+omarchy-shell shell call tahayvr.postcard redact ''             # find and hide secrets
+
+# Getting it out
+omarchy-shell shell call tahayvr.postcard save ''               # to the screenshot folder (and the clipboard)
+omarchy-shell shell call tahayvr.postcard saveAs ''             # choose the file
+omarchy-shell shell call tahayvr.postcard copy ''               # to the clipboard
+omarchy-shell shell call tahayvr.postcard copyText ''           # the text in the shot, by OCR
+
 omarchy-shell shell call tahayvr.postcard info ''               # the document as JSON
-omarchy-shell shell call tahayvr.postcard redact ''            # find and hide secrets
-omarchy-shell shell call tahayvr.postcard copyText ''          # text to the clipboard
-omarchy-shell shell call tahayvr.postcard save ''              # export to disk (and clipboard)
-omarchy-shell shell call tahayvr.postcard saveAs ''            # export, choosing the file
-omarchy-shell shell call tahayvr.postcard copy ''              # export to the clipboard
+```
+
+A save never writes over an earlier one: two in the same second get `-2`,
+`-3` and so on.
+
+#### Waiting for the editor
+
+Captures, OCR and exports run in the background and answer `ok` straight away,
+so a script that chains calls has to wait between them. `info` says when the
+editor is done: `hasContent` once a picture is in, and `capturing`, `busy`
+(rendering, cropping, reading text) and `delivering` (writing the file)
+while work is under way. After a save, `lastSaved` is the path it wrote.
+
+These two functions, which need `jq` (it ships with Omarchy), are all the
+recipes below rely on:
+
+```sh
+pc() { omarchy-shell shell call tahayvr.postcard "$@"; }
+
+# Wait until Postcard holds a picture and has nothing left running.
+pc_ready() {
+  for _ in $(seq 150); do
+    pc info '' | jq -e '.hasContent and ((.capturing or .busy or .delivering) | not)' >/dev/null && return 0
+    sleep 0.2
+  done
+  return 1
+}
+```
+
+The editor has to be open for anything to render, which every call that brings
+a picture in does by itself. Close it at the end with
+`omarchy-shell shell hide tahayvr.postcard`.
+
+#### Recipes
+
+**One key: grab a region, style it, save it, print the path.** Save as
+`~/.local/bin/postcard-shot`, make it executable, and bind it like any command.
+The check on `shotPath` tells a cancelled pick apart from the picture that was
+already open:
+
+```sh
+#!/usr/bin/env bash
+pc() { omarchy-shell shell call tahayvr.postcard "$@"; }
+pc_ready() { for _ in $(seq 150); do pc info '' | jq -e '.hasContent and ((.capturing or .busy or .delivering) | not)' >/dev/null && return 0; sleep 0.2; done; return 1; }
+
+before=$(pc info '' | jq -r .shotPath)
+pc capture region >/dev/null && pc_ready || exit 1
+[ "$(pc info '' | jq -r .shotPath)" = "$before" ] && exit 1   # cancelled
+pc preset social >/dev/null
+pc save '' >/dev/null && pc_ready && pc info '' | jq -r .lastSaved
+omarchy-shell shell hide tahayvr.postcard
+```
+
+```lua
+o.bind("PRINT", "Postcard shot", "postcard-shot")
+```
+
+**A folder of screenshots in one look.** Every picture gets the same preset
+and is saved beside the others:
+
+```sh
+pc preset docs
+for f in ~/Pictures/raw/*.png; do
+  pc edit "$f" >/dev/null && pc_ready && pc save '' >/dev/null && pc_ready &&
+    pc info '' | jq -r .lastSaved
+done
+omarchy-shell shell hide tahayvr.postcard
+```
+
+**A marked-up screenshot for documentation.** The whole screen without a
+picker, cropped to the part that matters, with an arrow and a label.
+Coordinates are in the picture's own pixels:
+
+```sh
+pc capture fullscreen >/dev/null && pc_ready
+pc crop '{"x":0,"y":0,"w":1600,"h":1000}' >/dev/null && pc_ready
+pc annotate '{"items":[{"kind":"arrow","x":200,"y":200,"w":300,"h":150},{"kind":"text","x":520,"y":360,"text":"Click\u0020here","size":40}]}'
+pc save '' >/dev/null && pc_ready
+```
+
+**Before and after, side by side.** Two regions, one card each, lined up
+and saved. `layoutDir` `column` stacks them instead:
+
+```sh
+pc capture region >/dev/null && pc_ready
+pc add region >/dev/null && pc_ready
+pc set '{"layoutDir":"row","slotGap":6}' >/dev/null && pc_ready
+pc save '' >/dev/null && pc_ready && pc info '' | jq -r .lastSaved
+```
+
+With several shots, marks and crops are in the combined picture's pixels,
+left to right (or top to bottom) with the gaps; `info` lists the shots.
+
+**A code card from a file.** The text can not go on the command line, since
+it would be split at every space, so it goes through the selection:
+
+```sh
+wl-copy --primary < src/main.rs
+pc code '' >/dev/null && pc_ready
+pc set '{"codeTheme":"nord","codeNumbers":true,"frame":"titlebar","frameTitle":"main.rs"}'
+pc copy '' >/dev/null && pc_ready
+```
+
+**Hide anything secret, then copy it for a chat.**
+
+```sh
+pc edit ~/Pictures/Screenshots/terminal.png >/dev/null && pc_ready
+pc redact '' >/dev/null && pc_ready
+pc copy '' >/dev/null && pc_ready
+omarchy-shell shell hide tahayvr.postcard
+```
+
+**Sign everything.** A watermark is part of the style, so it can be set once
+and saved into a preset from the editor, or set for one picture:
+
+```sh
+pc set '{"watermarkText":"@you","watermarkSize":120}'
 ```
 
 ## Dependencies

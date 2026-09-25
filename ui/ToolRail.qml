@@ -67,17 +67,21 @@ Item {
         anchors.bottomMargin: Ui.row
         spacing: Ui.gap
 
-        // Both are no-ops on an unannotated shot, so they say so instead of
+        // Each is a no-op with nothing to act on, so they say so instead of
         // looking like a button that does nothing.
         IconButton {
             glyph: "↶"
             flat: true
-            enabled: rail.annotationCount > 0
+            enabled: rail.doc !== null && rail.doc.canUndo
             tip: "Undo (Ctrl+Z)"
-            onClicked: {
-                rail.doc.undo();
-                rail.status("Undid the last annotation");
-            }
+            onClicked: if (rail.doc.undo()) rail.status("Undone")
+        }
+        IconButton {
+            glyph: "↷"
+            flat: true
+            enabled: rail.doc !== null && rail.doc.canRedo
+            tip: "Redo (Ctrl+Shift+Z)"
+            onClicked: if (rail.doc.redo()) rail.status("Redone")
         }
         IconButton {
             glyph: "✕"
