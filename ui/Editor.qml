@@ -74,6 +74,10 @@ Rectangle {
 
     readonly property Item exportTarget: grabRoot
     readonly property string repoUrl: "https://github.com/tahayvr/postcard"
+    // The settings take the inspector's place while they are open.
+    property bool settingsOpen: false
+    readonly property Item sidePanel: settingsPanel.visible ? settingsPanel
+                                    : inspector.visible ? inspector : null
 
     color: Color.menu && Color.menu.background ? Color.menu.background : Color.background
     border.width: 1
@@ -133,6 +137,13 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Ui.gap
 
+            IconButton {
+                glyph: "\uf013"
+                flat: true
+                active: editor.settingsOpen
+                tip: "Settings"
+                onClicked: editor.settingsOpen = !editor.settingsOpen
+            }
             // The overlay covers the screen, so the browser it opens would
             // sit behind it; close on the way out.
             IconButton {
@@ -175,7 +186,7 @@ Rectangle {
             top: header.bottom
             bottom: footer.top
             left: rail.visible ? rail.right : parent.left
-            right: inspector.visible ? inspector.left : parent.right
+            right: editor.sidePanel ? editor.sidePanel.left : parent.right
         }
         clip: true
 
@@ -384,9 +395,18 @@ Rectangle {
         systemThemes: editor.systemThemes
         anchors { top: header.bottom; bottom: footer.top; right: parent.right }
         width: Style.space(300)
-        visible: doc.hasContent
+        visible: doc.hasContent && !editor.settingsOpen
         onCopyTextRequested: editor.copyTextRequested()
         onEyedropRequested: function (done) { editor.eyedropRequested(done); }
+    }
+
+    Settings {
+        id: settingsPanel
+        doc: editor.doc
+        saveDir: editor.saveDir
+        anchors { top: header.bottom; bottom: footer.top; right: parent.right }
+        width: inspector.width
+        visible: editor.settingsOpen
     }
 
     Rectangle {
@@ -397,8 +417,9 @@ Rectangle {
     }
 
     Rectangle {
-        visible: inspector.visible
-        anchors { right: inspector.left; top: inspector.top; bottom: inspector.bottom }
+        visible: editor.sidePanel !== null
+        anchors { right: editor.sidePanel ? editor.sidePanel.left : parent.right
+                  top: header.bottom; bottom: footer.top }
         width: 1
         color: Ui.hairline
     }
