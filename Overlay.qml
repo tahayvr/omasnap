@@ -895,7 +895,9 @@ Item {
         id: captureProc
         property string mode: "region"
         property bool append: false
-        command: ["bash", root.pluginDir + "bin/postcard-capture", mode]
+        // Adding a shot keeps the captures already on the card.
+        command: ["bash", root.pluginDir + "bin/postcard-capture", mode].concat(
+                     append ? doc.slots.map(function (s) { return s.source; }) : [])
         stdout: StdioCollector {
             onStreamFinished: {
                 var lines = text.trim().split("\n");

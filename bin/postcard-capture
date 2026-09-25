@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# postcard-capture [region|windows|fullscreen|smart]
+# postcard-capture [region|windows|fullscreen|smart] [keep...]
 # Take a screenshot and print the path of the file omarchy wrote.
 # Prints nothing if the user cancelled.
 # The shot is only raw material for the editor, so it goes to the scratch
@@ -12,6 +12,9 @@ set -uo pipefail
 exec </dev/null
 
 mode="${1:-region}"
+shift 2>/dev/null
+# Captures still on the card, when this one is going beside them.
+keep=("$@")
 case "$mode" in
   region|windows|fullscreen|smart) ;;
   *) mode="region" ;;
@@ -24,8 +27,12 @@ mkdir -p "$dir"
 path="$(OMARCHY_SCREENSHOT_DIR="$dir" omarchy capture screenshot "$mode" save 2>/dev/null | grep '^/' | tail -n1)"
 [ -n "$path" ] && [ -f "$path" ] || exit 0
 
-# Only the newest shot can be open, and a crop reads its source again, so
-# earlier captures go only once a new one has replaced them.
-find "$dir" -maxdepth 1 -type f -name '*.png' ! -path "$path" -delete
+# Earlier captures go once a new one has replaced them, but not those still
+# on the card beside it: a crop or a new layout reads its source again.
+for f in "$dir"/*.png; do
+  [ "$f" = "$path" ] && continue
+  for k in "${keep[@]}"; do [ "$f" = "$k" ] && continue 2; done
+  rm -f "$f"
+done
 printf '%s\n' "$path"
 exit 0
