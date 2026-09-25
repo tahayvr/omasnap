@@ -917,7 +917,11 @@ Item {
             doc.annotationsEdited();
             return true;
         }
-        if (event.text && event.text.length && event.text.charCodeAt(0) >= 32) {
+        // Delete arrives with DEL (127) as its text, which typed itself into
+        // the label; it is left to remove the label like any other mark.
+        if (event.key === Qt.Key_Delete) return false;
+        if (event.text && event.text.length && event.text.charCodeAt(0) >= 32
+                && event.text.charCodeAt(0) !== 127) {
             doc.annotations.setProperty(i, "text", a.text + event.text);
             doc.annotationsEdited();
             return true;
