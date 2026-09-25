@@ -936,6 +936,29 @@ Item {
         });
     }
 
+    // dragOut: render, then hand the file to the editor to drag, if the button
+    // is still held by the time it is ready.
+    function dragOut() {
+        return exportTo(root.scratchDir + "/postcard-drag.png", function (p) {
+            dragFile.args = ["file", p, root.scratchDir + "/postcard-drag/" + root.outputName(),
+                             doc.format, String(doc.quality),
+                             String(doc.outWidth), String(doc.outHeight)];
+            dragFile.running = true;
+        });
+    }
+
+    Process {
+        id: dragFile
+        property var args: []
+        command: ["bash", root.pluginDir + "bin/postcard-deliver"].concat(args)
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var path = text.trim();
+                if (path.indexOf("/") === 0) editor.startDragOut(path);
+            }
+        }
+    }
+
     Process {
         id: deliver
         property var args: []
@@ -1052,19 +1075,23 @@ Item {
         return false;
     }
 
+    // The backdrop is a window of its own, under the card's. Dragging the
+    // picture out needs the card's window to be no bigger than the card:
+    // Hyprland picks a drop target without looking at a surface's input
+    // region, so a full-screen overlay was the only place a drag could land,
+    // and neither shrinking it nor masking it once the press had begun let
+    // the drag reach anything else. The backdrop simply goes while a drag
+    // is under way.
     PanelWindow {
-        id: window
-        visible: root.opened && !root.capturing && !root.picking && !root.eyedropping
+        id: backdrop
+        visible: window.visible && !editor.draggingOut
         color: "transparent"
-
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
 
-        WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.namespace: "postcard"
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-
-        onVisibleChanged: if (visible) root.focusEditor()
+        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.namespace: "postcard-backdrop"
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
         Rectangle {
             anchors.fill: parent
@@ -1074,14 +1101,44 @@ Item {
                 onClicked: root.dismiss()
             }
         }
+    }
 
-        // A floating card, not a full-screen takeover; the scrim shows the
-        // desktop behind it and a click there closes the editor.
+    PanelWindow {
+        id: window
+        visible: root.opened && !root.capturing && !root.picking && !root.eyedropping
+        color: "transparent"
+
+        // No anchors: the compositor centres a layer that has none.
+        implicitWidth: Math.min(Style.space(1320), (screen ? screen.width : 0) - Style.gapsOut * 4)
+        implicitHeight: Math.min(Style.space(860), (screen ? screen.height : 0) - Style.gapsOut * 4)
+        exclusionMode: ExclusionMode.Ignore
+
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.namespace: "postcard"
+        // On demand rather than exclusive: an exclusive layer keeps the
+        // pointer from every other surface, the backdrop included, so a
+        // click outside the card would not close it. The keyboard is let go
+        // as a drag begins, or the drag never reaches another window (any
+        // sooner and the press is lost with it), and taken back once it
+        // ends, since whatever was dropped on has it by then.
+        WlrLayershell.keyboardFocus: editor.dragActive ? WlrKeyboardFocus.None
+                                   : reclaim.running ? WlrKeyboardFocus.Exclusive
+                                   : WlrKeyboardFocus.OnDemand
+
+        Timer {
+            id: reclaim
+            interval: 150
+        }
+        Connections {
+            target: editor
+            function onDragActiveChanged() { if (!editor.dragActive) reclaim.restart(); }
+        }
+
+        onVisibleChanged: if (visible) root.focusEditor()
+
         FocusScope {
             id: scope
-            anchors.centerIn: parent
-            width: Math.min(Style.space(1320), parent.width - Style.gapsOut * 4)
-            height: Math.min(Style.space(860), parent.height - Style.gapsOut * 4)
+            anchors.fill: parent
             focus: true
 
             Editor {
@@ -1097,6 +1154,7 @@ Item {
                 onCodeRequested: root.code()
                 onCloseRequested: root.dismiss()
                 onCopyRequested: root.copy()
+                onDragOutRequested: root.dragOut()
                 onSaveRequested: root.save()
                 onSaveAsRequested: root.saveAs()
                 onOpenRequested: root.pick()
