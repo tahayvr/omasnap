@@ -7,6 +7,12 @@ earlier development is recorded in the [commit history](https://github.com/omaco
 
 ### Added
 
+- Find and hide sensitive text (`Shift+D`, or **Find & hide** under the
+  Redact tool): OCR reads the image and every email address, API key or
+  token, card number or IBAN, IP address and phone number becomes a
+  redaction layer, all in one undo step. Card numbers are Luhn-checked;
+  dates, versions, loopback addresses and git hashes are left alone. Each
+  category has a toggle on the Redact button's hover menu.
 - Hold `Ctrl` while dragging with Cut (`X`) to insert a transparent band.
   Annotations shift with the image, and insertion supports undo and redo.
 

@@ -2595,24 +2595,42 @@ bool copyTextToClipboard(const QString &text, QString &error) {
                                 text.toUtf8(), error);
 }
 
-QString recognizeText(const QImage &image, QString &error) {
-  QByteArray payload;
-  QBuffer buffer(&payload);
-  if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) {
-    error = QStringLiteral("Could not prepare image for OCR");
-    return {};
-  }
+namespace {
 
+QString ocrLanguages() {
   QString languages = qEnvironmentVariable("OMASNAP_OCR_LANGS");
   if (languages.isEmpty())
     languages =
         qEnvironmentVariable("OMARCHY_OCR_LANGS", QStringLiteral("eng"));
-  languages = languages.trimmed();
-  // Tesseract's OpenMP build starts a thread per core and spins them; on a
-  // screenshot that costs about three times the CPU and adds wall time
-  // instead of saving it. One thread reads the same text faster.
+  return languages.trimmed();
+}
+
+// Tesseract's OpenMP build starts a thread per core and spins them; on a
+// screenshot that costs about three times the CPU and adds wall time
+// instead of saving it. One thread reads the same text faster.
+QProcessEnvironment ocrEnvironment() {
   QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
   environment.insert(QStringLiteral("OMP_THREAD_LIMIT"), QStringLiteral("1"));
+  return environment;
+}
+
+bool encodeForOcr(const QImage &image, QByteArray &payload, QString &error) {
+  QBuffer buffer(&payload);
+  if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) {
+    error = QStringLiteral("Could not prepare image for OCR");
+    return false;
+  }
+  return true;
+}
+
+} // namespace
+
+QString recognizeText(const QImage &image, QString &error) {
+  QByteArray payload;
+  if (!encodeForOcr(image, payload, error))
+    return {};
+
+  const QString languages = ocrLanguages();
   const ProcessResult result = runProcess(
       QStringLiteral("tesseract"),
       {QStringLiteral("stdin"), QStringLiteral("stdout"),
@@ -2621,7 +2639,7 @@ QString recognizeText(const QImage &image, QString &error) {
        QStringLiteral("-l"), languages,
        QStringLiteral("--dpi"), QStringLiteral("300"),
        QStringLiteral("-c"), QStringLiteral("preserve_interword_spaces=1")},
-      payload, 30000, environment);
+      payload, 30000, ocrEnvironment());
   if (!result.finished || result.exitCode != 0) {
     error = QStringLiteral("OCR failed for languages %1: %2")
                 .arg(languages, QString::fromUtf8(result.error).trimmed());
@@ -2631,6 +2649,52 @@ QString recognizeText(const QImage &image, QString &error) {
   if (text.isEmpty())
     error = QStringLiteral("No text found in selection");
   return text;
+}
+
+QVector<OcrWord> recognizeWords(const QImage &image, QString &error) {
+  if (image.isNull()) {
+    error = QStringLiteral("Could not prepare image for OCR");
+    return {};
+  }
+  // Tesseract reads small UI text far more reliably at twice the size, so
+  // small and medium shots are enlarged and the boxes mapped back down. A
+  // 4K grab is already big enough; doubling it would take most of a minute.
+  const int longest = std::max(image.width(), image.height());
+  const qreal factor = longest < 2400 ? 2.0 : longest < 3200 ? 1.5 : 1.0;
+  const QImage scaled =
+      factor == 1.0
+          ? image
+          : image.scaled(qRound(image.width() * factor),
+                         qRound(image.height() * factor),
+                         Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  QByteArray payload;
+  if (!encodeForOcr(scaled, payload, error))
+    return {};
+
+  const QString languages = ocrLanguages();
+  // psm 11 finds sparse text anywhere on screen, which is what a UI
+  // screenshot is; `tsv` is tesseract's config for word boxes.
+  const ProcessResult result = runProcess(
+      QStringLiteral("tesseract"),
+      {QStringLiteral("stdin"), QStringLiteral("stdout"),
+       QStringLiteral("--oem"), QStringLiteral("1"),
+       QStringLiteral("--psm"), QStringLiteral("11"),
+       QStringLiteral("-l"), languages,
+       QStringLiteral("--dpi"), QStringLiteral("300"),
+       QStringLiteral("tsv")},
+      payload, 60000, ocrEnvironment());
+  if (!result.finished || result.exitCode != 0) {
+    error = QStringLiteral("OCR failed for languages %1: %2")
+                .arg(languages, QString::fromUtf8(result.error).trimmed());
+    return {};
+  }
+  QVector<OcrWord> words = parseTesseractTsv(QString::fromUtf8(result.output));
+  if (factor != 1.0) {
+    for (OcrWord &word : words)
+      word.box = QRectF(word.box.left() / factor, word.box.top() / factor,
+                        word.box.width() / factor, word.box.height() / factor);
+  }
+  return words;
 }
 
 QStringList captureNotificationArguments(const QString &message,

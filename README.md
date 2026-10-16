@@ -53,6 +53,14 @@ preview keeps it on screen.
   ellipses, numbered markers, editable text in Neucha, JetBrains Mono, or Inter
   Display (plain, outlined, or on a readability pill), and secure redaction with
   opaque or randomized non-spatial mosaic output.
+- Find and hide sensitive text in one go: `Shift+D`, or **Find & hide** under
+  the Redact tool, reads the image and redacts email addresses, API keys and
+  tokens (JWT, AWS, GitHub, `sk-` style keys, URL passwords, random secrets),
+  card numbers and IBANs, IP addresses, and phone numbers. Card numbers are
+  Luhn-checked; dates, version strings, loopback addresses and git hashes are
+  left alone. Each category has a toggle under the Redact button. The result
+  is one undo step of ordinary redaction layers, so a wrong box is moved,
+  resized, or deleted like any other.
 - Per-layer preset or custom colors (including highlighter ink), undo/redo history,
   one-click whole-image or drag-region OCR (the recognized text is shown beside
   the image and copied to the clipboard),
@@ -486,7 +494,8 @@ region after changing the display layout.
 | `C` | Numbered marker |
 | `R` | Rectangle; hover the shape button for rectangle, ellipse, and fill controls; `Alt`+wheel rounds corners |
 | `E` | Ellipse; shares the shape submenu and filled/hollow toggle |
-| `D` | Redact; press again to toggle randomized pixelation or solid redaction |
+| `D` | Redact; press again to toggle randomized pixelation or solid redaction. Hover the button for the Find & hide toggles: Email, Keys, Cards, IPs, Phones |
+| `Shift+D` | Find and hide sensitive text: OCR the image and redact every email, key or token, card number, IP address and phone number of the enabled kinds, as one undoable step |
 | `X` | Cut out a band; drag to preview the crossed-out strip, then release to remove and collapse it. **Ctrl** (with Cut armed, or **Ctrl+X**) inserts a band instead; the cut icon becomes a split-plus |
 | `T` | Text on a cream readability pill, with Neucha as the default. Click for a one-line label, or drag a box to give it room for several lines: Enter moves to the next line while there is room and commits on the last one; `Shift+Enter` always adds a line; `Esc` commits the text and dismisses the annotator; long text wraps at the current canvas edge by default, while moving it or dragging its width handle beyond that edge expands the canvas; clicking away keeps the text; press T again to toggle the pill |
 | `Shift+T` | Cycle the next or selected text through Neucha, JetBrains Mono, and Inter Display |

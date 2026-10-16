@@ -646,6 +646,10 @@ QPointF constrainedRedactionEndpoint(const QPointF &candidate,
 
 /// One top-to-bottom pass of the OCR scan band.
 constexpr qint64 kOcrSweepMs = 1200;
+constexpr qreal kRedactChipWidth = 48.0;
+constexpr qreal kRedactChipGap = 4.0;
+constexpr qreal kRedactFindWidth = 92.0;
+constexpr qreal kRedactMenuHeight = 36.0;
 
 void drawInstantTooltip(QPainter &painter, const QRect &bounds,
                         const QRectF &anchor, const QString &text) {
@@ -931,6 +935,19 @@ CaptureEditor::CaptureEditor(CaptureData capture, CaptureMode mode,
       update();
     });
   });
+
+  connect(&autoRedactWatcher_, &QFutureWatcher<AutoRedactResult>::finished,
+          this, [this] {
+            const AutoRedactResult result = autoRedactWatcher_.result();
+            busy_ = false;
+            dismissOcrOverlay();
+            if (!result.error.isEmpty()) {
+              setStatus(result.error);
+              return;
+            }
+            commitAutoRedactions(result.words, result.target, result.scaleX,
+                                 result.scaleY);
+          });
 
   connect(&finishWatcher_, &QFutureWatcher<FinishResult>::resultReadyAt, this,
           [this] { completeFinish(finishWatcher_.result()); });
@@ -1509,7 +1526,8 @@ QString CaptureEditor::toolStatus() const {
         .arg(shape, zoom, ring);
   }
   case Tool::Redact:
-    return QStringLiteral("Redact · %1 · D toggles style")
+    return QStringLiteral("Redact · %1 · D toggles style · Shift+D finds "
+                          "secrets")
         .arg(redactionStyleName(redactionStyle_).toLower());
   case Tool::Text:
     return QStringLiteral("Text · %1 · size %2 · Shift+T cycles font · click "
@@ -2269,7 +2287,8 @@ bool CaptureEditor::canStartAnnotationAt(const QPointF &position) const {
   if ((colorPaletteOpen_ && colorPaletteRect().contains(position)) ||
       (customColorPickerOpen_ && customColorPanelRect().contains(position)) ||
       (shapeMenuOpen_ && shapeMenuRect().contains(position)) ||
-      (textSizeMenuOpen_ && textSizePanelRect().contains(position)))
+      (textSizeMenuOpen_ && textSizePanelRect().contains(position)) ||
+      (redactMenuOpen_ && redactMenuRect().contains(position)))
     return false;
   if (requiresSourcePixels(tool_))
     return sourceFrameWidgetRect().contains(position);
@@ -2727,7 +2746,8 @@ CaptureEditor::toolbarButtons(QVector<qreal> *groupDividers,
                          : QStringLiteral("rounded"))
           .arg(spotlightMagnification_, 0, 'f', 1));
   add(36, QStringLiteral("tool-redact"), {},
-      QStringLiteral("Redact · D · %1 · D again toggles")
+      QStringLiteral("Redact · D · %1 · D again toggles · hover to find "
+                     "secrets")
           .arg(redactionStyleName(redactionStyle_)));
   add(36, QStringLiteral("tool-cut"), {},
       cutInsertHint()
@@ -4027,6 +4047,176 @@ void CaptureEditor::runOcr(const QRectF &localSelection) {
   }));
 }
 
+void CaptureEditor::runAutoRedact() {
+  if (busy_ || selection_.isEmpty())
+    return;
+  const QRectF target = selection_;
+  busy_ = true;
+  ocrRegion_ = QRectF(QPointF(), target.size());
+  ocrResultText_.clear();
+  ocrResultTimer_.stop();
+  ocrClock_.start();
+  ocrAnimTimer_.start();
+  setStatus(QStringLiteral("Looking for sensitive text…"));
+
+  // Hidden text stays hidden: the crop is read with every redaction already
+  // applied, so what is under one is never found a second time.
+  QVector<Annotation> existing;
+  for (const Annotation &annotation : annotations_) {
+    if (annotation.kind == Annotation::Kind::Redaction)
+      existing.push_back(annotation);
+  }
+  const CaptureData captureCopy = capture_;
+  autoRedactWatcher_.setFuture(
+      QtConcurrent::run([captureCopy, target, existing]() {
+        AutoRedactResult result;
+        result.target = target;
+        const QImage image =
+            renderCapture(captureCopy, target, existing, BackgroundStyle::None,
+                          false, CanvasBoundaryMode::Image);
+        if (image.isNull() || target.width() <= 0 || target.height() <= 0) {
+          result.error = QStringLiteral("Could not prepare image for OCR");
+          return result;
+        }
+        result.scaleX = image.width() / target.width();
+        result.scaleY = image.height() / target.height();
+        result.words = recognizeWords(image, result.error);
+        return result;
+      }));
+}
+
+void CaptureEditor::commitAutoRedactions(const QVector<OcrWord> &words,
+                                         const QRectF &target, qreal scaleX,
+                                         qreal scaleY) {
+  const QVector<SensitiveMatch> matches =
+      findSensitiveText(words, redactClasses_);
+  if (matches.isEmpty()) {
+    setStatus(sensitiveSummary(matches) +
+              QStringLiteral(" · Shift+D looks again"));
+    return;
+  }
+  const QPointF offset = target.topLeft() - selection_.topLeft();
+  const QRectF frame(QPointF(), selection_.size());
+  Operation op;
+  op.type = Operation::Type::Annotate;
+  for (const SensitiveMatch &match : matches) {
+    QRectF box(match.box.left() / scaleX + offset.x(),
+               match.box.top() / scaleY + offset.y(),
+               match.box.width() / scaleX, match.box.height() / scaleY);
+    box = box.intersected(frame);
+    if (box.isEmpty())
+      continue;
+    // A redaction covers something, so it keeps the same floor a drawn one
+    // has; a sliver of a word grows to it around its own centre.
+    if (box.width() < kMinimumRedactionExtent) {
+      const qreal grow = (kMinimumRedactionExtent - box.width()) / 2.0;
+      box.adjust(-grow, 0, grow, 0);
+    }
+    if (box.height() < kMinimumRedactionExtent) {
+      const qreal grow = (kMinimumRedactionExtent - box.height()) / 2.0;
+      box.adjust(0, -grow, 0, grow);
+    }
+    Annotation annotation;
+    annotation.kind = Annotation::Kind::Redaction;
+    annotation.start = box.topLeft();
+    annotation.end = box.bottomRight();
+    annotation.color = annotationColor();
+    annotation.size = annotationSize_;
+    annotation.redactionStyle = redactionStyle_;
+    annotation.redactionSeed = freshRedactionSeed();
+    annotation.id = nextAnnotationId_++;
+    op.annotations.push_back(std::move(annotation));
+  }
+  if (op.annotations.isEmpty()) {
+    setStatus(QStringLiteral("Nothing sensitive found · Shift+D looks again"));
+    return;
+  }
+  selectedAnnotation_ = -1;
+  selectedAnnotations_.clear();
+  commitOp(std::move(op));
+  setStatus(sensitiveSummary(matches) + QStringLiteral(" · Ctrl+Z undoes"));
+}
+
+void CaptureEditor::toggleRedactClass(SensitiveClass category) {
+  redactClasses_.setFlag(category, !redactClasses_.testFlag(category));
+  setStatus(QStringLiteral("%1 · %2 · Find & hide or Shift+D")
+                .arg(sensitiveClassDescription(category),
+                     redactClasses_.testFlag(category) ? QStringLiteral("on")
+                                                       : QStringLiteral("off")));
+}
+
+QRectF CaptureEditor::redactMenuRect() const {
+  const QRectF anchor = toolbarButtonRect(QStringLiteral("tool-redact"));
+  if (anchor.isEmpty())
+    return {};
+  const int chips = static_cast<int>(sensitiveClassOrder().size());
+  const qreal menuWidth = kRedactChipGap +
+                          chips * (kRedactChipWidth + kRedactChipGap) + 8.0 +
+                          kRedactFindWidth + kRedactChipGap;
+  const qreal left =
+      std::clamp(anchor.center().x() - menuWidth / 2.0, 8.0,
+                 std::max(8.0, static_cast<qreal>(width()) - menuWidth - 8.0));
+  return {left, anchor.bottom() + 4, menuWidth, kRedactMenuHeight};
+}
+
+QRectF CaptureEditor::redactChipRect(int index) const {
+  const QRectF menu = redactMenuRect();
+  if (menu.isEmpty())
+    return {};
+  return {menu.left() + kRedactChipGap +
+              index * (kRedactChipWidth + kRedactChipGap),
+          menu.top() + 4, kRedactChipWidth, menu.height() - 8};
+}
+
+QRectF CaptureEditor::redactFindRect() const {
+  const QRectF menu = redactMenuRect();
+  if (menu.isEmpty())
+    return {};
+  return {menu.right() - kRedactChipGap - kRedactFindWidth, menu.top() + 4,
+          kRedactFindWidth, menu.height() - 8};
+}
+
+void CaptureEditor::paintRedactMenu(QPainter &painter) {
+  if (!redactMenuOpen_)
+    return;
+  const QRectF menu = redactMenuRect();
+  if (menu.isEmpty())
+    return;
+  const ChromeTheme &theme = chromeTheme();
+  painter.save();
+  painter.setPen(QPen(theme.panelBorder.brush(menu), 1));
+  painter.setBrush(theme.surface);
+  painter.drawRoundedRect(menu, 9, 9);
+  painter.setFont(chromeFont(11, true));
+  const QVector<SensitiveClass> order = sensitiveClassOrder();
+  for (int index = 0; index < order.size(); ++index) {
+    const QRectF chip = redactChipRect(index);
+    const bool on = redactClasses_.testFlag(order.at(index));
+    const bool hot = chip.contains(cursor_);
+    painter.setPen(QPen((on    ? theme.buttonSelectedBorder
+                         : hot ? theme.buttonHoverBorder
+                               : theme.buttonBorder)
+                            .brush(chip),
+                        1));
+    painter.setBrush(on ? theme.buttonSelected
+                        : hot ? theme.buttonHover : theme.button);
+    painter.drawRoundedRect(chip, 7, 7);
+    painter.setPen(on ? theme.buttonSelectedText
+                      : hot ? theme.buttonHoverText : theme.buttonText);
+    painter.drawText(chip, Qt::AlignCenter,
+                     sensitiveClassLabel(order.at(index)));
+  }
+  const QRectF find = redactFindRect();
+  const bool findHot = find.contains(cursor_);
+  painter.setPen(QPen(
+      (findHot ? theme.buttonHoverBorder : theme.buttonBorder).brush(find), 1));
+  painter.setBrush(theme.accent);
+  painter.drawRoundedRect(find, 7, 7);
+  painter.setPen(theme.accentText);
+  painter.drawText(find, Qt::AlignCenter, QStringLiteral("Find & hide"));
+  painter.restore();
+}
+
 void CaptureEditor::dismissOcrOverlay() {
   ocrAnimTimer_.stop();
   ocrResultTimer_.stop();
@@ -4742,6 +4932,10 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
       tool_ = Tool::Spotlight;
     }
     selectedAnnotation_ = -1;
+  } else if (event->key() == Qt::Key_D &&
+             event->modifiers() == Qt::ShiftModifier) {
+    runAutoRedact();
+    return;
   } else if (event->key() == Qt::Key_D) {
     if (selectedAnnotation_ >= 0 && selectedAnnotation_ < annotations_.size() &&
         annotations_.at(selectedAnnotation_).kind ==
@@ -5610,6 +5804,8 @@ void CaptureEditor::mouseMoveEvent(QMouseEvent *event) {
     bool overCustomAnchor = false;
     bool overShapeAnchor = false;
     bool overTextAnchor = false;
+    bool overRedactAnchor = false;
+    const bool redactMenuWasOpen = redactMenuOpen_;
     for (const ToolbarButton &button : toolbarButtons()) {
       if (button.action == QStringLiteral("palette") &&
           button.rect.contains(cursor_)) {
@@ -5628,6 +5824,10 @@ void CaptureEditor::mouseMoveEvent(QMouseEvent *event) {
                  button.rect.contains(cursor_)) {
         overTextAnchor = true;
         textSizeIntentOrigin_ = cursor_;
+      } else if (button.action == QStringLiteral("tool-redact") &&
+                 button.rect.contains(cursor_)) {
+        overRedactAnchor = true;
+        redactIntentOrigin_ = cursor_;
       }
     }
     const bool overPalette =
@@ -5650,6 +5850,18 @@ void CaptureEditor::mouseMoveEvent(QMouseEvent *event) {
     shapeMenuOpen_ = overShapeAnchor || overShapes || approachingShapes;
     if (!shapeMenuOpen_)
       shapeIntentOrigin_ = {};
+    const bool overRedact =
+        redactMenuOpen_ && redactMenuRect().contains(cursor_);
+    const bool approachingRedact =
+        redactMenuOpen_ &&
+        inDownwardSubmenuTriangle(redactIntentOrigin_, redactMenuRect(),
+                                  cursor_);
+    redactMenuOpen_ = overRedactAnchor || overRedact || approachingRedact;
+    if (!redactMenuOpen_)
+      redactIntentOrigin_ = {};
+    // The chips light up under the pointer, so the menu repaints while open.
+    if (redactMenuOpen_ || redactMenuWasOpen)
+      update();
     const bool overTextSizes =
         textSizeMenuOpen_ && textSizePanelRect().contains(cursor_);
     const bool approachingTextSizes =
@@ -5783,6 +5995,19 @@ void CaptureEditor::mousePressEvent(QMouseEvent *event) {
       update();
       return;
     }
+  }
+  if (redactMenuOpen_ && redactMenuRect().contains(cursor_)) {
+    const QVector<SensitiveClass> order = sensitiveClassOrder();
+    for (int index = 0; index < order.size(); ++index) {
+      if (redactChipRect(index).contains(cursor_)) {
+        toggleRedactClass(order.at(index));
+        return;
+      }
+    }
+    if (redactFindRect().contains(cursor_))
+      runAutoRedact();
+    update();
+    return;
   }
   if (textSizeMenuOpen_ && !colorPaletteOpen_ && !customColorPickerOpen_ &&
       textSizePanelRect().contains(cursor_)) {
@@ -6612,7 +6837,8 @@ void CaptureEditor::updatePointerCursor() {
   }
   if ((colorPaletteOpen_ && colorPaletteRect().contains(cursor_)) ||
       (customColorPickerOpen_ && customColorPanelRect().contains(cursor_)) ||
-      (shapeMenuOpen_ && shapeMenuRect().contains(cursor_))) {
+      (shapeMenuOpen_ && shapeMenuRect().contains(cursor_)) ||
+      (redactMenuOpen_ && redactMenuRect().contains(cursor_))) {
     clearHighlighterPreview();
     applyCursor(Qt::PointingHandCursor);
     return;
@@ -6913,6 +7139,7 @@ void CaptureEditor::returnToSelect() {
   colorPaletteOpen_ = false;
   customColorPickerOpen_ = false;
   shapeMenuOpen_ = false;
+  redactMenuOpen_ = false;
   textSizeMenuOpen_ = false;
   dismissOcrOverlay();
   // Everything edited derives from the op log; an empty log is the untouched
@@ -7368,6 +7595,7 @@ QVector<QPair<QString, QString>> editorHotkeyEntries() {
           {QStringLiteral("1–8"), QStringLiteral("Color")},
           {QStringLiteral("Wheel"), QStringLiteral("Zoom selected / tool size")},
           {QStringLiteral("D / O"), QStringLiteral("Redact / OCR text")},
+          {QStringLiteral("Shift+D"), QStringLiteral("Find and hide secrets")},
           {QStringLiteral("B / P"), QStringLiteral("Backdrop / Pin on screen")},
           {QStringLiteral("W"), QStringLiteral("Editor to window / overlay")},
           {QStringLiteral("Ctrl+Z"), QStringLiteral("Undo")},
@@ -7735,6 +7963,7 @@ void CaptureEditor::paintEdit(QPainter &painter) {
     painter.setBrush(chromeTheme().surface);
     painter.drawRoundedRect(shapeMenuRect(), 9, 9);
   }
+  paintRedactMenu(painter);
   if (colorPaletteOpen_) {
     painter.setPen(QPen(chromeTheme().panelBorder.brush(colorPaletteRect()), 1));
     painter.setBrush(chromeTheme().surface);
@@ -7961,9 +8190,17 @@ void CaptureEditor::paintEdit(QPainter &painter) {
     drawAnchoredHotkeyLegend(painter, rect(), editorHotkeyEntries(),
                              legendAnchor);
   }
+  // A tooltip under the toolbar lands where the Redact menu opens, and the
+  // armed tool's tooltip would sit there as long as the tool is armed. The
+  // open menu explains itself, so neither is drawn while it shows.
+  const bool redactMenuShowing = redactMenuOpen_ && !redactMenuRect().isEmpty();
   if (hoveredButton) {
-    drawInstantTooltip(painter, rect(), hoveredButton->rect,
-                       hoveredButton->tooltip);
+    if (!(redactMenuShowing &&
+          hoveredButton->action == QStringLiteral("tool-redact")))
+      drawInstantTooltip(painter, rect(), hoveredButton->rect,
+                         hoveredButton->tooltip);
+  } else if (redactMenuShowing && tool_ == Tool::Redact) {
+    // Nothing: the menu is open under the armed tool's button.
   } else if (tool_ == Tool::Arrow || tool_ == Tool::Line ||
              tool_ == Tool::Freehand || tool_ == Tool::Highlighter ||
              tool_ == Tool::Marker || tool_ == Tool::Redact ||

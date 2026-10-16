@@ -22,6 +22,7 @@
 #include "palette-config-smoke.hpp"
 #include "pin-layout-smoke.hpp"
 #include "stitch-smoke.hpp"
+#include "sensitive-text-smoke.hpp"
 #include "scroll-startup-smoke.hpp"
 #include "save-as-smoke.hpp"
 #include "stitch.hpp"
@@ -12630,6 +12631,10 @@ int main(int argc, char **argv) {
   if (!runStrokeSmoothingSmoke(application, snapshotError)) {
     qWarning().noquote() << snapshotError;
     return 128;
+  }
+  if (!runSensitiveTextSmoke(application, snapshotError)) {
+    qWarning().noquote() << snapshotError;
+    return 232;
   }
   if (!runSelectOutsideCanvasSmoke(application, snapshotError)) {
     qWarning().noquote() << snapshotError;

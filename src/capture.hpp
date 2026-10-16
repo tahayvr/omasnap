@@ -3,6 +3,7 @@
 
 #include "cut.hpp"
 #include "pin.hpp"
+#include "sensitive-text.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -448,6 +449,10 @@ bool removeEditorHandoff(const QString &path, const QString &token);
 [[nodiscard]] bool saveTemporarySnapshot(const QImage &image, QString path,
                                          QString &error);
 [[nodiscard]] QString recognizeText(const QImage &image, QString &error);
+/** Word-level OCR: every word tesseract finds, with its box in `image`
+ *  pixels. Small images are read at twice the size and mapped back. */
+[[nodiscard]] QVector<OcrWord> recognizeWords(const QImage &image,
+                                              QString &error);
 /** Builds the omarchy-notification-send argv. With an image, the click command
  *  follows --exec as separate words (program, then file URL) and nothing else
  *  comes after it, since --exec consumes the rest of the line unparsed. */

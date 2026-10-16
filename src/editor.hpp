@@ -228,6 +228,15 @@ private:
     QString text;
     QString error;
   };
+  /// Words read for auto-redaction, in the rendered crop's pixels, plus the
+  /// crop they came from and its pixels-per-logical-unit scale.
+  struct AutoRedactResult {
+    QVector<OcrWord> words;
+    QRectF target;
+    qreal scaleX = 1.0;
+    qreal scaleY = 1.0;
+    QString error;
+  };
   /// What the export worker hands back: the saved path (Save/Both) or an
   /// error. Rendering, PNG encoding and the clipboard round trip all run off
   /// the UI thread; a tall scroll capture takes seconds to encode.
@@ -325,6 +334,21 @@ public:
     ocrResultText_ = text;
     ocrClock_.restart();
     update();
+  }
+  /// Commits auto-redactions from fixture words given in selection units,
+  /// exactly as the OCR worker's result would be.
+  void applyAutoRedactForTest(const QVector<OcrWord> &words) {
+    commitAutoRedactions(words, selection_, 1.0, 1.0);
+  }
+  [[nodiscard]] SensitiveClasses redactClassesForTest() const {
+    return redactClasses_;
+  }
+  [[nodiscard]] bool redactMenuOpenForTest() const { return redactMenuOpen_; }
+  [[nodiscard]] QRectF redactChipRectForTest(int index) const {
+    return redactChipRect(index);
+  }
+  [[nodiscard]] QRectF redactFindRectForTest() const {
+    return redactFindRect();
   }
   /// Holds persistence open during the handoff smoke test.
   void setSnapshotFutureForTest(const QFuture<bool> &future) {
@@ -673,6 +697,17 @@ private:
   void refreshBackdropCache();
   void refreshComposedCapture();
   void runOcr(const QRectF &localSelection = {});
+  /// Reads the selection's words and hides whatever looks sensitive, as one
+  /// undoable operation of ordinary redaction layers.
+  void runAutoRedact();
+  void commitAutoRedactions(const QVector<OcrWord> &words, const QRectF &target,
+                            qreal scaleX, qreal scaleY);
+  void toggleRedactClass(SensitiveClass category);
+  /// The class toggles and Find button shown under the Redact tool on hover.
+  [[nodiscard]] QRectF redactMenuRect() const;
+  [[nodiscard]] QRectF redactChipRect(int index) const;
+  [[nodiscard]] QRectF redactFindRect() const;
+  void paintRedactMenu(QPainter &painter);
   void dismissOcrOverlay();
   void paintOcrOverlay(QPainter &painter, const QRectF &image, qreal scale);
   void setStatus(QString status);
@@ -852,10 +887,12 @@ private:
   bool colorPaletteOpen_ = false;
   bool customColorPickerOpen_ = false;
   bool shapeMenuOpen_ = false;
+  bool redactMenuOpen_ = false;
   bool textSizeMenuOpen_ = false;
   QPointF paletteIntentOrigin_;
   QPointF customColorIntentOrigin_;
   QPointF shapeIntentOrigin_;
+  QPointF redactIntentOrigin_;
   QPointF textSizeIntentOrigin_;
   bool usingCustomColor_ = false;
   int hoveredWindow_ = -1;
@@ -981,6 +1018,10 @@ private:
   QPointF panAnchor_;
   QColor textColor_;
   QFutureWatcher<OcrResult> ocrWatcher_;
+  QFutureWatcher<AutoRedactResult> autoRedactWatcher_;
+  /// Which kinds of sensitive text auto-redaction looks for. Session state,
+  /// all on to begin with; there is nothing to configure.
+  SensitiveClasses redactClasses_ = allSensitiveClasses();
   QFutureWatcher<FinishResult> finishWatcher_;
   bool saveAsActive_ = false;
   quint64 saveAsRequest_ = 0;

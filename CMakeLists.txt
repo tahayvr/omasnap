@@ -76,6 +76,8 @@ add_library(omasnap-core STATIC
   src/stitch.hpp
   src/text-band.cpp
   src/text-band.hpp
+  src/sensitive-text.cpp
+  src/sensitive-text.hpp
   src/auto-capture.cpp
   src/auto-capture.hpp
   src/scroll-capture.cpp
@@ -177,6 +179,8 @@ qt_add_executable(omasnap-smoke
   tests/palette-config-smoke.hpp
   tests/stroke-smoothing-smoke.cpp
   tests/stroke-smoothing-smoke.hpp
+  tests/sensitive-text-smoke.cpp
+  tests/sensitive-text-smoke.hpp
   src/cli-path.cpp
   src/recent-snaps.cpp
   src/recent-snaps.hpp

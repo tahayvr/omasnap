@@ -105,6 +105,13 @@ still fully undoable because of how they're kept in the log:
   cheaper or prettier — that reintroduces the leak this feature exists to
   prevent.
 
+Auto-redaction (`Shift+D`) is the same rule applied in bulk: the OCR words
+come back on a worker, `src/sensitive-text.cpp` picks the boxes, and the
+editor commits them as one `Annotate` operation of ordinary redaction
+layers. One `Ctrl+Z` removes them all; each box is otherwise a normal layer.
+The crop is read with every existing redaction already applied, so hidden
+text is never found a second time.
+
 ## What this means for new features
 
 - New annotation kinds: add a field/kind, extend `renderCapture` and
